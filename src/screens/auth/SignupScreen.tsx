@@ -1,7 +1,7 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { useUser } from '@/src/contexts/UserContext';
 import { createUser } from '@/src/services/firebase/database';
-import { auth } from '@/src/services/firebase/firebase';
+import { auth, db } from '@/src/services/firebase/firebase';
 import { BloodType, SignupFormData, UserType } from '@/src/types/types';
 import { transformFirebaseUser } from '@/src/types/userTransform';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -229,99 +230,107 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
     }
   };
 
-  const handleSignup = async () => {
-    if (!validateForm()) return;
+// Update the handleSignup function in SignupScreen
+const handleSignup = async () => {
+  if (!validateForm()) return;
 
-    setLoading(true);
-    try {
-      const normalizedEmail = formData.email.trim().toLowerCase();
+  setLoading(true);
+  try {
+    const normalizedEmail = formData.email.trim().toLowerCase();
 
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        normalizedEmail,
-        formData.password
-      );
-      const firebaseUser = userCredential.user;
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      normalizedEmail,
+      formData.password
+    );
+    const firebaseUser = userCredential.user;
 
-      const userData: any = {
-        uid: firebaseUser.uid,
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        email: normalizedEmail,
-        phoneNumber: formData.phoneNumber.trim(),
-        bloodType: formData.bloodType,
-        userType: selectedUserType,
-        isActive: true,
-        points: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+    const baseUserData: any = {
+      uid: firebaseUser.uid,
+      firstName: formData.firstName.trim(),
+      lastName: formData.lastName.trim(),
+      email: normalizedEmail,
+      phoneNumber: formData.phoneNumber.trim(),
+      bloodType: formData.bloodType,
+      userType: selectedUserType,
+      isActive: true,
+      points: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-      if (selectedUserType === 'donor') {
-        userData.isAvailable = true;
-      }
-      
-      if (formData.profilePicture) {
-        userData.profilePicture = formData.profilePicture;
-      }
-
-      if (formData.weight) {
-        userData.weight = formData.weight;
-      }
-
-      await createUser(firebaseUser.uid, userData);
-
-      const userForContext = transformFirebaseUser(userData);
-
-      await login(userForContext);
-
-      Alert.alert(
-        'Success!',
-        'Your account has been created successfully.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              if (selectedUserType === 'donor') {
-                router.replace('/(donor)' as any);
-              } else {
-                router.replace('/(requester)' as any);
-              }
-            },
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.error('Signup error:', error);
-
-      let errorMessage = 'Failed to create account. Please try again.';
-
-      if (error.code) {
-        switch (error.code) {
-          case 'auth/email-already-in-use':
-            errorMessage = 'This email is already registered. Please login or use a different email.';
-            break;
-          case 'auth/invalid-email':
-            errorMessage = 'Invalid email address format.';
-            break;
-          case 'auth/weak-password':
-            errorMessage = 'Password is too weak. Please use a stronger password.';
-            break;
-          case 'auth/network-request-failed':
-            errorMessage = 'Network error. Please check your internet connection.';
-            break;
-          default:
-            if (error.message && !error.message.includes('Firebase')) {
-              errorMessage = error.message;
-            }
-        }
-      }
-
-      Alert.alert('Signup Failed', errorMessage);
-    } finally {
-      setLoading(false);
+    if (selectedUserType === 'donor') {
+      baseUserData.isAvailable = true;
+      baseUserData.totalDonations = 0;
+      baseUserData.isVerified = false;
     }
-  };
+    
+    if (formData.profilePicture) {
+      baseUserData.profilePicture = formData.profilePicture;
+    }
+
+    if (formData.weight) {
+      baseUserData.weight = formData.weight;
+    }
+
+    // Save to main users collection
+    await createUser(firebaseUser.uid, baseUserData);
+
+    // Save to specific collection (donors or requesters)
+    const specificCollection = selectedUserType === 'donor' ? 'donors' : 'requesters';
+    await setDoc(doc(db, specificCollection, firebaseUser.uid), baseUserData);
+
+    const userForContext = transformFirebaseUser(baseUserData);
+
+    await login(userForContext);
+
+    Alert.alert(
+      'Success!',
+      'Your account has been created successfully.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            if (selectedUserType === 'donor') {
+              router.replace('/(donor)' as any);
+            } else {
+              router.replace('/(requester)' as any);
+            }
+          },
+        },
+      ]
+    );
+  } catch (error: any) {
+    console.error('Signup error:', error);
+
+    let errorMessage = 'Failed to create account. Please try again.';
+
+    if (error.code) {
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'This email is already registered. Please login or use a different email.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address format.';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password is too weak. Please use a stronger password.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Network error. Please check your internet connection.';
+          break;
+        default:
+          if (error.message && !error.message.includes('Firebase')) {
+            errorMessage = error.message;
+          }
+      }
+    }
+
+    Alert.alert('Signup Failed', errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

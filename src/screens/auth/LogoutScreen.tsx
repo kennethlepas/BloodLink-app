@@ -1,7 +1,7 @@
+import { ConfirmModal } from '@/src/components/ConfirmModal';
 import { useUser } from '@/src/contexts/UserContext';
-import { handleLogoutWithConfirmation } from '@/src/utils/logoutHelper';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 interface LogoutScreenProps {
@@ -21,44 +21,80 @@ const LogoutScreen: React.FC<LogoutScreenProps> = ({
 }) => {
   const { logout } = useUser();
   const router = useRouter();
-  const [status, setStatus] = useState<'confirming' | 'processing' | 'error'>('confirming');
+  const [showModal, setShowModal] = useState(showConfirmation);
+  const [status, setStatus] = useState<'idle' | 'processing' | 'error'>('idle');
 
-  useEffect(() => {
-    performLogout();
-  }, []);
+  const handleConfirm = async () => {
+    setShowModal(false);
+    setStatus('processing');
 
-  const performLogout = async () => {
     try {
-      setStatus('confirming');
-      
-      await handleLogoutWithConfirmation({
-        logout,
-        router,
-        showConfirmation,
-        onSuccess: () => {
-          setStatus('processing');
-          onSuccess?.();
-        },
-        onError: (error) => {
-          setStatus('error');
-          onError?.(error);
-        },
-      });
+      console.log('🔄 Starting logout process...');
+      await logout();
+      console.log('✅ Logout successful');
+      onSuccess?.();
+      router.replace('/(auth)/login');
     } catch (error) {
+      console.error('❌ Logout error:', error);
       setStatus('error');
-      console.error('Logout screen error:', error);
+      onError?.(error as Error);
+      
+      // Navigate away on error after brief delay
+      setTimeout(() => {
+        console.log('Navigating away after error...');
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(auth)/login');
+        }
+      }, 2000);
     }
   };
 
+  const handleCancel = () => {
+    console.log('🚫 User cancelled logout');
+    setShowModal(false);
+    
+    // Navigate back immediately on cancel
+    setTimeout(() => {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/');
+      }
+    }, 100);
+  };
+
+  // If no confirmation needed, logout immediately
+  React.useEffect(() => {
+    if (!showConfirmation) {
+      handleConfirm();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color="#E63946" />
-      <Text style={styles.text}>
-        {status === 'confirming' && 'Confirming logout...'}
-        {status === 'processing' && 'Logging out...'}
-        {status === 'error' && 'Logout failed, redirecting...'}
-      </Text>
-    </View>
+    <>
+      <ConfirmModal
+        visible={showModal}
+        title="Confirm Logout"
+        message="Are you sure you want to logout?"
+        confirmText="Logout"
+        cancelText="Cancel"
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
+      
+      {status !== 'idle' && (
+        <View style={styles.container}>
+          <ActivityIndicator size="large" color="#1b8882ff" />
+          <Text style={styles.text}>
+            {status === 'processing' && 'Logging out...'}
+            {status === 'error' && 'Logout failed, redirecting...'}
+          </Text>
+        </View>
+      )}
+    </>
   );
 };
 

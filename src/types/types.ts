@@ -1,5 +1,3 @@
-import { ReactNode } from "react";
-
 export type UserType = 'donor' | 'requester';
 
 export type BloodType = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
@@ -61,8 +59,6 @@ export type UrgencyLevel = 'critical' | 'urgent' | 'moderate';
 
 export interface BloodRequest {
   urgency: string;
-  patientName: ReactNode;
-  notes: any;
   id: string;
   requesterId: string;
   requesterName: string;
@@ -71,9 +67,11 @@ export interface BloodRequest {
   urgencyLevel: UrgencyLevel;
   unitsNeeded: number;
   location: Location;
-  hospitalName?: string;
-  hospitalAddress?: string;
+  hospitalName: string;
+  hospitalAddress: string;
+  patientName: string;
   description?: string;
+  notes?: string;
   status: RequestStatus;
   acceptedDonorId?: string;
   acceptedDonorName?: string;
@@ -82,7 +80,47 @@ export interface BloodRequest {
   completedAt?: string;
 }
 
+// ============================================================================
+// NEW: Accepted Request (Donor Commitment) Type
+// ============================================================================
+
+export type AcceptedRequestStatus = 'pending' | 'in_progress' | 'pending_verification'   | 'verified'  | 'disputed'  | 'completed' | 'cancelled';
+
+export interface AcceptedRequest {
+  id: string;
+  donorId: string;
+  donorName: string;
+  requesterId: string; 
+  requestId: string;
+  bloodType: BloodType;
+  urgencyLevel: UrgencyLevel;
+  requesterName: string;
+  requesterPhone: string;
+  hospitalName: string;
+  hospitalAddress: string;
+  patientName: string;
+  location: Location;
+  unitsNeeded: number;
+  notes?: string;
+  status: AcceptedRequestStatus;
+  acceptedDate: string;
+  chatId: string;
+  scheduledDate?: string;
+  completedDate?: string;
+  donationRecordId?: string; // Link to DonationRecord when completed
+  cancellationReason?: string;
+  donorCompletedAt?: string;
+  donorNotes?: string; 
+  requesterVerifiedAt?: string;
+  requesterVerificationNotes?: string; 
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================================================
 // Donation Record
+// ============================================================================
+
 export interface DonationRecord {
   id: string;
   donorId: string;
@@ -90,9 +128,10 @@ export interface DonationRecord {
   requestId?: string;
   bloodType: BloodType;
   donationDate: string;
-  location: Location;
+  location?: Location;
   bloodBankId?: string;
   bloodBankName?: string;
+  unitsCollected?: number; // Added field for units collected
   certificateUrl?: string;
   pointsEarned: number;
   notes?: string;
@@ -108,7 +147,6 @@ export interface BloodBankInventory {
 }
 
 export interface BloodBank {
-  distance: any;
   id: string;
   name: string;
   address: string;
@@ -122,6 +160,7 @@ export interface BloodBank {
   inventory: BloodBankInventory;
   isVerified: boolean;
   rating?: number;
+  distance?: number; // Optional computed field for searches
   createdAt: string;
   updatedAt: string;
 }
@@ -158,6 +197,9 @@ export type NotificationType =
   | 'blood_request' 
   | 'request_accepted' 
   | 'request_completed'
+  | 'verify_donation' 
+  | 'donation_verified'
+  | 'donation_disputed'
   | 'new_message' 
   | 'donor_nearby'
   | 'donation_reminder'
@@ -285,6 +327,35 @@ export interface AuthContextType {
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
   isLoading: boolean;
+}
+
+// Add to existing ChatMessage interface
+export interface ChatMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  receiverId: string;
+  message: string;
+  timestamp: string;
+  isRead: boolean;
+  type: 'text' | 'image' | 'location';
+  imageUrl?: string;
+  location?: Location;
+  // Add these new fields
+  replyTo?: string; // Message ID being replied to
+  isEdited?: boolean;
+  editedAt?: string;
+  deliveredAt?: string;
+}
+
+// Add typing indicator type
+export interface TypingIndicator {
+  chatId: string;
+  userId: string;
+  userName: string;
+  isTyping: boolean;
+  timestamp: string;
 }
 
 // Geolocation Types

@@ -1,8 +1,11 @@
+import { NotificationBell } from '@/src/components/NotificationBell';
 import { useUser } from '@/src/contexts/UserContext';
+import { getActiveBloodRequests, getDonorHistory, getUserBloodRequests, getUsersByBloodType } from '@/src/services/firebase/database';
+import { BloodRequest, Donor } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -19,24 +22,183 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const REQUEST_CARD_WIDTH = SCREEN_WIDTH * 0.85;
+const DONOR_CARD_WIDTH = SCREEN_WIDTH * 0.8;
 
-const HomeScreen: React.FC = () => {
+export default function HomeScreen() {
   const { user } = useUser();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [recentRequests, setRecentRequests] = useState<BloodRequest[]>([]);
+  const [activeRequests, setActiveRequests] = useState<BloodRequest[]>([]);
+  const [availableDonors, setAvailableDonors] = useState<Donor[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [loadingDonors, setLoadingDonors] = useState(false);
+
+  // Statistics for requester
+  const [totalRequests, setTotalRequests] = useState(0);
+  const [fulfilledRequests, setFulfilledRequests] = useState(0);
+  const [pendingRequests, setPendingRequests] = useState(0);
+
+  // Statistics for donor
+  const [totalDonations, setTotalDonations] = useState(0);
 
   const isDonor = user?.userType === 'donor';
   const isRequester = user?.userType === 'requester';
 
-  const onRefresh = React.useCallback(() => {
+  useEffect(() => {
+    if (user) {
+      if (isDonor) {
+        loadRecentRequests();
+      } else if (isRequester) {
+        loadRequesterData();
+      }
+    }
+  }, [isDonor, isRequester, user]);
+
+  const loadRecentRequests = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingRequests(true);
+      const allRequests = await getActiveBloodRequests();
+      
+      // Filter by blood type compatibility
+      const compatibleRequests = allRequests.filter(request => 
+        isBloodTypeCompatible(user.bloodType, request.bloodType)
+      );
+
+      // Get the 5 most recent requests
+      const sortedRequests = compatibleRequests
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5);
+
+      setRecentRequests(sortedRequests);
+
+      // Load donation history to get total donations count
+      const donorHistory = await getDonorHistory(user.id);
+      setTotalDonations(donorHistory.length);
+      
+    } catch (error) {
+      console.error('Error loading recent requests:', error);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const loadRequesterData = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingRequests(true);
+      setLoadingDonors(true);
+
+      // Fetch user's blood requests
+      const userRequests = await getUserBloodRequests(user.id);
+      
+      // Calculate statistics
+      setTotalRequests(userRequests.length);
+      setFulfilledRequests(userRequests.filter(r => r.status === 'completed').length);
+      setPendingRequests(userRequests.filter(r => r.status === 'pending').length);
+      
+      // Get active requests for display
+      const activeOnly = userRequests.filter(
+        request => request.status === 'pending' || request.status === 'accepted'
+      );
+      setActiveRequests(activeOnly);
+
+      // Load available donors matching user's blood type
+      const donors = await getUsersByBloodType(user.bloodType);
+      // Get top 5 available donors
+      const topDonors = donors.slice(0, 5);
+      setAvailableDonors(topDonors);
+
+    } catch (error) {
+      console.error('Error loading requester data:', error);
+    } finally {
+      setLoadingRequests(false);
+      setLoadingDonors(false);
+    }
+  };
+
+  const isBloodTypeCompatible = (donorType: string, recipientType: string): boolean => {
+    const compatibility: { [key: string]: string[] } = {
+      'O-': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'],
+      'O+': ['O+', 'A+', 'B+', 'AB+'],
+      'A-': ['A-', 'A+', 'AB-', 'AB+'],
+      'A+': ['A+', 'AB+'],
+      'B-': ['B-', 'B+', 'AB-', 'AB+'],
+      'B+': ['B+', 'AB+'],
+      'AB-': ['AB-', 'AB+'],
+      'AB+': ['AB+'],
+    };
+
+    return compatibility[donorType]?.includes(recipientType) || false;
+  };
+
+  const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
+    if (user) {
+      if (isDonor) {
+        await loadRecentRequests();
+      } else if (isRequester) {
+        await loadRequesterData();
+      }
+    }
     setTimeout(() => {
       setRefreshing(false);
-    }, 2000);
-  }, []);
+    }, 1000);
+  }, [isDonor, isRequester, user]);
 
   const handleLogout = () => {
     router.push('/(auth)/logout' as any);
+  };
+
+  const getUrgencyColor = (urgency: string) => {
+    switch (urgency) {
+      case 'critical':
+        return '#EF4444';
+      case 'urgent':
+        return '#F59E0B';
+      case 'moderate':
+        return '#10B981';
+      default:
+        return '#64748B';
+    }
+  };
+
+  const getUrgencyIcon = (urgency: string) => {
+    switch (urgency) {
+      case 'critical':
+        return 'warning';
+      case 'urgent':
+        return 'alert-circle';
+      case 'moderate':
+        return 'information-circle';
+      default:
+        return 'checkmark-circle';
+    }
+  };
+
+  const handleRequestPress = (request: BloodRequest) => {
+    if (isDonor) {
+      router.push('/(donor)/requests' as any);
+    } else {
+      router.push('/(requester)/my-requests' as any);
+    }
+  };
+
+  const handleDonorPress = (donor: Donor) => {
+    router.push({
+      pathname: '/(requester)/donor-profile' as any,
+      params: {
+        donorData: JSON.stringify(donor),
+      },
+    });
+  };
+
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
   if (!user) {
@@ -54,62 +216,66 @@ const HomeScreen: React.FC = () => {
   const donorActions = [
     {
       icon: 'notifications',
-      title: 'View Requests',
-      description: 'See urgent blood requests',
+      title: 'Requests',
       color: '#F59E0B',
       route: '/(donor)/requests',
     },
     {
       icon: 'time',
-      title: 'Donation History',
-      description: 'View your donations',
+      title: 'History',
       color: '#3B82F6',
       route: '/(donor)/donation-history',
     },
     {
       icon: 'toggle',
-      title: 'Availability',
-      description: 'Manage availability',
+      title: 'Status',
       color: '#10B981',
       route: '/(donor)/availability-toggle',
     },
     {
       icon: 'search',
-      title: 'Find Blood Banks',
-      description: 'Locate nearby banks',
+      title: 'Blood Banks',
       color: '#6366F1',
-      route: '/(shared)/find-blood',
+      route: '/(shared)/find-bloodbank',
+    },
+    {
+      icon: 'chatbubbles',
+      title: 'Messages',
+      color: '#8B5CF6',
+      route: '/(donor)/chat-list',
     },
   ];
 
   const requesterActions = [
     {
       icon: 'add-circle',
-      title: 'Create Request',
-      description: 'Post blood request',
+      title: 'New Request',
       color: '#F59E0B',
       route: '/(requester)/needblood',
     },
     {
       icon: 'list',
       title: 'My Requests',
-      description: 'View your requests',
       color: '#3B82F6',
       route: '/(requester)/my-requests',
     },
     {
       icon: 'people',
-      title: 'Donor Responses',
-      description: 'See donor replies',
+      title: 'Find Donors',
       color: '#10B981',
-      route: '/(requester)/donor-responses',
+      route: '/(requester)/find-donors',
     },
     {
       icon: 'search',
-      title: 'Find Blood Banks',
-      description: 'Locate nearby banks',
+      title: 'Blood Banks',
       color: '#6366F1',
-      route: '/(shared)/find-blood',
+      route: '/(shared)/find-bloodbank',
+    },
+    {
+      icon: 'chatbubbles',
+      title: 'Messages',
+      color: '#8B5CF6',
+      route: '/(requester)/chat-list',
     },
   ];
 
@@ -168,14 +334,17 @@ const HomeScreen: React.FC = () => {
                 </View>
               </View>
             </View>
+            
+            {/* Notification Bell - Navigate to Notifications Screen */}
             <TouchableOpacity
-              style={styles.notificationButton}
               onPress={() => router.push('/(shared)/notifications' as any)}
+              style={styles.notificationBellWrapper}
             >
-              <Ionicons name="notifications" size={24} color="#FFFFFF" />
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>3</Text>
-              </View>
+              <NotificationBell 
+                iconSize={24} 
+                iconColor="#FFFFFF" 
+                badgeColor="#F59E0B"
+              />
             </TouchableOpacity>
           </View>
 
@@ -184,19 +353,19 @@ const HomeScreen: React.FC = () => {
             {isDonor ? (
               <>
                 <View style={styles.statCard}>
-                  <Ionicons name="water" size={24} color="#FFFFFF" />
+                  <Ionicons name="water" size={20} color="#FFFFFF" />
                   <Text style={styles.statValue} numberOfLines={1}>
                     {user.isAvailable ? 'Available' : 'Unavailable'}
                   </Text>
                   <Text style={styles.statLabel}>Status</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <Ionicons name="trophy" size={24} color="#FFFFFF" />
-                  <Text style={styles.statValue}>0</Text>
+                  <Ionicons name="trophy" size={20} color="#FFFFFF" />
+                  <Text style={styles.statValue}>{totalDonations}</Text>
                   <Text style={styles.statLabel}>Donations</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <Ionicons name="star" size={24} color="#FFFFFF" />
+                  <Ionicons name="star" size={20} color="#FFFFFF" />
                   <Text style={styles.statValue}>{user.points || 0}</Text>
                   <Text style={styles.statLabel}>Points</Text>
                 </View>
@@ -204,18 +373,18 @@ const HomeScreen: React.FC = () => {
             ) : (
               <>
                 <View style={styles.statCard}>
-                  <Ionicons name="document-text" size={24} color="#FFFFFF" />
-                  <Text style={styles.statValue}>0</Text>
-                  <Text style={styles.statLabel}>Requests</Text>
+                  <Ionicons name="document-text" size={20} color="#FFFFFF" />
+                  <Text style={styles.statValue}>{totalRequests}</Text>
+                  <Text style={styles.statLabel}>Total</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
-                  <Text style={styles.statValue}>0</Text>
+                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.statValue}>{fulfilledRequests}</Text>
                   <Text style={styles.statLabel}>Fulfilled</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <Ionicons name="hourglass" size={24} color="#FFFFFF" />
-                  <Text style={styles.statValue}>0</Text>
+                  <Ionicons name="hourglass" size={20} color="#FFFFFF" />
+                  <Text style={styles.statValue}>{pendingRequests}</Text>
                   <Text style={styles.statLabel}>Pending</Text>
                 </View>
               </>
@@ -228,11 +397,6 @@ const HomeScreen: React.FC = () => {
           <View style={styles.bloodTypeLeft}>
             <Text style={styles.bloodTypeLabel}>Your Blood Type</Text>
             <Text style={styles.bloodTypeValue}>{user.bloodType}</Text>
-            {isDonor && (
-              <Text style={styles.bloodTypeCompatibility}>
-                Can donate to: A+, AB+
-              </Text>
-            )}
           </View>
           <View style={styles.bloodTypeIcon}>
             <Text style={styles.bloodDropEmoji}>🩸</Text>
@@ -258,12 +422,11 @@ const HomeScreen: React.FC = () => {
                 >
                   <Ionicons
                     name={action.icon as any}
-                    size={28}
+                    size={24}
                     color={action.color}
                   />
                 </View>
                 <Text style={styles.actionTitle} numberOfLines={1}>{action.title}</Text>
-                <Text style={styles.actionDescription} numberOfLines={2}>{action.description}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -280,44 +443,188 @@ const HomeScreen: React.FC = () => {
                 <Text style={styles.seeAllText}>See All</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.emptyState}>
-              <Ionicons name="heart-outline" size={48} color="#94A3B8" />
-              <Text style={styles.emptyStateText}>
-                No urgent requests at the moment
-              </Text>
-              <Text style={styles.emptyStateSubtext}>
-                We'll notify you when someone needs your blood type
-              </Text>
-            </View>
+            
+            {loadingRequests ? (
+              <View style={styles.requestLoadingContainer}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.requestLoadingText}>Loading...</Text>
+              </View>
+            ) : recentRequests.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.requestsScrollContainer}
+                snapToInterval={REQUEST_CARD_WIDTH + 12}
+                decelerationRate="fast"
+              >
+                {recentRequests.map((request) => (
+                  <TouchableOpacity
+                    key={request.id}
+                    style={styles.requestCard}
+                    onPress={() => handleRequestPress(request)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.requestCardHeader}>
+                      <View style={styles.bloodTypeContainer}>
+                        <Ionicons name="water" size={18} color="#EF4444" />
+                        <Text style={styles.requestBloodType}>{request.bloodType}</Text>
+                      </View>
+                      <View style={[
+                        styles.urgencyBadge,
+                        { backgroundColor: `${getUrgencyColor(request.urgencyLevel)}20` }
+                      ]}>
+                        <Ionicons
+                          name={getUrgencyIcon(request.urgencyLevel) as any}
+                          size={12}
+                          color={getUrgencyColor(request.urgencyLevel)}
+                        />
+                        <Text style={[
+                          styles.urgencyText,
+                          { color: getUrgencyColor(request.urgencyLevel) }
+                        ]}>
+                          {request.urgencyLevel.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.requestCardBody}>
+                      <View style={styles.requestInfoRow}>
+                        <Ionicons name="person" size={14} color="#64748B" />
+                        <Text style={styles.requestInfoText} numberOfLines={1}>
+                          {request.requesterName}
+                        </Text>
+                      </View>
+
+                      {request.hospitalName && (
+                        <View style={styles.requestInfoRow}>
+                          <Ionicons name="business" size={14} color="#64748B" />
+                          <Text style={styles.requestInfoText} numberOfLines={1}>
+                            {request.hospitalName}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.requestInfoRow}>
+                        <Ionicons name="location" size={14} color="#64748B" />
+                        <Text style={styles.requestInfoText} numberOfLines={1}>
+                          {request.location.address || 'Location provided'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.requestCardFooter}>
+                      <Ionicons name="arrow-forward" size={16} color="#3B82F6" />
+                      <Text style={styles.viewDetailsText}>View Details</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="heart-outline" size={48} color="#94A3B8" />
+                <Text style={styles.emptyStateText}>
+                  No urgent requests
+                </Text>
+                <Text style={styles.emptyStateSubtext}>
+                  We'll notify you when someone needs your blood type
+                </Text>
+              </View>
+            )}
           </View>
         ) : (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Active Requests</Text>
+              <Text style={styles.sectionTitle}>Available Donors</Text>
               <TouchableOpacity
-                onPress={() => router.push('/(requester)/my-requests' as any)}
+                onPress={() => router.push('/(requester)/find-donors' as any)}
               >
                 <Text style={styles.seeAllText}>See All</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={48} color="#94A3B8" />
-              <Text style={styles.emptyStateText}>No active requests</Text>
-              <Text style={styles.emptyStateSubtext}>
-                Create a request to find donors
-              </Text>
-              <TouchableOpacity
-                style={styles.createRequestButton}
-                onPress={() =>
-                  router.push('/(requester)/needblood' as any)
-                }
+            
+            {loadingDonors ? (
+              <View style={styles.requestLoadingContainer}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.requestLoadingText}>Loading donors...</Text>
+              </View>
+            ) : availableDonors.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.donorsScrollContainer}
+                snapToInterval={DONOR_CARD_WIDTH + 12}
+                decelerationRate="fast"
               >
-                <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-                <Text style={styles.createRequestButtonText}>
-                  Create Request
+                {availableDonors.map((donor) => (
+                  <TouchableOpacity
+                    key={donor.id}
+                    style={styles.donorCard}
+                    onPress={() => handleDonorPress(donor)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.donorHeader}>
+                      {donor.profilePicture ? (
+                        <Image source={{ uri: donor.profilePicture }} style={styles.donorAvatar} />
+                      ) : (
+                        <View style={styles.donorAvatarPlaceholder}>
+                          <Text style={styles.donorInitials}>
+                            {getInitials(donor.firstName, donor.lastName)}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.donorInfo}>
+                        <Text style={styles.donorName} numberOfLines={1}>
+                          {donor.firstName} {donor.lastName}
+                        </Text>
+                        <View style={styles.donorBloodTypeBadge}>
+                          <Ionicons name="water" size={12} color="#DC2626" />
+                          <Text style={styles.donorBloodType}>{donor.bloodType}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={styles.donorStats}>
+                      <View style={styles.donorStatItem}>
+                        <Ionicons name="heart" size={14} color="#EF4444" />
+                        <Text style={styles.donorStatValue}>{donor.totalDonations || 0}</Text>
+                      </View>
+                      <View style={styles.donorStatItem}>
+                        <Ionicons name="trophy" size={14} color="#F59E0B" />
+                        <Text style={styles.donorStatValue}>{donor.points || 0}</Text>
+                      </View>
+                    </View>
+
+                    {donor.location?.city && (
+                      <View style={styles.donorLocation}>
+                        <Ionicons name="location-outline" size={12} color="#64748B" />
+                        <Text style={styles.donorLocationText} numberOfLines={1}>
+                          {donor.location.city}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.donorFooter}>
+                      <Text style={styles.viewDonorText}>View Profile</Text>
+                      <Ionicons name="arrow-forward" size={14} color="#3B82F6" />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="people-outline" size={48} color="#94A3B8" />
+                <Text style={styles.emptyStateText}>No available donors</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Check back later or browse all donors
                 </Text>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  style={styles.browseDonorsButton}
+                  onPress={() => router.push('/(requester)/find-donors' as any)}
+                >
+                  <Text style={styles.browseDonorsButtonText}>Browse Donors</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
@@ -375,10 +682,12 @@ const HomeScreen: React.FC = () => {
           <Ionicons name="log-out-outline" size={20} color="#64748B" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
+
+        <View style={{ height: 30 }} />
       </ScrollView>
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -400,7 +709,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 30,
+    paddingBottom: 20,
   },
   header: {
     paddingTop: 20,
@@ -473,33 +782,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
+  notificationBellWrapper: {
     flexShrink: 0,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: '#F59E0B',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#3B82F6',
-  },
-  notificationBadgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -514,16 +798,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginTop: 8,
+    marginTop: 6,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#FFFFFF',
     opacity: 0.9,
-    marginTop: 4,
+    marginTop: 2,
   },
   bloodTypeCard: {
     backgroundColor: '#FFFFFF',
@@ -536,15 +820,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 4px 12px rgba(0,0,0,0.08)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-          elevation: 5,
-        }),
+    ...Platform.select({
+      web: { boxShadow: '0px 4px 12px rgba(0,0,0,0.08)' } as any,
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 5,
+      },
+    }),
   },
   bloodTypeLeft: {
     flex: 1,
@@ -559,11 +844,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#DC2626',
   },
-  bloodTypeCompatibility: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 4,
-  },
   bloodTypeIcon: {
     width: 60,
     height: 60,
@@ -577,18 +857,20 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 24,
-    paddingHorizontal: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1E293B',
+    paddingHorizontal: 20,
+    marginBottom: 12,
   },
   seeAllText: {
     fontSize: 14,
@@ -598,59 +880,260 @@ const styles = StyleSheet.create({
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    paddingHorizontal: 20,
     gap: 12,
   },
   actionCard: {
-    width: (SCREEN_WIDTH - 52) / 2,
+    width: (SCREEN_WIDTH - 40 - 24) / 3, // (screen width - horizontal padding - gaps) / 3 columns
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.06)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
-          elevation: 2,
-        }),
+    ...Platform.select({
+      web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.06)' } as any,
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 2,
+      },
+    }),
   },
   actionIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   actionTitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  requestLoadingContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 32,
+    marginHorizontal: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  requestLoadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#64748B',
+  },
+  requestsScrollContainer: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  requestCard: {
+    width: REQUEST_CARD_WIDTH,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    overflow: 'hidden',
+    ...Platform.select({
+      web: { boxShadow: '0px 3px 10px rgba(59, 130, 246, 0.15)' } as any,
+      default: {
+        shadowColor: '#3B82F6',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
+        elevation: 4,
+      },
+    }),
+  },
+  requestCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#EFF6FF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#DBEAFE',
+  },
+  bloodTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  requestBloodType: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#EF4444',
+  },
+  urgencyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  urgencyText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  requestCardBody: {
+    padding: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  requestInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  requestInfoText: {
+    fontSize: 13,
+    color: '#1E293B',
+    flex: 1,
+  },
+  requestCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  viewDetailsText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+  // Donor Cards Styles
+  donorsScrollContainer: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  donorCard: {
+    width: DONOR_CARD_WIDTH,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...Platform.select({
+      web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any,
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+      },
+    }),
+  },
+  donorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
+  },
+  donorAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+  },
+  donorAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  donorInitials: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  donorInfo: {
+    flex: 1,
+  },
+  donorName: {
+    fontSize: 15,
+    fontWeight: 'bold',
     color: '#1E293B',
     marginBottom: 4,
   },
-  actionDescription: {
+  donorBloodTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+    alignSelf: 'flex-start',
+  },
+  donorBloodType: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#DC2626',
+  },
+  donorStats: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 10,
+  },
+  donorStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  donorStatValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  donorLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 12,
+  },
+  donorLocationText: {
     fontSize: 12,
     color: '#64748B',
+    flex: 1,
+  },
+  donorFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  viewDonorText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
   },
   emptyState: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 32,
+    padding: 40,
+    marginHorizontal: 20,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.06)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
-          elevation: 2,
-        }),
   },
   emptyStateText: {
     fontSize: 16,
@@ -665,38 +1148,37 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  createRequestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F59E0B',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+  browseDonorsButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 8,
     marginTop: 16,
-    gap: 8,
   },
-  createRequestButtonText: {
-    fontSize: 16,
+  browseDonorsButtonText: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
   },
   tipsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 18,
+    marginHorizontal: 20,
     flexDirection: 'row',
     gap: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.06)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
-          elevation: 2,
-        }),
+    ...Platform.select({
+      web: { boxShadow: '0px 2px 8px rgba(0,0,0,0.06)' } as any,
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 2,
+      },
+    }),
   },
   tipsContent: {
     flex: 1,
@@ -715,7 +1197,7 @@ const styles = StyleSheet.create({
   emergencyCard: {
     backgroundColor: '#FEF3C7',
     borderRadius: 12,
-    padding: 16,
+    padding: 18,
     marginHorizontal: 20,
     marginTop: 24,
     flexDirection: 'row',
@@ -764,5 +1246,3 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
 });
-
-export default HomeScreen;

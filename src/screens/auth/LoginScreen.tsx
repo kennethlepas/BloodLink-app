@@ -12,6 +12,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -323,7 +324,7 @@ const LoginScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#3B82F6" />
+      <StatusBar barStyle="light-content" backgroundColor="#1b8882ff" />
       <LinearGradient
         colors={['#1b8882ff', '#16b43eff']}
         style={styles.gradient}
@@ -332,7 +333,11 @@ const LoginScreen: React.FC = () => {
           style={styles.keyboardAvoid}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={styles.content}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Header with Logo */}
             <View style={styles.header}>
               <TouchableOpacity
@@ -340,18 +345,19 @@ const LoginScreen: React.FC = () => {
                 style={styles.backButton}
                 activeOpacity={0.7}
               >
-                <Ionicons name="chevron-back" size={28} color='#FFFFFF' />
+                <Ionicons name="chevron-back" size={26} color='#FFFFFF' />
               </TouchableOpacity>
 
               {/* Logo */}
               <View style={styles.logoContainer}>
                 <View style={styles.outerCircle}>
                   <View style={styles.iconContainer}>
-                    <Text style={styles.logoEmoji}>🩸</Text>
+                    <Ionicons name="water" size={45} color="#DC2626" />
                   </View>
                 </View>
-                <Text style={styles.appName}> BloodLink 🩸</Text>
-              
+                <Text style={styles.appName}>BloodLink</Text>
+                <Text style={styles.welcomeText}>Welcome back to BloodLink</Text>
+                <Text style={styles.tagline}>We save lives</Text>
               </View>
             </View>
 
@@ -398,7 +404,7 @@ const LoginScreen: React.FC = () => {
                       onPress={() => setShowPassword(!showPassword)}
                       disabled={loading}
                     >
-                      <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={24} color="#64748B" />
+                      <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#64748B" />
                     </TouchableOpacity>
                   </View>
                   {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
@@ -440,7 +446,7 @@ const LoginScreen: React.FC = () => {
                 </View>
               </View>
             </View>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
     </SafeAreaView>
@@ -450,7 +456,7 @@ const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fcff',
+    backgroundColor: '#1b8882ff',
   },
   gradient: {
     flex: 1,
@@ -458,80 +464,87 @@ const styles = StyleSheet.create({
   keyboardAvoid: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   header: {
-    paddingTop: 20,
-    paddingBottom: 30,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
-  
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   logoContainer: {
     alignItems: 'center',
   },
   outerCircle: {
-    width: 130,
-    height: 130,
-    borderRadius: 70,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: 'transparent',
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 4,
+    borderWidth: 3,
     borderColor: '#DC2626',
-    marginBottom: 14,
+    marginBottom: 10,
     ...(Platform.OS === 'web'
       ? {
-        boxShadow: '0px 8px 16px rgba(220, 38, 38, 0.4)',
+        boxShadow: '0px 6px 12px rgba(255, 255, 255, 0.3)',
       } as any
       : {
-        shadowColor: "rgba(220, 38, 38, 1)",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.4,
-        shadowRadius: 16,
-        elevation: 12,
+        shadowColor: "#FFFFFF",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 10,
       }),
   },
   iconContainer: {
-    width: 110,
-    height: 110,
-    borderRadius: 60,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     backgroundColor: '#FFFFFF',
     alignItems: "center",
     justifyContent: "center",
     overflow: 'hidden',
   },
-  logoEmoji: {
-    fontSize: 60,
-  },
   appName: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#0f0e0eff',
-    marginBottom: 8,
+    marginBottom: 3,
+    letterSpacing: 0.5,
   },
   welcomeText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFFFFF',
-    opacity: 0.9,
+    opacity: 0.95,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  tagline: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.85,
+    fontStyle: 'italic',
   },
   formContainer: {
     flex: 1,
     justifyContent: 'center',
+    paddingVertical: 16,
   },
   formCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 24,
+    padding: 18,
     ...(Platform.OS === 'web'
       ? {
         boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
@@ -548,28 +561,29 @@ const styles = StyleSheet.create({
       }),
   },
   formTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 19,
+    fontWeight: '700',
     color: '#1E293B',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
+    letterSpacing: 0.3,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 14,
   },
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1E293B',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 15,
     color: '#1E293B',
     backgroundColor: '#F8FAFC',
   },
@@ -584,16 +598,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    paddingRight: 50,
-    fontSize: 16,
+    paddingRight: 48,
+    fontSize: 15,
     color: '#1E293B',
     backgroundColor: '#F8FAFC',
   },
   eyeIcon: {
     position: 'absolute',
-    right: 16,
+    right: 14,
     top: 12,
     padding: 4,
   },
@@ -605,43 +619,57 @@ const styles = StyleSheet.create({
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: 24,
+    marginBottom: 18,
     minHeight: 20,
   },
   forgotPasswordText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#3B82F6',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   loginButton: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 16,
+    backgroundColor: '#10B981',
+    paddingVertical: 13,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
+    ...(Platform.OS === 'web'
+      ? {
+        boxShadow: '0px 4px 10px rgba(16, 185, 129, 0.3)',
+      } as any
+      : {
+        shadowColor: '#10B981',
+        shadowOffset: {
+          width: 0,
+          height: 3,
+        },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+      }),
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   loginButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
-
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
   },
   signupText: {
-    fontSize: 16,
-    color: '#080808ff',
+    fontSize: 14,
+    color: '#64748B',
   },
   signupLink: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#3B82F6',
-    fontWeight: 'bold',
+    fontWeight: '700',
     textDecorationLine: 'underline',
   },
 });

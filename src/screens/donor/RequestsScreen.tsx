@@ -1,9 +1,11 @@
 import { useUser } from '@/src/contexts/UserContext';
 import {
   acceptBloodRequest,
+  createAcceptedRequest,
   createChat,
   createNotification,
-  getActiveBloodRequests
+  createRejectedRequest,
+  getActiveBloodRequestsForDonor
 } from '@/src/services/firebase/database';
 import { BloodRequest } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,10 +16,12 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   RefreshControl,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -29,7 +33,10 @@ const RequestsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [requests, setRequests] = useState<BloodRequest[]>([]);
-  const [filter, setFilter] = useState<'all' | 'urgent' | 'normal'>('all');
+  const [filter, setFilter] = useState<'all' | 'urgent' | 'moderate'>('all');
+  const [rejectionModalVisible, setRejectionModalVisible] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<BloodRequest | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   useEffect(() => {
     loadRequests();
@@ -40,7 +47,8 @@ const RequestsScreen: React.FC = () => {
 
     try {
       setLoading(true);
-      const allRequests = await getActiveBloodRequests();
+      // Use the new function that excludes rejected requests
+      const allRequests = await getActiveBloodRequestsForDonor(user.id);
       
       // Filter by blood type compatibility
       const compatibleRequests = allRequests.filter(request => 
@@ -50,9 +58,9 @@ const RequestsScreen: React.FC = () => {
       // Apply urgency filter
       let filteredRequests = compatibleRequests;
       if (filter === 'urgent') {
-        filteredRequests = compatibleRequests.filter(r => r.urgency === 'urgent');
-      } else if (filter === 'normal') {
-        filteredRequests = compatibleRequests.filter(r => r.urgency === 'normal');
+        filteredRequests = compatibleRequests.filter(r => r.urgencyLevel === 'urgent');
+      } else if (filter === 'moderate') {
+        filteredRequests = compatibleRequests.filter(r => r.urgencyLevel === 'moderate');
       }
 
       setRequests(filteredRequests);
@@ -97,13 +105,6 @@ const RequestsScreen: React.FC = () => {
           text: 'Accept',
           onPress: async () => {
             try {
-              // Accept the request
-              await acceptBloodRequest(
-                request.id,
-                user.id,
-                `${user.firstName} ${user.lastName}`
-              );
-
               // Create chat between donor and requester
               const chatId = await createChat(
                 user.id,
@@ -111,6 +112,21 @@ const RequestsScreen: React.FC = () => {
                 request.requesterId,
                 request.requesterName,
                 request.id
+              );
+
+              // Create accepted request record
+              await createAcceptedRequest(
+                user.id,
+                `${user.firstName} ${user.lastName}`,
+                request,
+                chatId
+              );
+
+              // Update blood request status
+              await acceptBloodRequest(
+                request.id,
+                user.id,
+                `${user.firstName} ${user.lastName}`
               );
 
               // Send notification to requester
@@ -134,7 +150,11 @@ const RequestsScreen: React.FC = () => {
                 [
                   {
                     text: 'Go to Chat',
-                    onPress: () => router.push(`/(donor)/chat?chatId=${chatId}` as any),
+                    onPress: () => router.push(`/(shared)/chat?chatId=${chatId}` as any),
+                  },
+                  { 
+                    text: 'View My Commitments',
+                    onPress: () => router.push('/(donor)/donation-history' as any)
                   },
                   { text: 'OK' },
                 ]
@@ -151,22 +171,57 @@ const RequestsScreen: React.FC = () => {
     );
   };
 
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
+  const handleRejectRequest = (request: BloodRequest) => {
+    setSelectedRequest(request);
+    setRejectionModalVisible(true);
+  };
+
+  const confirmRejectRequest = async () => {
+    if (!user || !selectedRequest) return;
+
+    try {
+      // Create rejection record
+      await createRejectedRequest(
+        user.id,
+        selectedRequest.id,
+        rejectionReason || undefined
+      );
+
+      // Close modal and reset
+      setRejectionModalVisible(false);
+      setSelectedRequest(null);
+      setRejectionReason('');
+
+      // Reload requests to remove this one from the list
+      await loadRequests();
+
+      Alert.alert('Request Declined', 'This request will no longer be shown to you.');
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      Alert.alert('Error', 'Failed to decline request. Please try again.');
+    }
+  };
+
+  const getUrgencyColor = (urgencyLevel: string) => {
+    switch (urgencyLevel) {
+      case 'critical':
+        return '#DC2626';
       case 'urgent':
         return '#EF4444';
-      case 'normal':
+      case 'moderate':
         return '#F59E0B';
       default:
         return '#64748B';
     }
   };
 
-  const getUrgencyIcon = (urgency: string) => {
-    switch (urgency) {
+  const getUrgencyIcon = (urgencyLevel: string) => {
+    switch (urgencyLevel) {
+      case 'critical':
+        return 'alert-circle';
       case 'urgent':
         return 'alert-circle';
-      case 'normal':
+      case 'moderate':
         return 'information-circle';
       default:
         return 'checkmark-circle';
@@ -174,20 +229,16 @@ const RequestsScreen: React.FC = () => {
   };
 
   const renderRequestItem = ({ item }: { item: BloodRequest }) => (
-    <TouchableOpacity
-      style={styles.requestCard}
-      onPress={() => handleAcceptRequest(item)}
-      activeOpacity={0.7}
-    >
+    <View style={styles.requestCard}>
       <View style={styles.requestHeader}>
         <View style={styles.bloodTypeContainer}>
           <Ionicons name="water" size={24} color="#EF4444" />
           <Text style={styles.bloodType}>{item.bloodType}</Text>
         </View>
-        <View style={[styles.urgencyBadge, { backgroundColor: `${getUrgencyColor(item.urgency)}20` }]}>
-          <Ionicons name={getUrgencyIcon(item.urgency) as any} size={16} color={getUrgencyColor(item.urgency)} />
-          <Text style={[styles.urgencyText, { color: getUrgencyColor(item.urgency) }]}>
-            {item.urgency.toUpperCase()}
+        <View style={[styles.urgencyBadge, { backgroundColor: `${getUrgencyColor(item.urgencyLevel)}20` }]}>
+          <Ionicons name={getUrgencyIcon(item.urgencyLevel) as any} size={16} color={getUrgencyColor(item.urgencyLevel)} />
+          <Text style={[styles.urgencyText, { color: getUrgencyColor(item.urgencyLevel) }]}>
+            {item.urgencyLevel?.toUpperCase() || 'MODERATE'}
           </Text>
         </View>
       </View>
@@ -233,14 +284,24 @@ const RequestsScreen: React.FC = () => {
         )}
       </View>
 
-      <TouchableOpacity
-        style={styles.acceptButton}
-        onPress={() => handleAcceptRequest(item)}
-      >
-        <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-        <Text style={styles.acceptButtonText}>Accept Request</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={styles.rejectButton}
+          onPress={() => handleRejectRequest(item)}
+        >
+          <Ionicons name="close-circle" size={20} color="#EF4444" />
+          <Text style={styles.rejectButtonText}>Decline</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.acceptButton}
+          onPress={() => handleAcceptRequest(item)}
+        >
+          <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+          <Text style={styles.acceptButtonText}>Accept Request</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   const renderEmptyState = () => (
@@ -283,11 +344,11 @@ const RequestsScreen: React.FC = () => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.filterButton, filter === 'normal' && styles.filterButtonActive]}
-          onPress={() => setFilter('normal')}
+          style={[styles.filterButton, filter === 'moderate' && styles.filterButtonActive]}
+          onPress={() => setFilter('moderate')}
         >
-          <Text style={[styles.filterText, filter === 'normal' && styles.filterTextActive]}>
-            Normal
+          <Text style={[styles.filterText, filter === 'moderate' && styles.filterTextActive]}>
+            Moderate
           </Text>
         </TouchableOpacity>
       </View>
@@ -309,6 +370,60 @@ const RequestsScreen: React.FC = () => {
           }
         />
       )}
+
+      {/* Rejection Modal */}
+      <Modal
+        visible={rejectionModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setRejectionModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Decline Request</Text>
+              <TouchableOpacity onPress={() => setRejectionModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              You're about to decline this blood donation request. This will remove it from your list.
+            </Text>
+
+            <Text style={styles.inputLabel}>Reason (Optional)</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Why are you declining this request?"
+              placeholderTextColor="#94A3B8"
+              value={rejectionReason}
+              onChangeText={setRejectionReason}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setRejectionModalVisible(false);
+                  setRejectionReason('');
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmRejectButton}
+                onPress={confirmRejectRequest}
+              >
+                <Text style={styles.confirmRejectButtonText}>Decline Request</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -446,18 +561,42 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     lineHeight: 20,
   },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FEF2F2',
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  rejectButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
   acceptButton: {
+    flex: 1.5,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: '#10B981',
     paddingVertical: 12,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
+    borderRadius: 8,
   },
   acceptButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
@@ -479,6 +618,80 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1E293B',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: '#1E293B',
+    backgroundColor: '#F8FAFC',
+    minHeight: 100,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  confirmRejectButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  confirmRejectButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 

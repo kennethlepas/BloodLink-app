@@ -6,8 +6,17 @@ export default function DonorLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#DC2626',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: '#3B82F6', // Blue when active
+        tabBarInactiveTintColor: '#1E293B', // Black when inactive
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#E2E8F0',
+          borderTopWidth: 1,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
       }}
     >
       <Tabs.Screen
@@ -19,6 +28,7 @@ export default function DonorLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="requests"
         options={{
@@ -28,6 +38,27 @@ export default function DonorLayout() {
           ),
         }}
       />
+
+      <Tabs.Screen
+        name="donation-history"
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="time" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
+        }}
+      />
+
       <Tabs.Screen
         name="profile"
         options={{
@@ -35,6 +66,12 @@ export default function DonorLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
+        }}
+      />
+            <Tabs.Screen
+        name="availability-toggle"
+        options={{
+          href: null, 
         }}
       />
     </Tabs>

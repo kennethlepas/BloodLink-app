@@ -1,3 +1,4 @@
+// finding nearby blood banks
 import {
   searchBloodBanksByType
 } from '@/src/services/firebase/database';
@@ -24,6 +25,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const BLOOD_TYPES: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
+// Default location (Nairobi city center) - used as fallback for emulators
+const DEFAULT_LOCATION: Location = {
+  latitude: -1.286389,
+  longitude: 36.817223,
+  address: 'Nairobi, Kenya'
+};
+
 const FindBloodScreen: React.FC = () => {
   const router = useRouter();
   const [selectedBloodType, setSelectedBloodType] = useState<BloodType>('O+');
@@ -32,28 +40,88 @@ const FindBloodScreen: React.FC = () => {
   const [bloodBanks, setBloodBanks] = useState<BloodBank[]>([]);
   const [userLocation, setUserLocation] = useState<Location | null>(null);
   const [searched, setSearched] = useState(false);
+  const [usingDefaultLocation, setUsingDefaultLocation] = useState(false);
 
   const getCurrentLocation = async (): Promise<Location | null> => {
     try {
       setLoadingLocation(true);
+      setUsingDefaultLocation(false);
       
+      // Request permission
       const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+      
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to find nearby blood banks.');
-        return null;
+        console.log('Location permission denied - using default location');
+        Alert.alert(
+          'Location Permission', 
+          'Location permission denied. Using Nairobi city center as default location for distance calculations.',
+          [{ text: 'OK' }]
+        );
+        setUserLocation(DEFAULT_LOCATION);
+        setUsingDefaultLocation(true);
+        return DEFAULT_LOCATION;
       }
 
-      const position = await ExpoLocation.getCurrentPositionAsync({});
-      const { latitude, longitude } = position.coords;
-
-      const location: Location = { latitude, longitude };
-      setUserLocation(location);
+      // Try to get actual location with timeout
+      try {
+        const position = await Promise.race([
+          ExpoLocation.getCurrentPositionAsync({
+            accuracy: ExpoLocation.Accuracy.Balanced,
+            timeInterval: 5000,
+            distanceInterval: 0,
+          }),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Location timeout')), 10000)
+          )
+        ]);
+        
+        const { latitude, longitude } = position.coords;
+        const location: Location = { latitude, longitude };
+        
+        console.log('✅ Got actual location:', latitude, longitude);
+        setUserLocation(location);
+        setUsingDefaultLocation(false);
+        
+        return location;
+      } catch (locationError: any) {
+        // Location fetch failed - use default
+        console.log('Location fetch failed:', locationError.message);
+        
+        if (locationError.message === 'Location timeout') {
+          console.log('Location timeout - using default location');
+          Alert.alert(
+            'Location Timeout', 
+            'Could not get your current location. Using Nairobi city center for distance calculations.',
+            [{ text: 'OK' }]
+          );
+        } else if (locationError.message?.includes('unsatisfied device settings')) {
+          console.log('Device settings issue - using default location');
+          Alert.alert(
+            'Location Services', 
+            'Location services are disabled. Using Nairobi city center for distance calculations.\n\nFor emulators: Enable GPS in device settings.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          console.log('Unknown location error - using default location');
+          Alert.alert(
+            'Location Unavailable', 
+            'Could not determine your location. Using Nairobi city center for distance calculations.',
+            [{ text: 'OK' }]
+          );
+        }
+        
+        setUserLocation(DEFAULT_LOCATION);
+        setUsingDefaultLocation(true);
+        return DEFAULT_LOCATION;
+      }
+    } catch (error: any) {
+      console.error('Error in getCurrentLocation:', error);
       
-      return location;
-    } catch (error) {
-      console.error('Error getting location:', error);
-      Alert.alert('Error', 'Failed to get current location.');
-      return null;
+      // Final fallback - always use default location
+      console.log('Using default location as final fallback');
+      setUserLocation(DEFAULT_LOCATION);
+      setUsingDefaultLocation(true);
+      return DEFAULT_LOCATION;
     } finally {
       setLoadingLocation(false);
     }
@@ -64,12 +132,15 @@ const FindBloodScreen: React.FC = () => {
       setLoading(true);
       setSearched(true);
 
-      // Get user location first
+      // Get user location (will fallback to default if needed)
       const location = await getCurrentLocation();
+
+      console.log('🔍 Searching with location:', location);
 
       // Search for blood banks
       const banks = await searchBloodBanksByType(selectedBloodType, location || undefined);
       
+      console.log(`📊 Found ${banks.length} blood banks`);
       setBloodBanks(banks);
 
       if (banks.length === 0) {
@@ -77,6 +148,13 @@ const FindBloodScreen: React.FC = () => {
           'No Results',
           `No blood banks found with ${selectedBloodType} blood type available.`
         );
+      } else {
+        // Show success message with location info
+        const locationInfo = usingDefaultLocation 
+          ? ' (using default location for distance)' 
+          : '';
+        
+        console.log(`✅ Search complete: ${banks.length} banks found${locationInfo}`);
       }
     } catch (error) {
       console.error('Error searching blood banks:', error);
@@ -142,7 +220,7 @@ const FindBloodScreen: React.FC = () => {
             </View>
           </View>
 
-          {item.distance && (
+          {item.distance !== undefined && (
             <View style={styles.distanceBadge}>
               <Ionicons name="location" size={14} color="#3B82F6" />
               <Text style={styles.distanceText}>{item.distance.toFixed(1)} km</Text>
@@ -295,6 +373,11 @@ const FindBloodScreen: React.FC = () => {
             <Text style={styles.resultsText}>
               {bloodBanks.length} blood bank{bloodBanks.length !== 1 ? 's' : ''} found
             </Text>
+            {usingDefaultLocation && bloodBanks.length > 0 && (
+              <Text style={styles.locationNote}>
+                📍 Using Nairobi city center for distance
+              </Text>
+            )}
           </View>
         )}
       </View>
@@ -406,6 +489,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#64748B',
     textAlign: 'center',
+  },
+  locationNote: {
+    fontSize: 12,
+    color: '#3B82F6',
+    textAlign: 'center',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   loadingContainer: {
     flex: 1,

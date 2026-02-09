@@ -39,8 +39,7 @@ const UserTypeSelectionScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Updated to light green */}
-      <LinearGradient   colors={['#1b8882ff', '#16b43eff']} style={styles.gradient}>
+      <LinearGradient colors={['#1b8882ff', '#16b43eff']} style={styles.gradient}>
         
         {/* Header */}
         <View style={styles.header}>
@@ -66,7 +65,7 @@ const UserTypeSelectionScreen: React.FC = () => {
             <View style={styles.logoContainer}>
               <View style={styles.outerCircle}>
                 <View style={styles.iconContainer}>
-                  <Text style={styles.logoEmoji}>🩸</Text>
+                  <Ionicons name="water" size={48} color="#DC2626" />
                 </View>
               </View>
             </View>
@@ -94,13 +93,13 @@ const UserTypeSelectionScreen: React.FC = () => {
                 >
                   <Ionicons
                     name="heart"
-                    size={32}
+                    size={28}
                     color={selectedType === 'donor' ? '#FFFFFF' : '#DC2626'}
                   />
                 </View>
                 {selectedType === 'donor' && (
                   <View style={styles.checkmark}>
-                    <Ionicons name="checkmark-circle" size={30} color="#10B981" />
+                    <Ionicons name="checkmark-circle" size={28} color="#10B981" />
                   </View>
                 )}
               </View>
@@ -112,35 +111,27 @@ const UserTypeSelectionScreen: React.FC = () => {
 
               <View style={styles.featuresList}>
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconContainer}>
-                    <Ionicons name="notifications" size={18} color="#29a845ff" />
-                  </View>
+                  <View style={styles.featureDot} />
                   <Text style={styles.featureText}>Receive urgent blood requests</Text>
                 </View>
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconContainer}>
-                    <Ionicons name="calendar" size={18} color="#3B82F6" />
-                  </View>
+                  <View style={styles.featureDot} />
                   <Text style={styles.featureText}>Track donation history</Text>
                 </View>
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconContainer}>
-                    <Ionicons name="trophy" size={18} color="#F59E0B" />
-                  </View>
+                  <View style={styles.featureDot} />
                   <Text style={styles.featureText}>Earn donation points</Text>
                 </View>
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconContainer}>
-                    <Ionicons name="time" size={18} color="#8B5CF6" />
-                  </View>
+                  <View style={styles.featureDot} />
                   <Text style={styles.featureText}>Set your availability</Text>
                 </View>
               </View>
 
               <View style={styles.requirementBox}>
-                <Ionicons name="information-circle" size={20} color="#DC2626" />
+                <Ionicons name="information-circle-outline" size={18} color="#DC2626" />
                 <Text style={styles.requirementText}>
-                  Must be 18+ years old and weigh at least 50kg
+                  Must be 18+ and weigh at least 50kg
                 </Text>
               </View>
             </TouchableOpacity>
@@ -163,13 +154,13 @@ const UserTypeSelectionScreen: React.FC = () => {
                 >
                   <Ionicons
                     name="medkit"
-                    size={32}
+                    size={28}
                     color={selectedType === 'requester' ? '#FFFFFF' : '#3B82F6'}
                   />
                 </View>
                 {selectedType === 'requester' && (
                   <View style={styles.checkmark}>
-                    <Ionicons name="checkmark-circle" size={30} color="#10B981" />
+                    <Ionicons name="checkmark-circle" size={28} color="#10B981" />
                   </View>
                 )}
               </View>
@@ -181,33 +172,25 @@ const UserTypeSelectionScreen: React.FC = () => {
 
               <View style={styles.featuresList}>
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconContainer}>
-                    <Ionicons name="add-circle" size={18} color="#DC2626" />
-                  </View>
+                  <View style={styles.featureDot} />
                   <Text style={styles.featureText}>Create urgent blood requests</Text>
                 </View>
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconContainer}>
-                    <Ionicons name="location" size={18} color="#3B82F6" />
-                  </View>
+                  <View style={styles.featureDot} />
                   <Text style={styles.featureText}>Find nearby donors instantly</Text>
                 </View>
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconContainer}>
-                    <Ionicons name="business" size={18} color="#10B981" />
-                  </View>
+                  <View style={styles.featureDot} />
                   <Text style={styles.featureText}>Search blood banks</Text>
                 </View>
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconContainer}>
-                    <Ionicons name="pulse" size={18} color="#F59E0B" />
-                  </View>
+                  <View style={styles.featureDot} />
                   <Text style={styles.featureText}>Track request status</Text>
                 </View>
               </View>
 
               <View style={styles.requirementBox}>
-                <Ionicons name="information-circle" size={20} color="#3B82F6" />
+                <Ionicons name="information-circle-outline" size={18} color="#3B82F6" />
                 <Text style={styles.requirementText}>
                   For patients, family members, or caregivers
                 </Text>
@@ -217,13 +200,11 @@ const UserTypeSelectionScreen: React.FC = () => {
 
           {/* Info */}
           <View style={styles.infoCard}>
-            <View style={styles.infoIconContainer}>
-              <Ionicons name="shield-checkmark" size={28} color="#10B981" />
-            </View>
+            <Ionicons name="shield-checkmark-outline" size={24} color="#10B981" />
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoTitle}>Your data is safe with us</Text>
               <Text style={styles.infoDescription}>
-                We protect your privacy and only share your information with verified users when necessary.
+                We protect your privacy and only share information with verified users when necessary.
               </Text>
             </View>
           </View>
@@ -247,7 +228,7 @@ const UserTypeSelectionScreen: React.FC = () => {
               <Text style={styles.continueButtonText}>
                 Continue as {selectedType === 'donor' ? 'Donor' : selectedType === 'requester' ? 'Requester' : 'User'}
               </Text>
-              <Ionicons name="arrow-forward" size={22} color="#FFFFFF" />
+              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
             </LinearGradient>
           </TouchableOpacity>
 
@@ -270,7 +251,7 @@ const UserTypeSelectionScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-   backgroundColor: '#f8f9fcff',
+    backgroundColor: '#f8f9fcff',
   },
   gradient: {
     flex: 1,
@@ -307,74 +288,71 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 24,
     flexGrow: 1,
   },
   introSection: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   logoContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   outerCircle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
+    borderWidth: 3,
     borderColor: '#DC2626',
     ...(Platform.OS === 'web'
       ? {
-          boxShadow: '0px 8px 16px rgba(255, 255, 255, 0.3)',
+          boxShadow: '0px 6px 12px rgba(255, 255, 255, 0.3)',
         } as any
       : {
           shadowColor: '#FFFFFF',
-          shadowOffset: { width: 0, height: 4 },
+          shadowOffset: { width: 0, height: 3 },
           shadowOpacity: 0.4,
-          shadowRadius: 12,
-          elevation: 10,
+          shadowRadius: 10,
+          elevation: 8,
         }),
   },
   iconContainer: {
-    width: 95,
-    height: 95,
-    borderRadius: 47.5,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  logoEmoji: {
-    fontSize: 48,
-  },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: '#140f0fff',
-    marginBottom: 10,
+    marginBottom: 8,
     textAlign: 'center',
     letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#110d0dff',
     opacity: 0.95,
     textAlign: 'center',
     paddingHorizontal: 20,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   cardsContainer: {
-    gap: 16,
-    marginBottom: 20,
+    gap: 14,
+    marginBottom: 16,
   },
   typeCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 18,
+    padding: 18,
     borderWidth: 2,
     borderColor: '#E5E7EB',
     ...(Platform.OS === 'web'
@@ -409,12 +387,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   iconBadge: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
@@ -434,42 +412,38 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     backgroundColor: '#FFFFFF',
-    borderRadius: 15,
+    borderRadius: 14,
   },
   cardTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#1E293B',
-    marginBottom: 8,
+    marginBottom: 6,
     letterSpacing: 0.3,
   },
   cardDescription: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#64748B',
-    marginBottom: 20,
-    lineHeight: 22,
+    marginBottom: 14,
+    lineHeight: 20,
   },
   featuresList: {
-    gap: 14,
-    marginBottom: 18,
+    gap: 10,
+    marginBottom: 14,
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  featureIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#e9362aff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  featureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
   },
   featureText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#334155',
     flex: 1,
     fontWeight: '500',
@@ -478,26 +452,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF3C7',
-    padding: 12,
-    borderRadius: 12,
-    gap: 10,
-    borderLeftWidth: 4,
+    padding: 10,
+    borderRadius: 10,
+    gap: 8,
+    borderLeftWidth: 3,
     borderLeftColor: '#F59E0B',
   },
   requirementText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#92400E',
     flex: 1,
     fontWeight: '500',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   infoCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 20,
-    gap: 14,
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 18,
+    gap: 12,
     alignItems: 'flex-start',
     ...(Platform.OS === 'web'
       ? {
@@ -511,38 +485,28 @@ const styles = StyleSheet.create({
         elevation: 3,
       }),
   },
-  infoIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#ECFDF5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#D1FAE5',
-  },
   infoTextContainer: {
     flex: 1,
   },
   infoTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#1E293B',
-    marginBottom: 6,
+    marginBottom: 4,
     letterSpacing: 0.2,
   },
   infoDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#64748B',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   continueButton: {
     borderRadius: 14,
     overflow: 'hidden',
-    marginBottom: 20,
+    marginBottom: 18,
     ...(Platform.OS === 'web'
       ? {
-        boxShadow: '0px 6px 16px rgba(212, 228, 68, 0.3)',
+        boxShadow: '0px 6px 16px rgba(16, 185, 129, 0.3)',
       } as any
       : {
         shadowColor: '#10B981',
@@ -567,15 +531,15 @@ const styles = StyleSheet.create({
       }),
   },
   buttonGradient: {
-    paddingVertical: 18,
+    paddingVertical: 16,
     paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
   },
   continueButtonText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
@@ -584,15 +548,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   loginText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#FFFFFF',
     opacity: 0.9,
   },
   loginLink: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#181616ff',
     fontWeight: '700',
     textDecorationLine: 'underline',

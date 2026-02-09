@@ -1,24 +1,31 @@
 import { useUser } from '@/src/contexts/UserContext';
 import {
-    completeBloodRequest,
-    getUserBloodRequests,
-    updateBloodRequest
+  completeBloodRequest,
+  completeDonationAfterVerification,
+  createNotification,
+  disputeDonationByRequester,
+  getRequesterPendingVerifications,
+  getUserBloodRequests,
+  updateBloodRequest,
+  verifyDonationByRequester
 } from '@/src/services/firebase/database';
-import { BloodRequest } from '@/src/types/types';
+import { AcceptedRequest, BloodRequest } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    RefreshControl,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,6 +36,12 @@ const MyRequestsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [requests, setRequests] = useState<BloodRequest[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'completed'>('all');
+  
+  // Verification states
+  const [pendingVerifications, setPendingVerifications] = useState<AcceptedRequest[]>([]);
+  const [verifyModalVisible, setVerifyModalVisible] = useState(false);
+  const [selectedVerification, setSelectedVerification] = useState<AcceptedRequest | null>(null);
+  const [verificationNotes, setVerificationNotes] = useState('');
 
   useEffect(() => {
     loadRequests();
@@ -41,6 +54,10 @@ const MyRequestsScreen: React.FC = () => {
       setLoading(true);
       const userRequests = await getUserBloodRequests(user.id);
       setRequests(userRequests);
+      
+      // Load pending verifications
+      const verifications = await getRequesterPendingVerifications(user.id);
+      setPendingVerifications(verifications);
     } catch (error) {
       console.error('Error loading requests:', error);
       Alert.alert('Error', 'Failed to load your blood requests.');
@@ -53,6 +70,101 @@ const MyRequestsScreen: React.FC = () => {
     setRefreshing(true);
     await loadRequests();
     setRefreshing(false);
+  };
+
+  // Verification handlers
+  const handleVerifyDonation = (verification: AcceptedRequest) => {
+    setSelectedVerification(verification);
+    setVerifyModalVisible(true);
+  };
+
+  const confirmVerifyDonation = async () => {
+    if (!selectedVerification) return;
+
+    try {
+      // Verify the donation
+      await verifyDonationByRequester(
+        selectedVerification.id,
+        verificationNotes || undefined
+      );
+
+      // Complete donation and award points
+      await completeDonationAfterVerification(
+        selectedVerification,
+        selectedVerification.donorId,
+        selectedVerification.donorName
+      );
+
+      // Send notification to donor
+      await createNotification({
+        userId: selectedVerification.donorId,
+        type: 'donation_verified',
+        title: 'Donation Verified! 🎉',
+        message: `Your donation has been verified. You earned 50 points!`,
+        data: {
+          acceptedRequestId: selectedVerification.id,
+        },
+        isRead: false,
+        timestamp: ''
+      });
+
+      setVerifyModalVisible(false);
+      setSelectedVerification(null);
+      setVerificationNotes('');
+
+      Alert.alert('Success', 'Donation verified! The donor has been notified.');
+      loadRequests();
+    } catch (error) {
+      console.error('Error verifying donation:', error);
+      Alert.alert('Error', 'Failed to verify donation.');
+    }
+  };
+
+  const handleDisputeDonation = async () => {
+    if (!selectedVerification) return;
+
+    Alert.alert(
+      'Report Issue',
+      'Are you sure you want to report an issue with this donation?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Submit Report',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await disputeDonationByRequester(
+                selectedVerification.id,
+                verificationNotes || 'No reason provided'
+              );
+
+              // Notify donor
+              await createNotification({
+                userId: selectedVerification.donorId,
+                type: 'donation_disputed',
+                title: 'Donation Disputed',
+                message: 'The requester has reported an issue with your donation. Support will review this.',
+                data: {
+                  acceptedRequestId: selectedVerification.id,
+                },
+                isRead: false,
+                timestamp: ''
+              });
+
+              setVerifyModalVisible(false);
+              setSelectedVerification(null);
+              setVerificationNotes('');
+
+              Alert.alert('Reported', 'The issue has been reported to support.');
+              loadRequests();
+            } catch (error) {
+              console.error('Error disputing donation:', error);
+              Alert.alert('Error', 'Failed to report issue.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleCompleteRequest = async (request: BloodRequest) => {
@@ -219,7 +331,7 @@ const MyRequestsScreen: React.FC = () => {
           <>
             <TouchableOpacity
               style={[styles.actionButton, styles.chatButton]}
-              onPress={() => router.push(`/(requester)/chat?requestId=${item.id}` as any)}
+              onPress={() => router.push(`/(shared)/chat?requestId=${item.id}` as any)}
             >
               <Ionicons name="chatbubble" size={18} color="#3B82F6" />
               <Text style={styles.chatButtonText}>Chat with Donor</Text>
@@ -254,7 +366,7 @@ const MyRequestsScreen: React.FC = () => {
       </Text>
       <TouchableOpacity
         style={styles.createButton}
-        onPress={() => router.push('/(requester)/need-blood' as any)}
+        onPress={() => router.push('/(requester)/needblood' as any)}
       >
         <Ionicons name="add-circle" size={20} color="#FFFFFF" />
         <Text style={styles.createButtonText}>Create Request</Text>
@@ -275,6 +387,51 @@ const MyRequestsScreen: React.FC = () => {
           </Text>
         </View>
       </LinearGradient>
+
+      {/* Pending Verifications Banner */}
+      {pendingVerifications.length > 0 && (
+        <View style={styles.verificationBanner}>
+          <View style={styles.verificationHeader}>
+            <Ionicons name="alert-circle" size={24} color="#F59E0B" />
+            <View style={styles.verificationHeaderText}>
+              <Text style={styles.verificationTitle}>
+                {pendingVerifications.length} Donation{pendingVerifications.length > 1 ? 's' : ''} Awaiting Verification
+              </Text>
+              <Text style={styles.verificationSubtitle}>
+                Please verify donations you received
+              </Text>
+            </View>
+          </View>
+          
+          {pendingVerifications.map((verification) => (
+            <View key={verification.id} style={styles.verificationCard}>
+              <View style={styles.verificationInfo}>
+                <Ionicons name="person" size={20} color="#64748B" />
+                <View style={styles.verificationDetails}>
+                  <Text style={styles.verificationDonor}>{verification.donorName}</Text>
+                  <Text style={styles.verificationMeta}>
+                    {verification.bloodType} • {new Date(verification.donorCompletedAt || '').toLocaleDateString()}
+                  </Text>
+                  {verification.donorNotes && (
+                    <Text style={styles.verificationNotes} numberOfLines={2}>
+                      Note: {verification.donorNotes}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              
+              <View style={styles.verificationActions}>
+                <TouchableOpacity
+                  style={styles.verifyButton}
+                  onPress={() => handleVerifyDonation(verification)}
+                >
+                  <Text style={styles.verifyButtonText}>Verify</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={styles.filterContainer}>
         <TouchableOpacity
@@ -320,6 +477,77 @@ const MyRequestsScreen: React.FC = () => {
           }
         />
       )}
+
+      {/* Verification Modal */}
+      <Modal
+        visible={verifyModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setVerifyModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Verify Donation</Text>
+              <TouchableOpacity onPress={() => setVerifyModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedVerification && (
+              <>
+                <View style={styles.donorInfoCard}>
+                  <Text style={styles.donorInfoLabel}>Donor</Text>
+                  <Text style={styles.donorInfoValue}>{selectedVerification.donorName}</Text>
+                  <Text style={styles.donorInfoLabel}>Blood Type: {selectedVerification.bloodType}</Text>
+                  <Text style={styles.donorInfoLabel}>
+                    Date: {new Date(selectedVerification.donorCompletedAt || '').toLocaleDateString()}
+                  </Text>
+                  {selectedVerification.donorNotes && (
+                    <>
+                      <Text style={styles.donorInfoLabel}>Donor Notes:</Text>
+                      <Text style={styles.donorInfoNotes}>{selectedVerification.donorNotes}</Text>
+                    </>
+                  )}
+                </View>
+
+                <Text style={styles.modalDescription}>
+                  Did you receive the blood donation from {selectedVerification.donorName}?
+                </Text>
+
+                <Text style={styles.inputLabel}>Additional Notes (Optional)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Add any notes about the donation..."
+                  placeholderTextColor="#94A3B8"
+                  value={verificationNotes}
+                  onChangeText={setVerificationNotes}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.disputeButton}
+                    onPress={handleDisputeDonation}
+                  >
+                    <Text style={styles.disputeButtonText}>Report Issue</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.confirmVerifyButton}
+                    onPress={confirmVerifyDonation}
+                  >
+                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                    <Text style={styles.confirmVerifyButtonText}>Verify Donation</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -346,6 +574,82 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     opacity: 0.9,
+  },
+  // Verification Banner Styles
+  verificationBanner: {
+    backgroundColor: '#FFFBEB',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FEF3C7',
+  },
+  verificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  verificationHeaderText: {
+    flex: 1,
+  },
+  verificationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  verificationSubtitle: {
+    fontSize: 13,
+    color: '#78350F',
+  },
+  verificationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  verificationInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  verificationDetails: {
+    flex: 1,
+  },
+  verificationDonor: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  verificationMeta: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  verificationNotes: {
+    fontSize: 12,
+    color: '#64748B',
+    fontStyle: 'italic',
+  },
+  verificationActions: {
+    marginLeft: 12,
+  },
+  verifyButton: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  verifyButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   filterContainer: {
     flexDirection: 'row',
@@ -551,6 +855,111 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1E293B',
+  },
+  donorInfoCard: {
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981',
+  },
+  donorInfoLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  donorInfoValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  donorInfoNotes: {
+    fontSize: 14,
+    color: '#1E293B',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: '#1E293B',
+    backgroundColor: '#F8FAFC',
+    minHeight: 80,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  disputeButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  disputeButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  confirmVerifyButton: {
+    flex: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#10B981',
+  },
+  confirmVerifyButtonText: {
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },

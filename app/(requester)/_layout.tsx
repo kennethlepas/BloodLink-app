@@ -6,8 +6,17 @@ export default function RequesterLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#DC2626',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: '#3B82F6', // Blue when active
+        tabBarInactiveTintColor: '#1E293B', // Black when inactive
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#E2E8F0',
+          borderTopWidth: 1,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
       }}
     >
       <Tabs.Screen
@@ -31,10 +40,12 @@ export default function RequesterLayout() {
       />
 
       <Tabs.Screen
-        name="needblood" 
+        name="chat"
         options={{
-          title: 'Request Blood',
-          href: null, 
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
         }}
       />
 
@@ -45,6 +56,28 @@ export default function RequesterLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
+        }}
+      />
+
+      {/* Hidden screens - accessible via navigation but not shown in tab bar */}
+      <Tabs.Screen
+        name="needblood" 
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+
+      <Tabs.Screen
+        name="find-donors"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+
+      <Tabs.Screen
+        name="donor-profile"
+        options={{
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>
