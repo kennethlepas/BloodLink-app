@@ -8,12 +8,14 @@ import {
   ChatMessage,
   DonationRecord,
   Donor,
+  InterestedDonor,
   Location,
   NewDocument,
   Notification,
   Post,
   User
 } from '@/src/types/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { get, ref } from 'firebase/database';
 import {
   addDoc,
@@ -32,6 +34,8 @@ import {
   where
 } from 'firebase/firestore';
 import { db, realtimeDb } from './firebase';
+
+const CACHE_KEY_BLOOD_BANKS = 'bloodlink_blood_banks_cache';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -82,9 +86,9 @@ export const calculateDistance = (
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c; // Distance in kilometers
 };
@@ -96,7 +100,7 @@ export const calculateDistance = (
 export const createUser = async (userId: string, userData: NewDocument<User>): Promise<void> => {
   try {
     const timestamp = getCurrentTimestamp();
-    
+
     const userDataWithDefaults = {
       ...userData,
       id: userId,
@@ -137,10 +141,10 @@ export const updateUser = async (userId: string, updates: Partial<User>): Promis
       ...updates,
       updatedAt: timestamp,
     };
-    
+
     // Remove undefined fields
     const cleanedUpdates = removeUndefinedFields(updateData);
-    
+
     await updateDoc(doc(db, 'users', userId), cleanedUpdates);
     console.log('User updated successfully:', userId);
   } catch (error) {
@@ -203,10 +207,10 @@ export const createBloodRequest = async (
     console.log('Creating blood request with data:', cleanedRequestDoc);
 
     const docRef = await addDoc(collection(db, 'bloodRequests'), cleanedRequestDoc);
-    
+
     // Update the document with its ID
     await updateDoc(docRef, { id: docRef.id });
-    
+
     console.log('Blood request created successfully:', docRef.id);
     return docRef.id;
   } catch (error) {
@@ -235,7 +239,7 @@ export const updateBloodRequest = async (
   try {
     // Remove undefined fields from updates
     const cleanedUpdates = removeUndefinedFields(updates);
-    
+
     await updateDoc(doc(db, 'bloodRequests', requestId), cleanedUpdates);
     console.log('Blood request updated:', requestId);
   } catch (error) {
@@ -324,7 +328,7 @@ export const createAcceptedRequest = async (
 ): Promise<string> => {
   try {
     const timestamp = getCurrentTimestamp();
-    
+
     const acceptedRequestDoc: any = {
       donorId,
       donorName,
@@ -368,7 +372,7 @@ export const getDonorAcceptedRequests = async (
 ): Promise<AcceptedRequest[]> => {
   try {
     let q;
-    
+
     if (status) {
       q = query(
         collection(db, 'acceptedRequests'),
@@ -383,7 +387,7 @@ export const getDonorAcceptedRequests = async (
         orderBy('acceptedDate', 'desc')
       );
     }
-    
+
     const snapshot = await getDocs(q);
     return snapshot.docs.map((doc) => doc.data() as AcceptedRequest);
   } catch (error) {
@@ -403,7 +407,7 @@ export const getDonorActiveCommitments = async (donorId: string): Promise<Accept
       where('status', 'in', ['pending', 'in_progress']),
       orderBy('acceptedDate', 'desc')
     );
-    
+
     const snapshot = await getDocs(q);
     return snapshot.docs.map((doc) => doc.data() as AcceptedRequest);
   } catch (error) {
@@ -425,10 +429,10 @@ export const updateAcceptedRequest = async (
       ...updates,
       updatedAt: timestamp,
     };
-    
+
     const cleanedUpdates = removeUndefinedFields(updateData);
     await updateDoc(doc(db, 'acceptedRequests', acceptedRequestId), cleanedUpdates);
-    
+
     console.log('Accepted request updated:', acceptedRequestId);
   } catch (error) {
     console.error('Error updating accepted request:', error);
@@ -447,11 +451,11 @@ export const startAcceptedRequest = async (
     const updates: Partial<AcceptedRequest> = {
       status: 'in_progress',
     };
-    
+
     if (scheduledDate) {
       updates.scheduledDate = scheduledDate;
     }
-    
+
     await updateAcceptedRequest(acceptedRequestId, updates);
   } catch (error) {
     console.error('Error starting accepted request:', error);
@@ -531,7 +535,7 @@ export const createRejectedRequest = async (
   try {
     const timestamp = getCurrentTimestamp();
     const rejectionId = `${donorId}_${requestId}`;
-    
+
     const rejectionDoc = {
       id: rejectionId,
       donorId,
@@ -539,10 +543,10 @@ export const createRejectedRequest = async (
       reason,
       rejectedAt: timestamp,
     };
-    
+
     const cleanedDoc = removeUndefinedFields(rejectionDoc);
     await setDoc(doc(db, 'rejectedRequests', rejectionId), cleanedDoc);
-    
+
     console.log('Request rejected:', rejectionId);
   } catch (error) {
     console.error('Error rejecting request:', error);
@@ -559,7 +563,7 @@ export const getDonorRejectedRequests = async (donorId: string): Promise<string[
       collection(db, 'rejectedRequests'),
       where('donorId', '==', donorId)
     );
-    
+
     const snapshot = await getDocs(q);
     return snapshot.docs.map((doc) => doc.data().requestId as string);
   } catch (error) {
@@ -626,19 +630,19 @@ export const getBloodBanks = async (): Promise<BloodBank[]> => {
   try {
     const bloodBanksRef = ref(realtimeDb, 'bloodBanks');
     const snapshot = await get(bloodBanksRef);
-    
+
     if (!snapshot.exists()) {
       console.log('No blood banks found in Realtime Database');
       return [];
     }
-    
+
     const bloodBanksData = snapshot.val();
     const bloodBanks: BloodBank[] = [];
-    
+
     // Convert object to array
     Object.keys(bloodBanksData).forEach((key) => {
       const bank = bloodBanksData[key];
-      
+
       // Ensure all required fields exist
       if (bank && bank.name && bank.location) {
         bloodBanks.push({
@@ -663,11 +667,27 @@ export const getBloodBanks = async (): Promise<BloodBank[]> => {
         });
       }
     });
-    
+
     console.log(`✅ Fetched ${bloodBanks.length} blood banks from Realtime Database`);
+
+    // Cache the results
+    await AsyncStorage.setItem(CACHE_KEY_BLOOD_BANKS, JSON.stringify(bloodBanks));
+
     return bloodBanks;
   } catch (error) {
-    console.error('❌ Error getting blood banks from Realtime Database:', error);
+    console.warn('❌ Error getting blood banks from Realtime Database (trying cache):', error);
+
+    // Try to get from cache
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY_BLOOD_BANKS);
+      if (cached) {
+        console.log('✅ Returning cached blood banks');
+        return JSON.parse(cached);
+      }
+    } catch (cacheError) {
+      console.error('Failed to retrieve cache:', cacheError);
+    }
+
     throw error;
   }
 };
@@ -676,35 +696,52 @@ export const getBloodBankById = async (bloodBankId: string): Promise<BloodBank |
   try {
     const bloodBankRef = ref(realtimeDb, `bloodBanks/${bloodBankId}`);
     const snapshot = await get(bloodBankRef);
-    
-    if (!snapshot.exists()) {
-      console.log('Blood bank not found:', bloodBankId);
-      return null;
+
+    if (snapshot.exists()) {
+      const bank = snapshot.val();
+      return {
+        id: bloodBankId,
+        name: bank.name,
+        address: bank.address || '',
+        location: {
+          latitude: bank.location.latitude,
+          longitude: bank.location.longitude,
+          address: bank.location.address,
+          city: bank.location.city,
+          region: bank.location.region,
+        },
+        phoneNumber: bank.phoneNumber || '',
+        email: bank.email || '',
+        operatingHours: bank.operatingHours || { open: '08:00', close: '17:00' },
+        inventory: bank.inventory || {},
+        isVerified: bank.isVerified || false,
+        rating: bank.rating,
+        createdAt: bank.createdAt || new Date().toISOString(),
+        updatedAt: bank.updatedAt || new Date().toISOString(),
+      };
     }
-    
-    const bank = snapshot.val();
-    return {
-      id: bloodBankId,
-      name: bank.name,
-      address: bank.address || '',
-      location: {
-        latitude: bank.location.latitude,
-        longitude: bank.location.longitude,
-        address: bank.location.address,
-        city: bank.location.city,
-        region: bank.location.region,
-      },
-      phoneNumber: bank.phoneNumber || '',
-      email: bank.email || '',
-      operatingHours: bank.operatingHours || { open: '08:00', close: '17:00' },
-      inventory: bank.inventory || {},
-      isVerified: bank.isVerified || false,
-      rating: bank.rating,
-      createdAt: bank.createdAt || new Date().toISOString(),
-      updatedAt: bank.updatedAt || new Date().toISOString(),
-    };
+
+    console.log('Blood bank not found in live DB:', bloodBankId);
+    return null; // Don't throw, just return null if not found online
+
   } catch (error) {
-    console.error('Error getting blood bank by ID:', error);
+    console.warn('Error getting blood bank by ID (trying cache):', error);
+
+    // Try to find in cache
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY_BLOOD_BANKS);
+      if (cached) {
+        const banks = JSON.parse(cached) as BloodBank[];
+        const found = banks.find(b => b.id === bloodBankId);
+        if (found) {
+          console.log('✅ Found blood bank in cache');
+          return found;
+        }
+      }
+    } catch (cacheError) {
+      console.error('Failed to retrieve cache:', cacheError);
+    }
+
     throw error;
   }
 };
@@ -715,12 +752,12 @@ export const searchBloodBanksByType = async (
 ): Promise<BloodBank[]> => {
   try {
     console.log(`🔍 Searching for ${bloodType} blood banks...`);
-    
+
     // Get all blood banks
     const allBloodBanks = await getBloodBanks();
-    
+
     console.log(`📊 Total blood banks found: ${allBloodBanks.length}`);
-    
+
     // Filter blood banks that have the required blood type in stock
     let filteredBanks = allBloodBanks.filter((bank) => {
       // Check if bank has inventory
@@ -728,18 +765,18 @@ export const searchBloodBanksByType = async (
         console.log(`⚠️ Bank "${bank.name}" has no inventory`);
         return false;
       }
-      
+
       // Check if blood type exists in inventory
       const inventory = bank.inventory[bloodType];
-      
+
       if (!inventory) {
         console.log(`⚠️ Bank "${bank.name}" does not have ${bloodType} in inventory`);
         return false;
       }
-      
+
       const hasStock = inventory.units > 0;
       console.log(`${hasStock ? '✅' : '❌'} Bank "${bank.name}" - ${bloodType}: ${inventory.units} units`);
-      
+
       return hasStock;
     });
 
@@ -748,7 +785,7 @@ export const searchBloodBanksByType = async (
     // If user location is provided, calculate distance and sort
     if (userLocation && userLocation.latitude && userLocation.longitude) {
       console.log(`📍 User location provided, calculating distances...`);
-      
+
       filteredBanks = filteredBanks.map((bank) => {
         const distance = calculateDistance(
           userLocation.latitude,
@@ -756,15 +793,15 @@ export const searchBloodBanksByType = async (
           bank.location.latitude,
           bank.location.longitude
         );
-        
+
         console.log(`📏 Distance to "${bank.name}": ${distance.toFixed(2)} km`);
-        
+
         return {
           ...bank,
           distance,
         };
       }).sort((a, b) => (a.distance || 0) - (b.distance || 0));
-      
+
       console.log('✅ Banks sorted by distance');
     }
 
@@ -1228,14 +1265,14 @@ export const markMessagesAsRead = async (
       where('receiverId', '==', userId),
       where('isRead', '==', false)
     );
-    
+
     const snapshot = await getDocs(q);
-    const updatePromises = snapshot.docs.map(doc => 
+    const updatePromises = snapshot.docs.map(doc =>
       updateDoc(doc.ref, { isRead: true })
     );
-    
+
     await Promise.all(updatePromises);
-    
+
     // Reset unread count in chat
     const chatRef = doc(db, 'chats', chatId);
     await updateDoc(chatRef, {
@@ -1293,26 +1330,403 @@ export const getChatByRequestId = async (
       where('requestId', '==', requestId),
       where('participants', 'array-contains', donorId)
     );
-    
+
     const snapshot = await getDocs(q);
-    
+
     if (!snapshot.empty) {
       // Find the chat that includes both participants
       const chats = snapshot.docs
         .map(doc => doc.data() as Chat)
-        .filter(chat => 
-          chat.participants.includes(donorId) && 
+        .filter(chat =>
+          chat.participants.includes(donorId) &&
           chat.participants.includes(requesterId)
         );
-      
+
       if (chats.length > 0) {
         return chats[0];
       }
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error getting chat by request ID:', error);
     throw error;
   }
+};
+
+// ============================================================================
+// INTERESTED DONORS OPERATIONS (NEW)
+// ============================================================================
+
+/**
+ * Donor expresses interest in a blood request
+ */
+export const expressInterestInRequest = async (
+  donorId: string,
+  donorName: string,
+  donorPhone: string,
+  donorBloodType: BloodType,
+  request: BloodRequest,
+  message?: string
+): Promise<string> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    const interestId = `${request.id}_${donorId}`;
+
+    const interestedDonorDoc: InterestedDonor = {
+      id: interestId,
+      donorId,
+      donorName,
+      donorPhone,
+      donorBloodType,
+      requestId: request.id,
+      interestedAt: timestamp,
+      status: 'pending',
+      message,
+    };
+
+    const cleanedDoc = removeUndefinedFields(interestedDonorDoc);
+    await setDoc(doc(db, 'interestedDonors', interestId), cleanedDoc);
+
+    // Update the blood request to include this donor
+    const currentInterestedIds = request.interestedDonorIds || [];
+    await updateBloodRequest(request.id, {
+      interestedDonorIds: [...currentInterestedIds, donorId],
+    });
+
+    // Notify requester
+    await createNotification({
+      userId: request.requesterId,
+      type: 'donor_interested',
+      title: 'New Donor Interested',
+      message: `${donorName} is interested in your blood request for ${request.bloodType}`,
+      data: {
+        requestId: request.id,
+        donorId,
+        interestId,
+      },
+      isRead: false,
+      timestamp: ''
+    });
+
+    console.log('Interest expressed:', interestId);
+    return interestId;
+  } catch (error) {
+    console.error('Error expressing interest:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all interested donors for a specific request
+ */
+export const getInterestedDonorsForRequest = async (
+  requestId: string
+): Promise<InterestedDonor[]> => {
+  try {
+    const q = query(
+      collection(db, 'interestedDonors'),
+      where('requestId', '==', requestId),
+      where('status', '==', 'pending'),
+      orderBy('interestedAt', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data() as InterestedDonor);
+  } catch (error) {
+    console.error('Error getting interested donors:', error);
+    throw error;
+  }
+};
+
+/**
+ * Requester selects a donor from interested donors
+ */
+export const selectDonorForRequest = async (
+  requestId: string,
+  selectedDonorId: string,
+  selectedDonorName: string,
+  requesterId: string,
+  requesterName: string
+): Promise<string> => {
+  try {
+    // Get all interested donors for this request
+    const allInterested = await query(
+      collection(db, 'interestedDonors'),
+      where('requestId', '==', requestId)
+    );
+    const interestedSnapshot = await getDocs(allInterested);
+
+    // Update selected donor's status
+    const selectedInterestId = `${requestId}_${selectedDonorId}`;
+    await updateDoc(doc(db, 'interestedDonors', selectedInterestId), {
+      status: 'selected',
+    });
+
+    // Decline all other interested donors
+    const declinePromises = interestedSnapshot.docs
+      .filter(doc => doc.data().donorId !== selectedDonorId)
+      .map(async (doc) => {
+        const donorData = doc.data() as InterestedDonor;
+
+        // Update their status
+        await updateDoc(doc.ref, { status: 'declined' });
+
+        // Notify them
+        await createNotification({
+          userId: donorData.donorId,
+          type: 'request_fulfilled',
+          title: 'Request Fulfilled',
+          message: 'The requester has chosen another donor for this request. Thank you for your interest!',
+          data: { requestId },
+          isRead: false,
+          timestamp: ''
+        });
+      });
+
+    await Promise.all(declinePromises);
+
+    // Create chat between selected donor and requester
+    const chatId = await createChat(
+      selectedDonorId,
+      selectedDonorName,
+      requesterId,
+      requesterName,
+      requestId
+    );
+
+    // Get the request details
+    const request = await getBloodRequest(requestId);
+    if (!request) throw new Error('Request not found');
+
+    // Create accepted request record for selected donor
+    await createAcceptedRequest(
+      selectedDonorId,
+      selectedDonorName,
+      request,
+      chatId
+    );
+
+    // Update blood request
+    await updateBloodRequest(requestId, {
+      status: 'accepted',
+      selectedDonorId,
+      acceptedDonorId: selectedDonorId,
+      acceptedDonorName: selectedDonorName,
+    });
+
+    // Notify selected donor
+    await createNotification({
+      userId: selectedDonorId,
+      type: 'request_accepted',
+      title: 'You Were Selected! 🎉',
+      message: `${requesterName} has selected you as the donor. You can now chat with them.`,
+      data: {
+        requestId,
+        chatId,
+      },
+      isRead: false,
+      timestamp: ''
+    });
+
+    console.log('Donor selected successfully:', selectedDonorId);
+    return chatId;
+  } catch (error) {
+    console.error('Error selecting donor:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if donor has already expressed interest
+ */
+export const hasExpressedInterest = async (
+  donorId: string,
+  requestId: string
+): Promise<boolean> => {
+  try {
+    const interestId = `${requestId}_${donorId}`;
+    const docSnap = await getDoc(doc(db, 'interestedDonors', interestId));
+    return docSnap.exists();
+  } catch (error) {
+    console.error('Error checking interest:', error);
+    return false;
+  }
+};
+
+// ============================================================================
+// REVIEW OPERATIONS - Add these functions to your database.ts file
+// ============================================================================
+
+/**
+ * Add a new review
+ */
+export const addReview = async (reviewData: {
+  userId: string;
+  userName: string;
+  userType: 'donor' | 'requester';
+  bloodType: string;
+  rating: number;
+  review: string;
+  category?: string | null;
+  createdAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+}): Promise<string> => {
+  try {
+    const reviewDoc = {
+      ...reviewData,
+      updatedAt: getCurrentTimestamp(),
+    };
+
+    const cleanedDoc = removeUndefinedFields(reviewDoc);
+    const docRef = await addDoc(collection(db, 'reviews'), cleanedDoc);
+    await updateDoc(docRef, { id: docRef.id });
+
+    console.log('Review submitted:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding review:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get approved reviews for display
+ */
+export const getApprovedReviews = async (limitCount: number = 20): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, 'reviews'),
+      where('status', '==', 'approved'),
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error('Error getting approved reviews:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get reviews by user
+ */
+export const getUserReviews = async (userId: string): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, 'reviews'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error('Error getting user reviews:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get reviews by rating
+ */
+export const getReviewsByRating = async (rating: number, limitCount: number = 10): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, 'reviews'),
+      where('status', '==', 'approved'),
+      where('rating', '==', rating),
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error('Error getting reviews by rating:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update review status (admin function)
+ */
+export const updateReviewStatus = async (
+  reviewId: string,
+  status: 'pending' | 'approved' | 'rejected'
+): Promise<void> => {
+  try {
+    await updateDoc(doc(db, 'reviews', reviewId), {
+      status,
+      updatedAt: getCurrentTimestamp(),
+    });
+    console.log('Review status updated:', reviewId);
+  } catch (error) {
+    console.error('Error updating review status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get average rating
+ */
+export const getAverageRating = async (): Promise<{ average: number; count: number }> => {
+  try {
+    const q = query(
+      collection(db, 'reviews'),
+      where('status', '==', 'approved')
+    );
+
+    const snapshot = await getDocs(q);
+    const reviews = snapshot.docs.map((doc) => doc.data());
+
+    if (reviews.length === 0) {
+      return { average: 0, count: 0 };
+    }
+
+    const totalRating = reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
+    const average = totalRating / reviews.length;
+
+    return {
+      average: Math.round(average * 10) / 10, // Round to 1 decimal
+      count: reviews.length,
+    };
+  } catch (error) {
+    console.error('Error getting average rating:', error);
+    throw error;
+  }
+};
+
+/**
+ * Subscribe to approved reviews (real-time)
+ */
+export const subscribeToApprovedReviews = (
+  callback: (reviews: any[]) => void,
+  limitCount: number = 20
+) => {
+  const q = query(
+    collection(db, 'reviews'),
+    where('status', '==', 'approved'),
+    orderBy('createdAt', 'desc'),
+    limit(limitCount)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const reviews = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    callback(reviews);
+  });
 };

@@ -1,3 +1,4 @@
+import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import {
   createBloodRequest,
@@ -5,6 +6,7 @@ import {
   getUsersByBloodType
 } from '@/src/services/firebase/database';
 import { BloodType, Donor, Location, UrgencyLevel } from '@/src/types/types';
+import { showRatingPrompt } from '@/src/utils/ratingPromptHelper';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,6 +34,8 @@ const BLOOD_TYPES: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O
 const NeedBloodScreen: React.FC = () => {
   const router = useRouter();
   const { user } = useUser();
+  const { colors, isDark } = useAppTheme();
+
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [locationPermissionStatus, setLocationPermissionStatus] = useState<string>('');
@@ -74,7 +78,7 @@ const NeedBloodScreen: React.FC = () => {
       });
 
       const isLocationEnabled = await ExpoLocation.hasServicesEnabledAsync();
-      
+
       if (!isLocationEnabled) {
         Alert.alert(
           'Location Services Disabled',
@@ -101,12 +105,12 @@ const NeedBloodScreen: React.FC = () => {
       }
 
       let { status } = await ExpoLocation.getForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         const { status: newStatus } = await ExpoLocation.requestForegroundPermissionsAsync();
         status = newStatus;
         setLocationPermissionStatus(newStatus);
-        
+
         if (newStatus !== 'granted') {
           Alert.alert(
             'Permission Required',
@@ -144,7 +148,7 @@ const NeedBloodScreen: React.FC = () => {
       );
 
       const position = await Promise.race([locationPromise, timeoutPromise]) as ExpoLocation.LocationObject;
-      
+
       if (!position || !position.coords) {
         throw new Error('Invalid location data received');
       }
@@ -152,9 +156,9 @@ const NeedBloodScreen: React.FC = () => {
       const { latitude, longitude } = position.coords;
 
       try {
-        const addresses = await ExpoLocation.reverseGeocodeAsync({ 
-          latitude, 
-          longitude 
+        const addresses = await ExpoLocation.reverseGeocodeAsync({
+          latitude,
+          longitude
         });
 
         if (addresses && addresses.length > 0) {
@@ -168,10 +172,10 @@ const NeedBloodScreen: React.FC = () => {
             addr.region,
           ].filter(Boolean);
 
-          const formattedAddress = addressParts.length > 0 
+          const formattedAddress = addressParts.length > 0
             ? addressParts.join(', ')
             : `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-          
+
           const city = addr.city || addr.district || '';
           const region = addr.region || addr.subregion || '';
 
@@ -186,9 +190,9 @@ const NeedBloodScreen: React.FC = () => {
           setLocation(locationData);
 
           if (!formData.hospitalAddress) {
-            setFormData((prev) => ({ 
-              ...prev, 
-              hospitalAddress: formattedAddress 
+            setFormData((prev) => ({
+              ...prev,
+              hospitalAddress: formattedAddress
             }));
           }
 
@@ -204,7 +208,7 @@ const NeedBloodScreen: React.FC = () => {
             address: `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
           };
           setLocation(locationData);
-          
+
           Alert.alert(
             'Location Captured',
             'Coordinates saved. Please verify and update the hospital address for accuracy.',
@@ -213,14 +217,14 @@ const NeedBloodScreen: React.FC = () => {
         }
       } catch (geocodeError) {
         console.error('Geocoding error:', geocodeError);
-        
+
         const locationData: Location = {
           latitude,
           longitude,
           address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
         };
         setLocation(locationData);
-        
+
         Alert.alert(
           'Location Captured',
           'Coordinates saved but address lookup failed. Please enter the hospital address manually.',
@@ -229,10 +233,10 @@ const NeedBloodScreen: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Location error details:', error);
-      
+
       let errorTitle = 'Location Error';
       let errorMessage = 'Unable to get your location. Please enter the hospital address manually.';
-      
+
       if (error.message === 'LOCATION_TIMEOUT') {
         errorTitle = 'Request Timed Out';
         errorMessage = 'Location request took too long. Please try again or enter the address manually.';
@@ -246,7 +250,7 @@ const NeedBloodScreen: React.FC = () => {
         errorTitle = 'Location Settings Issue';
         errorMessage = 'Your device location settings need to be adjusted. Please check your settings.';
       }
-      
+
       Alert.alert(errorTitle, errorMessage, [
         {
           text: 'Open Settings',
@@ -337,19 +341,19 @@ const NeedBloodScreen: React.FC = () => {
               // Create proper location object matching Location interface
               const requestLocation: Location = location
                 ? {
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                    address: formData.hospitalAddress,
-                    city: location.city,
-                    region: location.region,
-                  }
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  address: formData.hospitalAddress,
+                  city: location.city,
+                  region: location.region,
+                }
                 : {
-                    latitude: 0,
-                    longitude: 0,
-                    address: formData.hospitalAddress,
-                    city: '',
-                    region: '',
-                  };
+                  latitude: 0,
+                  longitude: 0,
+                  address: formData.hospitalAddress,
+                  city: '',
+                  region: '',
+                };
 
               // Calculate expiration date based on urgency level
               const getExpirationDate = (urgency: UrgencyLevel): string => {
@@ -366,13 +370,14 @@ const NeedBloodScreen: React.FC = () => {
                 }
               };
 
-              // Create request data with required status and expiresAt fields
+              // Create request data with ALL required fields including 'urgency'
               const requestData = {
                 requesterId: user.id,
                 requesterName: `${user.firstName} ${user.lastName}`,
                 requesterPhone: formData.requesterPhone,
                 bloodType: formData.bloodType,
                 urgencyLevel: formData.urgencyLevel,
+                urgency: formData.urgencyLevel, // matches the urgencyLevel
                 patientName: formData.patientName,
                 hospitalName: formData.hospitalName,
                 hospitalAddress: formData.hospitalAddress,
@@ -380,9 +385,9 @@ const NeedBloodScreen: React.FC = () => {
                 unitsNeeded: parseInt(formData.unitsNeeded),
                 status: 'pending' as const,
                 expiresAt: getExpirationDate(formData.urgencyLevel),
-                ...(formData.description && { 
+                ...(formData.description && {
                   description: formData.description,
-                  notes: formData.description 
+                  notes: formData.description
                 }),
               };
 
@@ -408,8 +413,8 @@ const NeedBloodScreen: React.FC = () => {
                         type: 'blood_request',
                         title: 'New Blood Request',
                         message: `${formData.urgencyLevel === 'critical' || formData.urgencyLevel === 'urgent'
-                            ? '🚨 URGENT: '
-                            : ''}${formData.patientName} needs ${formData.bloodType} blood at ${formData.hospitalName}`,
+                          ? '🚨 URGENT: '
+                          : ''}${formData.patientName} needs ${formData.bloodType} blood at ${formData.hospitalName}`,
                         data: {
                           requestId: requestId,
                           bloodType: formData.bloodType,
@@ -441,6 +446,11 @@ const NeedBloodScreen: React.FC = () => {
                     {
                       text: 'OK',
                       onPress: () => {
+                        // Show rating prompt after successful request creation
+                        if (user?.id) {
+                          showRatingPrompt(router, user.id);
+                        }
+
                         if (router.canGoBack()) {
                           router.back();
                         } else {
@@ -466,6 +476,10 @@ const NeedBloodScreen: React.FC = () => {
                     {
                       text: 'OK',
                       onPress: () => {
+                        if (user?.id) {
+                          showRatingPrompt(router, user.id);
+                        }
+
                         if (router.canGoBack()) {
                           router.back();
                         } else {
@@ -478,15 +492,9 @@ const NeedBloodScreen: React.FC = () => {
               }
             } catch (error: any) {
               console.error('Error creating blood request:', error);
-              console.error('Error details:', {
-                message: error.message,
-                code: error.code,
-                stack: error.stack,
-              });
-              
+
               let errorMessage = 'Failed to create blood request. Please try again.';
-              
-              // Provide more specific error messages
+
               if (error.code === 'permission-denied') {
                 errorMessage = 'You do not have permission to create blood requests. Please check your account settings.';
               } else if (error.code === 'unavailable') {
@@ -494,7 +502,7 @@ const NeedBloodScreen: React.FC = () => {
               } else if (error.message) {
                 errorMessage = error.message;
               }
-              
+
               Alert.alert('Error', errorMessage);
             } finally {
               setLoading(false);
@@ -505,337 +513,323 @@ const NeedBloodScreen: React.FC = () => {
     );
   };
 
+  const shadowStyle = Platform.select({
+    web: { boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' } as any,
+    default: {
+      shadowColor: colors.text,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#1b8882ff" />
-      <LinearGradient colors={['#1b8882ff', '#16b43eff']} style={styles.gradient}>
-        <KeyboardAvoidingView
-          style={styles.keyboardAvoid}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Request Blood</Text>
-          </View>
-
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      <LinearGradient colors={[colors.primary, '#60A5FA']} style={styles.header}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            activeOpacity={0.7}
           >
-            <View style={styles.formCard}>
-              {/* Blood Type Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Blood Information</Text>
+            <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Request Blood</Text>
+        </View>
+      </LinearGradient>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Blood Type Needed *</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={formData.bloodType}
-                      onValueChange={(value) => handleInputChange('bloodType', value)}
-                      style={styles.picker}
-                      enabled={!loading}
-                    >
-                      {BLOOD_TYPES.map((type) => (
-                        <Picker.Item key={type} label={type} value={type} />
-                      ))}
-                    </Picker>
-                  </View>
-                </View>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={[styles.formCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, shadowStyle]}>
+            {/* Blood Type Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Blood Information</Text>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Urgency Level *</Text>
-                  <View style={styles.urgencyContainer}>
-                    <TouchableOpacity
-                      style={[
-                        styles.urgencyButton,
-                        formData.urgencyLevel === 'moderate' && styles.urgencyButtonActive,
-                      ]}
-                      onPress={() => handleInputChange('urgencyLevel', 'moderate')}
-                      disabled={loading}
-                    >
-                      <Ionicons
-                        name="information-circle"
-                        size={20}
-                        color={formData.urgencyLevel === 'moderate' ? '#FFFFFF' : '#10B981'}
-                      />
-                      <Text
-                        style={[
-                          styles.urgencyButtonText,
-                          formData.urgencyLevel === 'moderate' && styles.urgencyButtonTextActive,
-                        ]}
-                      >
-                        Moderate
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.urgencyButton,
-                        styles.urgencyButtonUrgent,
-                        formData.urgencyLevel === 'urgent' && styles.urgencyButtonUrgentActive,
-                      ]}
-                      onPress={() => handleInputChange('urgencyLevel', 'urgent')}
-                      disabled={loading}
-                    >
-                      <Ionicons
-                        name="alert-circle"
-                        size={20}
-                        color={formData.urgencyLevel === 'urgent' ? '#FFFFFF' : '#F59E0B'}
-                      />
-                      <Text
-                        style={[
-                          styles.urgencyButtonText,
-                          styles.urgencyButtonTextUrgent,
-                          formData.urgencyLevel === 'urgent' && styles.urgencyButtonTextActive,
-                        ]}
-                      >
-                        Urgent
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.urgencyButton,
-                        styles.urgencyButtonCritical,
-                        formData.urgencyLevel === 'critical' && styles.urgencyButtonCriticalActive,
-                      ]}
-                      onPress={() => handleInputChange('urgencyLevel', 'critical')}
-                      disabled={loading}
-                    >
-                      <Ionicons
-                        name="warning"
-                        size={20}
-                        color={formData.urgencyLevel === 'critical' ? '#FFFFFF' : '#EF4444'}
-                      />
-                      <Text
-                        style={[
-                          styles.urgencyButtonText,
-                          styles.urgencyButtonTextCritical,
-                          formData.urgencyLevel === 'critical' && styles.urgencyButtonTextActive,
-                        ]}
-                      >
-                        Critical
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Units Needed *</Text>
-                  <TextInput
-                    style={[styles.input, errors.unitsNeeded && styles.inputError]}
-                    value={formData.unitsNeeded}
-                    onChangeText={(value) => handleInputChange('unitsNeeded', value)}
-                    placeholder="Enter number of units (1-10)"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="number-pad"
-                    editable={!loading}
-                  />
-                  {errors.unitsNeeded && (
-                    <Text style={styles.errorText}>{errors.unitsNeeded}</Text>
-                  )}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Blood Type Needed *</Text>
+                <View style={[styles.pickerContainer, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
+                  <Picker
+                    selectedValue={formData.bloodType}
+                    onValueChange={(value) => handleInputChange('bloodType', value)}
+                    style={[styles.picker, { color: colors.text }]}
+                    enabled={!loading}
+                    dropdownIconColor={colors.textSecondary}
+                  >
+                    {BLOOD_TYPES.map((type) => (
+                      <Picker.Item key={type} label={type} value={type} />
+                    ))}
+                  </Picker>
                 </View>
               </View>
 
-              {/* Patient Information */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Patient Information</Text>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Patient Name *</Text>
-                  <TextInput
-                    style={[styles.input, errors.patientName && styles.inputError]}
-                    value={formData.patientName}
-                    onChangeText={(value) => handleInputChange('patientName', value)}
-                    placeholder="Enter patient name"
-                    placeholderTextColor="#94A3B8"
-                    autoCapitalize="words"
-                    editable={!loading}
-                  />
-                  {errors.patientName && (
-                    <Text style={styles.errorText}>{errors.patientName}</Text>
-                  )}
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Hospital/Clinic Name *</Text>
-                  <TextInput
-                    style={[styles.input, errors.hospitalName && styles.inputError]}
-                    value={formData.hospitalName}
-                    onChangeText={(value) => handleInputChange('hospitalName', value)}
-                    placeholder="e.g., Kenyatta National Hospital"
-                    placeholderTextColor="#94A3B8"
-                    autoCapitalize="words"
-                    editable={!loading}
-                  />
-                  {errors.hospitalName && (
-                    <Text style={styles.errorText}>{errors.hospitalName}</Text>
-                  )}
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Hospital Address *</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea, errors.hospitalAddress && styles.inputError]}
-                    value={formData.hospitalAddress}
-                    onChangeText={(value) => handleInputChange('hospitalAddress', value)}
-                    placeholder="e.g., Hospital Rd, Upper Hill, Nairobi"
-                    placeholderTextColor="#94A3B8"
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                    editable={!loading}
-                  />
-                  {errors.hospitalAddress && (
-                    <Text style={styles.errorText}>{errors.hospitalAddress}</Text>
-                  )}
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Contact Number *</Text>
-                  <TextInput
-                    style={[styles.input, errors.requesterPhone && styles.inputError]}
-                    value={formData.requesterPhone}
-                    onChangeText={(value) => handleInputChange('requesterPhone', value)}
-                    placeholder="Enter contact number"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="phone-pad"
-                    editable={!loading}
-                  />
-                  {errors.requesterPhone && (
-                    <Text style={styles.errorText}>{errors.requesterPhone}</Text>
-                  )}
-                </View>
-              </View>
-
-              {/* Location Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Precise Location (Optional)</Text>
-                <Text style={styles.helperText}>
-                  Adding GPS coordinates helps donors navigate to you faster
-                </Text>
-
-                <TouchableOpacity
-                  style={[
-                    styles.locationButton,
-                    loadingLocation && styles.locationButtonDisabled,
-                  ]}
-                  onPress={getCurrentLocation}
-                  disabled={loading || loadingLocation}
-                >
-                  {loadingLocation ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Ionicons name="location" size={20} color="#FFFFFF" />
-                      <Text style={styles.locationButtonText}>
-                        {location ? 'Update GPS Location' : 'Capture GPS Location'}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                {location && (
-                  <View style={styles.locationConfirm}>
-                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                    <View style={styles.locationInfo}>
-                      <Text style={styles.locationConfirmText}>GPS Location Captured</Text>
-                      <Text style={styles.locationCoords}>
-                        {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
-                      </Text>
-                      {location.city && location.region && (
-                        <Text style={styles.locationDetails}>
-                          {location.city}, {location.region}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                )}
-
-                {!location && (
-                  <View style={styles.locationHelpCard}>
-                    <Ionicons name="help-circle-outline" size={18} color="#3B82F6" />
-                    <View style={styles.locationHelpContent}>
-                      <Text style={styles.locationHelpTitle}>Can't get location?</Text>
-                      <Text style={styles.locationHelpText}>
-                        Make sure:{'\n'}
-                        • Location services are enabled{'\n'}
-                        • App has location permission{'\n'}
-                        • You're not in airplane mode{'\n'}
-                        • You have GPS signal (try outdoors)
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {locationPermissionStatus === 'denied' && (
-                  <View style={styles.permissionWarning}>
-                    <Ionicons name="warning" size={18} color="#F59E0B" />
-                    <Text style={styles.permissionWarningText}>
-                      Location permission denied. Enable it in settings for better results.
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Urgency Level *</Text>
+                <View style={styles.urgencyContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.urgencyButton,
+                      { backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
+                      formData.urgencyLevel === 'moderate' && { backgroundColor: colors.success, borderColor: colors.success },
+                    ]}
+                    onPress={() => handleInputChange('urgencyLevel', 'moderate')}
+                    disabled={loading}
+                  >
+                    <Ionicons
+                      name="information-circle"
+                      size={20}
+                      color={formData.urgencyLevel === 'moderate' ? '#FFFFFF' : colors.success}
+                    />
+                    <Text
+                      style={[
+                        styles.urgencyButtonText,
+                        { color: colors.textSecondary },
+                        formData.urgencyLevel === 'moderate' && { color: '#FFFFFF', fontWeight: '700' },
+                      ]}
+                    >
+                      Moderate
                     </Text>
-                  </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.urgencyButton,
+                      { backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
+                      formData.urgencyLevel === 'urgent' && { backgroundColor: colors.warning, borderColor: colors.warning },
+                    ]}
+                    onPress={() => handleInputChange('urgencyLevel', 'urgent')}
+                    disabled={loading}
+                  >
+                    <Ionicons
+                      name="alert-circle"
+                      size={20}
+                      color={formData.urgencyLevel === 'urgent' ? '#FFFFFF' : colors.warning}
+                    />
+                    <Text
+                      style={[
+                        styles.urgencyButtonText,
+                        { color: colors.textSecondary },
+                        formData.urgencyLevel === 'urgent' && { color: '#FFFFFF', fontWeight: '700' },
+                      ]}
+                    >
+                      Urgent
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.urgencyButton,
+                      { backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
+                      formData.urgencyLevel === 'critical' && { backgroundColor: colors.danger, borderColor: colors.danger },
+                    ]}
+                    onPress={() => handleInputChange('urgencyLevel', 'critical')}
+                    disabled={loading}
+                  >
+                    <Ionicons
+                      name="warning"
+                      size={20}
+                      color={formData.urgencyLevel === 'critical' ? '#FFFFFF' : colors.danger}
+                    />
+                    <Text
+                      style={[
+                        styles.urgencyButtonText,
+                        { color: colors.textSecondary },
+                        formData.urgencyLevel === 'critical' && { color: '#FFFFFF', fontWeight: '700' },
+                      ]}
+                    >
+                      Critical
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Units Needed *</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text },
+                    errors.unitsNeeded && { borderColor: colors.danger }
+                  ]}
+                  value={formData.unitsNeeded}
+                  onChangeText={(value) => handleInputChange('unitsNeeded', value)}
+                  placeholder="Enter number of units (1-10)"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="number-pad"
+                  editable={!loading}
+                />
+                {errors.unitsNeeded && (
+                  <Text style={[styles.errorText, { color: colors.danger }]}>{errors.unitsNeeded}</Text>
+                )}
+              </View>
+            </View>
+
+            {/* Patient Information */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Patient Information</Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Patient Name *</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text },
+                    errors.patientName && { borderColor: colors.danger }
+                  ]}
+                  value={formData.patientName}
+                  onChangeText={(value) => handleInputChange('patientName', value)}
+                  placeholder="Enter patient name"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="words"
+                  editable={!loading}
+                />
+                {errors.patientName && (
+                  <Text style={[styles.errorText, { color: colors.danger }]}>{errors.patientName}</Text>
                 )}
               </View>
 
-              {/* Additional Notes */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Additional Notes (Optional)</Text>
-
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Hospital/Clinic Name *</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
-                  value={formData.description}
-                  onChangeText={(value) => handleInputChange('description', value)}
-                  placeholder="Any additional information or special requirements..."
-                  placeholderTextColor="#94A3B8"
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text },
+                    errors.hospitalName && { borderColor: colors.danger }
+                  ]}
+                  value={formData.hospitalName}
+                  onChangeText={(value) => handleInputChange('hospitalName', value)}
+                  placeholder="e.g., Kenyatta National Hospital"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="words"
+                  editable={!loading}
+                />
+                {errors.hospitalName && (
+                  <Text style={[styles.errorText, { color: colors.danger }]}>{errors.hospitalName}</Text>
+                )}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Hospital Address *</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.textArea,
+                    { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text },
+                    errors.hospitalAddress && { borderColor: colors.danger }
+                  ]}
+                  value={formData.hospitalAddress}
+                  onChangeText={(value) => handleInputChange('hospitalAddress', value)}
+                  placeholder="e.g., Hospital Rd, Upper Hill, Nairobi"
+                  placeholderTextColor={colors.textMuted}
                   multiline
-                  numberOfLines={4}
+                  numberOfLines={3}
                   textAlignVertical="top"
                   editable={!loading}
                 />
+                {errors.hospitalAddress && (
+                  <Text style={[styles.errorText, { color: colors.danger }]}>{errors.hospitalAddress}</Text>
+                )}
               </View>
 
-              {/* Info Box */}
-              <View style={styles.infoBox}>
-                <Ionicons name="information-circle" size={20} color="#3B82F6" />
-                <Text style={styles.infoText}>
-                  Your request will be sent to all compatible donors. They will be able to see
-                  your contact information and hospital location.
-                </Text>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Contact Number *</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text },
+                    errors.requesterPhone && { borderColor: colors.danger }
+                  ]}
+                  value={formData.requesterPhone}
+                  onChangeText={(value) => handleInputChange('requesterPhone', value)}
+                  placeholder="Enter contact number"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="phone-pad"
+                  editable={!loading}
+                />
+                {errors.requesterPhone && (
+                  <Text style={[styles.errorText, { color: colors.danger }]}>{errors.requesterPhone}</Text>
+                )}
               </View>
+            </View>
+
+            {/* Location Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Precise Location (Optional)</Text>
+              <Text style={[styles.helperText, { color: colors.textMuted }]}>
+                Adding GPS coordinates helps donors navigate to you faster
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.locationButton,
+                  { backgroundColor: colors.primary },
+                  loadingLocation && styles.locationButtonDisabled,
+                ]}
+                onPress={getCurrentLocation}
+                disabled={loading || loadingLocation}
+              >
+                {loadingLocation ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="location" size={20} color="#FFFFFF" />
+                    <Text style={styles.locationButtonText}>
+                      {location ? 'Update GPS Location' : 'Capture GPS Location'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {location && (
+                <View style={[styles.locationConfirm, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : '#ECFDF5' }]}>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                  <View style={styles.locationInfo}>
+                    <Text style={[styles.locationConfirmText, { color: colors.success }]}>GPS Location Captured</Text>
+                    <Text style={[styles.locationCoords, { color: colors.textSecondary }]}>
+                      {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+                    </Text>
+                    {location.city && location.region && (
+                      <Text style={[styles.locationDetails, { color: colors.textMuted }]}>
+                        {location.city}, {location.region}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
 
               {/* Submit Button */}
               <TouchableOpacity
-                style={[styles.submitButton, loading && styles.buttonDisabled]}
+                style={[
+                  styles.submitButton,
+                  { backgroundColor: colors.primary },
+                  loading && styles.submitButtonDisabled
+                ]}
                 onPress={handleSubmit}
                 disabled={loading}
-                activeOpacity={0.8}
               >
                 {loading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator color="#FFFFFF" />
-                    <Text style={styles.loadingButtonText}>Creating Request...</Text>
-                  </View>
+                  <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <>
-                    <Ionicons name="send" size={20} color="#FFFFFF" />
-                    <Text style={styles.submitButtonText}>Submit Blood Request</Text>
+                    <Text style={styles.submitButtonText}>Request Blood</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                   </>
                 )}
               </TouchableOpacity>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </LinearGradient>
+          </View>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -843,70 +837,55 @@ const NeedBloodScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  gradient: {
-    flex: 1,
-  },
-  keyboardAvoid: {
-    flex: 1,
   },
   header: {
+    paddingTop: 10,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  keyboardAvoid: {
     flex: 1,
   },
   scrollView: {
     flex: 1,
+    marginTop: -20,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingBottom: 40,
   },
   formCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    borderWidth: 1,
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1E293B',
+    fontWeight: '700',
     marginBottom: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: '#3B82F6',
-  },
-  helperText: {
-    fontSize: 13,
-    color: '#64748B',
-    marginBottom: 12,
-    fontStyle: 'italic',
   },
   inputGroup: {
     marginBottom: 16,
@@ -914,218 +893,119 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B',
     marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
-    color: '#1E293B',
-    backgroundColor: '#F8FAFC',
-  },
-  inputError: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
   },
   textArea: {
     minHeight: 80,
-    paddingTop: 12,
+    textAlignVertical: 'top',
   },
   pickerContainer: {
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
     overflow: 'hidden',
+    height: 52,
+    justifyContent: 'center',
   },
   picker: {
-    height: 50,
+    // Picker styles handled via props
   },
   urgencyContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   urgencyButton: {
     flex: 1,
-    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#10B981',
-    backgroundColor: '#D1FAE5',
-  },
-  urgencyButtonActive: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  urgencyButtonUrgent: {
-    borderColor: '#F59E0B',
-    backgroundColor: '#FEF3C7',
-  },
-  urgencyButtonUrgentActive: {
-    backgroundColor: '#F59E0B',
-    borderColor: '#F59E0B',
-  },
-  urgencyButtonCritical: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEE2E2',
-  },
-  urgencyButtonCriticalActive: {
-    backgroundColor: '#EF4444',
-    borderColor: '#EF4444',
+    gap: 6,
   },
   urgencyButtonText: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: '#10B981',
+    fontWeight: '500',
   },
-  urgencyButtonTextUrgent: {
-    color: '#F59E0B',
+  errorText: {
+    fontSize: 12,
+    marginTop: 6,
+    marginLeft: 4,
   },
-  urgencyButtonTextCritical: {
-    color: '#EF4444',
-  },
-  urgencyButtonTextActive: {
-    color: '#FFFFFF',
+  helperText: {
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 19,
   },
   locationButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 16,
     gap: 8,
-    backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   locationButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   locationButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
     color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 15,
   },
   locationConfirm: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginTop: 8,
+    alignItems: 'center',
     padding: 12,
-    backgroundColor: '#D1FAE5',
-    borderRadius: 8,
+    borderRadius: 12,
+    gap: 12,
+    marginBottom: 16,
   },
   locationInfo: {
     flex: 1,
   },
   locationConfirmText: {
-    fontSize: 14,
-    color: '#047857',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 13,
   },
   locationCoords: {
     fontSize: 12,
-    color: '#059669',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     marginTop: 2,
   },
   locationDetails: {
     fontSize: 12,
-    color: '#059669',
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  locationHelpCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#EFF6FF',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#3B82F6',
-  },
-  locationHelpContent: {
-    flex: 1,
-  },
-  locationHelpTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E40AF',
-    marginBottom: 4,
-  },
-  locationHelpText: {
-    fontSize: 12,
-    color: '#1E40AF',
-    lineHeight: 18,
-  },
-  permissionWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    padding: 10,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 8,
-  },
-  permissionWarningText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#92400E',
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  infoText: {
-    fontSize: 13,
-    color: '#1E40AF',
-    marginLeft: 10,
-    flex: 1,
+    marginTop: 1,
   },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#10B981',
     paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: 100, // Pill shape
+    gap: 10,
+    marginTop: 8,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
   },
   submitButtonText: {
+    color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
+    fontWeight: '700',
   },
 });
 

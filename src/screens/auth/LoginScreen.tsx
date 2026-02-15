@@ -10,6 +10,8 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,6 +23,13 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Responsive sizing helpers
+const scale = (size: number) => (SCREEN_WIDTH / 375) * size;
+const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size;
+const moderateScale = (size: number, factor = 0.5) => size + (scale(size) - size) * factor;
 
 interface LoginFormData {
   email: string;
@@ -324,10 +333,11 @@ const LoginScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#1b8882ff" />
+      <StatusBar barStyle="light-content" backgroundColor="#0A2647" />
       <LinearGradient
-        colors={['#1b8882ff', '#16b43eff']}
+        colors={['#0A2647', '#144272', '#2C74B3']}
         style={styles.gradient}
+        locations={[0, 0.5, 1]}
       >
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
@@ -341,7 +351,7 @@ const LoginScreen: React.FC = () => {
             {/* Header with Logo */}
             <View style={styles.header}>
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={() => router.replace('/')}
                 style={styles.backButton}
                 activeOpacity={0.7}
               >
@@ -350,14 +360,26 @@ const LoginScreen: React.FC = () => {
 
               {/* Logo */}
               <View style={styles.logoContainer}>
-                <View style={styles.outerCircle}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons name="water" size={45} color="#DC2626" />
+                <View style={styles.logoCard}>
+                  <View style={styles.logoGlowEffect} />
+                  <View style={styles.logoImageContainer}>
+                    <Image
+                      source={require('@/assets/images/logo.jpg')}
+                      style={styles.logoImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  {/* Verified Badge */}
+                  <View style={styles.logoBadge}>
+                    <View style={styles.badgeDot} />
+                    <Text style={styles.badgeText}>Verified</Text>
                   </View>
                 </View>
+
                 <Text style={styles.appName}>BloodLink</Text>
                 <Text style={styles.welcomeText}>Welcome back to BloodLink</Text>
-                <Text style={styles.tagline}>We save lives</Text>
+                <Text style={styles.tagline}>Every Drop Counts, Every Life Matters</Text>
               </View>
             </View>
 
@@ -430,11 +452,23 @@ const LoginScreen: React.FC = () => {
                   disabled={loading}
                   activeOpacity={0.8}
                 >
-                  {loading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.loginButtonText}>Login</Text>
-                  )}
+                  <LinearGradient
+                    colors={['#3B82F6', '#2563EB']}
+                    style={styles.loginButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Text style={styles.loginButtonText}>Login</Text>
+                        <View style={styles.buttonIconContainer}>
+                          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                        </View>
+                      </>
+                    )}
+                  </LinearGradient>
                 </TouchableOpacity>
 
                 {/* Sign Up Link */}
@@ -456,7 +490,7 @@ const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1b8882ff',
+    backgroundColor: '#0A2647',
   },
   gradient: {
     flex: 1,
@@ -466,12 +500,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: scale(20),
+    paddingBottom: verticalScale(20),
   },
   header: {
-    paddingTop: 12,
-    paddingBottom: 20,
+    paddingTop: verticalScale(12),
+    paddingBottom: verticalScale(16),
   },
   backButton: {
     width: 40,
@@ -485,66 +519,105 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
   },
-  outerCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'transparent',
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: '#DC2626',
-    marginBottom: 10,
+  logoCard: {
+    position: 'relative',
+    marginBottom: verticalScale(10),
+  },
+  logoGlowEffect: {
+    position: 'absolute',
+    width: moderateScale(110),
+    height: moderateScale(110),
+    borderRadius: 28,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    top: '50%',
+    left: '50%',
+    transform: [
+      { translateX: -moderateScale(55) },
+      { translateY: -moderateScale(55) },
+    ],
     ...(Platform.OS === 'web'
       ? {
-        boxShadow: '0px 6px 12px rgba(255, 255, 255, 0.3)',
+        filter: 'blur(20px)',
       } as any
-      : {
-        shadowColor: "#FFFFFF",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        elevation: 10,
-      }),
+      : {}),
   },
-  iconContainer: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    backgroundColor: '#FFFFFF',
-    alignItems: "center",
-    justifyContent: "center",
+  logoImageContainer: {
+    width: moderateScale(95),
+    height: moderateScale(95),
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
   },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+  },
+  logoBadge: {
+    position: 'absolute',
+    bottom: -15,
+    right: -10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 3,
+    borderColor: '#144272',
+    ...(Platform.OS === 'web'
+      ? {
+        boxShadow: '0px 4px 12px rgba(16, 185, 129, 0.4)',
+      } as any
+      : {
+        shadowColor: "#10B981",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+        elevation: 8,
+      }),
+  },
+  badgeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#FFFFFF',
+    marginRight: 4,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: moderateScale(9),
+    fontWeight: '700',
+  },
   appName: {
-    fontSize: 24,
+    fontSize: moderateScale(24),
     fontWeight: '800',
-    color: '#0f0e0eff',
-    marginBottom: 3,
+    color: '#FFFFFF',
+    marginBottom: 4,
     letterSpacing: 0.5,
   },
   welcomeText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.95,
+    fontSize: moderateScale(14),
+    color: 'rgba(255, 255, 255, 0.95)',
     fontWeight: '500',
     marginBottom: 2,
   },
   tagline: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.85,
-    fontStyle: 'italic',
+    fontSize: moderateScale(12),
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '400',
   },
   formContainer: {
     flex: 1,
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: verticalScale(16),
   },
   formCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 18,
+    padding: scale(20),
     ...(Platform.OS === 'web'
       ? {
         boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
@@ -561,18 +634,18 @@ const styles = StyleSheet.create({
       }),
   },
   formTitle: {
-    fontSize: 19,
+    fontSize: moderateScale(19),
     fontWeight: '700',
     color: '#1E293B',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: verticalScale(20),
     letterSpacing: 0.3,
   },
   inputGroup: {
-    marginBottom: 14,
+    marginBottom: verticalScale(14),
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     fontWeight: '600',
     color: '#1E293B',
     marginBottom: 6,
@@ -581,9 +654,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(12),
+    fontSize: moderateScale(15),
     color: '#1E293B',
     backgroundColor: '#F8FAFC',
   },
@@ -598,64 +671,75 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    paddingRight: 48,
-    fontSize: 15,
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(12),
+    paddingRight: scale(48),
+    fontSize: moderateScale(15),
     color: '#1E293B',
     backgroundColor: '#F8FAFC',
   },
   eyeIcon: {
     position: 'absolute',
-    right: 14,
-    top: 12,
+    right: scale(14),
+    top: verticalScale(12),
     padding: 4,
   },
   errorText: {
     color: '#EF4444',
-    fontSize: 12,
+    fontSize: moderateScale(12),
     marginTop: 4,
     marginLeft: 4,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: 18,
+    marginBottom: verticalScale(18),
     minHeight: 20,
   },
   forgotPasswordText: {
-    fontSize: 13,
+    fontSize: moderateScale(13),
     color: '#3B82F6',
     fontWeight: '600',
   },
   loginButton: {
-    backgroundColor: '#10B981',
-    paddingVertical: 13,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: verticalScale(16),
     ...(Platform.OS === 'web'
       ? {
-        boxShadow: '0px 4px 10px rgba(16, 185, 129, 0.3)',
+        boxShadow: '0px 6px 20px rgba(59, 130, 246, 0.4)',
       } as any
       : {
-        shadowColor: '#10B981',
+        shadowColor: '#3B82F6',
         shadowOffset: {
           width: 0,
-          height: 3,
+          height: 6,
         },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
+        shadowOpacity: 0.4,
+        shadowRadius: 15,
+        elevation: 8,
       }),
+  },
+  loginButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: verticalScale(14),
+    paddingHorizontal: scale(24),
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   loginButtonText: {
-    fontSize: 17,
+    fontSize: moderateScale(17),
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+  },
+  buttonIconContainer: {
+    marginLeft: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    padding: 6,
   },
   signupContainer: {
     flexDirection: 'row',
@@ -663,11 +747,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signupText: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     color: '#64748B',
   },
   signupLink: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     color: '#3B82F6',
     fontWeight: '700',
     textDecorationLine: 'underline',

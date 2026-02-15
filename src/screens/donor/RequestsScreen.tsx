@@ -17,6 +17,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -26,6 +27,39 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+// ─── Colors ──────────────────────────────────────────────────────────────────
+const TEAL      = '#0D9488';
+const TEAL_MID  = '#14B8A6';
+const TEAL_PALE = '#CCFBF1';
+const GREEN     = '#10B981';
+const GREEN_PALE= '#D1FAE5';
+const WARN      = '#F59E0B';
+const WARN_PALE = '#FEF3C7';
+const DANGER    = '#EF4444';
+const DANGER_PALE='#FEE2E2';
+const BLUE      = '#3B82F6';
+const BLUE_PALE = '#DBEAFE';
+const PURPLE    = '#8B5CF6';
+const PURPLE_PALE='#EDE9FE';
+const SURFACE   = '#FFFFFF';
+const BG        = '#F8FAFC';
+const TEXT_DARK = '#0F172A';
+const TEXT_MID  = '#475569';
+const TEXT_SOFT = '#94A3B8';
+const BORDER    = '#E2E8F0';
+
+const shadow = (c = '#000', o = 0.08, r = 10, e = 3) =>
+  Platform.select({
+    web: { boxShadow: `0 2px ${r}px rgba(0,0,0,${o})` } as any,
+    default: { 
+      shadowColor: c, 
+      shadowOffset: { width: 0, height: 2 }, 
+      shadowOpacity: o, 
+      shadowRadius: r, 
+      elevation: e 
+    },
+  });
 
 const RequestsScreen: React.FC = () => {
   const router = useRouter();
@@ -47,7 +81,6 @@ const RequestsScreen: React.FC = () => {
 
     try {
       setLoading(true);
-      // Use the new function that excludes rejected requests
       const allRequests = await getActiveBloodRequestsForDonor(user.id);
       
       // Filter by blood type compatibility
@@ -58,7 +91,9 @@ const RequestsScreen: React.FC = () => {
       // Apply urgency filter
       let filteredRequests = compatibleRequests;
       if (filter === 'urgent') {
-        filteredRequests = compatibleRequests.filter(r => r.urgencyLevel === 'urgent');
+        filteredRequests = compatibleRequests.filter(r => 
+          r.urgencyLevel === 'urgent' || r.urgencyLevel === 'critical'
+        );
       } else if (filter === 'moderate') {
         filteredRequests = compatibleRequests.filter(r => r.urgencyLevel === 'moderate');
       }
@@ -105,7 +140,6 @@ const RequestsScreen: React.FC = () => {
           text: 'Accept',
           onPress: async () => {
             try {
-              // Create chat between donor and requester
               const chatId = await createChat(
                 user.id,
                 `${user.firstName} ${user.lastName}`,
@@ -114,7 +148,6 @@ const RequestsScreen: React.FC = () => {
                 request.id
               );
 
-              // Create accepted request record
               await createAcceptedRequest(
                 user.id,
                 `${user.firstName} ${user.lastName}`,
@@ -122,24 +155,18 @@ const RequestsScreen: React.FC = () => {
                 chatId
               );
 
-              // Update blood request status
               await acceptBloodRequest(
                 request.id,
                 user.id,
                 `${user.firstName} ${user.lastName}`
               );
 
-              // Send notification to requester
               await createNotification({
                 userId: request.requesterId,
                 type: 'request_accepted',
                 title: 'Blood Request Accepted',
                 message: `${user.firstName} ${user.lastName} has accepted your blood donation request.`,
-                data: {
-                  requestId: request.id,
-                  donorId: user.id,
-                  chatId,
-                },
+                data: { requestId: request.id, donorId: user.id, chatId },
                 isRead: false,
                 timestamp: ''
               });
@@ -151,10 +178,6 @@ const RequestsScreen: React.FC = () => {
                   {
                     text: 'Go to Chat',
                     onPress: () => router.push(`/(shared)/chat?chatId=${chatId}` as any),
-                  },
-                  { 
-                    text: 'View My Commitments',
-                    onPress: () => router.push('/(donor)/donation-history' as any)
                   },
                   { text: 'OK' },
                 ]
@@ -180,19 +203,15 @@ const RequestsScreen: React.FC = () => {
     if (!user || !selectedRequest) return;
 
     try {
-      // Create rejection record
       await createRejectedRequest(
         user.id,
         selectedRequest.id,
         rejectionReason || undefined
       );
 
-      // Close modal and reset
       setRejectionModalVisible(false);
       setSelectedRequest(null);
       setRejectionReason('');
-
-      // Reload requests to remove this one from the list
       await loadRequests();
 
       Alert.alert('Request Declined', 'This request will no longer be shown to you.');
@@ -202,171 +221,210 @@ const RequestsScreen: React.FC = () => {
     }
   };
 
-  const getUrgencyColor = (urgencyLevel: string) => {
-    switch (urgencyLevel) {
+  const getUrgencyConfig = (urgency: string) => {
+    switch (urgency) {
       case 'critical':
-        return '#DC2626';
+        return { color: DANGER, bg: DANGER_PALE, icon: 'warning', label: 'CRITICAL' };
       case 'urgent':
-        return '#EF4444';
-      case 'moderate':
-        return '#F59E0B';
+        return { color: WARN, bg: WARN_PALE, icon: 'alert-circle', label: 'URGENT' };
       default:
-        return '#64748B';
+        return { color: BLUE, bg: BLUE_PALE, icon: 'information-circle', label: 'MODERATE' };
     }
   };
 
-  const getUrgencyIcon = (urgencyLevel: string) => {
-    switch (urgencyLevel) {
-      case 'critical':
-        return 'alert-circle';
-      case 'urgent':
-        return 'alert-circle';
-      case 'moderate':
-        return 'information-circle';
-      default:
-        return 'checkmark-circle';
-    }
+  const renderRequestItem = ({ item }: { item: BloodRequest }) => {
+    const urgencyCfg = getUrgencyConfig(item.urgencyLevel || 'moderate');
+
+    return (
+      <View style={st.card}>
+        {/* Top band */}
+        <LinearGradient
+          colors={[TEAL, TEAL_MID]}
+          style={st.cardBand}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <View style={st.cardBandRow}>
+            {/* Blood type */}
+            <View style={st.bloodTypeBlock}>
+              <Ionicons name="water" size={20} color="rgba(255,255,255,0.75)" />
+              <View>
+                <Text style={st.bloodTypeSmallLabel}>Blood Type</Text>
+                <Text style={st.bloodTypeValue}>{item.bloodType}</Text>
+              </View>
+            </View>
+            {/* Urgency pill */}
+            <View style={[st.urgencyPill, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+              <Ionicons name={urgencyCfg.icon as any} size={13} color="#FFFFFF" />
+              <Text style={st.urgencyPillText}>{urgencyCfg.label}</Text>
+            </View>
+          </View>
+        </LinearGradient>
+
+        {/* Body */}
+        <View style={st.cardBody}>
+          {/* Info Grid */}
+          <View style={st.infoGrid}>
+            <View style={st.infoCell}>
+              <View style={[st.infoCellIcon, { backgroundColor: PURPLE_PALE }]}>
+                <Ionicons name="person" size={14} color={PURPLE} />
+              </View>
+              <View style={st.infoCellText}>
+                <Text style={st.infoCellLabel}>Requester</Text>
+                <Text style={st.infoCellValue} numberOfLines={1}>{item.requesterName}</Text>
+              </View>
+            </View>
+            {item.patientName && (
+              <View style={st.infoCell}>
+                <View style={[st.infoCellIcon, { backgroundColor: BLUE_PALE }]}>
+                  <Ionicons name="medical" size={14} color={BLUE} />
+                </View>
+                <View style={st.infoCellText}>
+                  <Text style={st.infoCellLabel}>Patient</Text>
+                  <Text style={st.infoCellValue} numberOfLines={1}>{item.patientName}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Hospital */}
+          {item.hospitalName && (
+            <View style={st.hospitalRow}>
+              <View style={[st.infoCellIcon, { backgroundColor: TEAL_PALE }]}>
+                <Ionicons name="business" size={14} color={TEAL} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={st.infoCellLabel}>Hospital</Text>
+                <Text style={st.infoCellValue} numberOfLines={1}>{item.hospitalName}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Location */}
+          <View style={st.addressRow}>
+            <Ionicons name="location" size={13} color={TEXT_SOFT} />
+            <Text style={st.addressText} numberOfLines={2}>
+              {item.location.address || 'Location provided'}
+            </Text>
+          </View>
+
+          {/* Stats Chips */}
+          <View style={st.chipRow}>
+            <View style={[st.chip, { backgroundColor: urgencyCfg.bg }]}>
+              <Ionicons name={urgencyCfg.icon as any} size={13} color={urgencyCfg.color} />
+              <Text style={st.chipLabel}>Urgency</Text>
+              <Text style={[st.chipValue, { color: urgencyCfg.color }]}>{urgencyCfg.label}</Text>
+            </View>
+            <View style={st.chip}>
+              <Ionicons name="flask" size={13} color={BLUE} />
+              <Text style={st.chipLabel}>Units</Text>
+              <Text style={[st.chipValue, { color: BLUE }]}>{item.unitsNeeded}</Text>
+            </View>
+            <View style={st.chip}>
+              <Ionicons name="time" size={13} color={PURPLE} />
+              <Text style={st.chipLabel}>Posted</Text>
+              <Text style={[st.chipValue, { color: PURPLE }]}>
+                {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
+          </View>
+
+          {/* Notes */}
+          {item.notes && (
+            <View style={st.notesBox}>
+              <Ionicons name="document-text" size={13} color={TEAL} />
+              <Text style={st.notesText}>{item.notes}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Actions */}
+        <View style={st.cardActions}>
+          <TouchableOpacity style={st.actionBtnRed} onPress={() => handleRejectRequest(item)}>
+            <Ionicons name="close-circle" size={15} color={DANGER} />
+            <Text style={[st.actionBtnText, { color: DANGER }]}>Decline</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={st.actionBtnFilled} onPress={() => handleAcceptRequest(item)}>
+            <LinearGradient 
+              colors={[GREEN, '#059669']} 
+              style={st.actionBtnFilledGrad} 
+              start={{x:0,y:0}} 
+              end={{x:1,y:0}}
+            >
+              <Ionicons name="checkmark-circle" size={15} color="#FFFFFF" />
+              <Text style={st.actionBtnFilledText}>Accept</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
-
-  const renderRequestItem = ({ item }: { item: BloodRequest }) => (
-    <View style={styles.requestCard}>
-      <View style={styles.requestHeader}>
-        <View style={styles.bloodTypeContainer}>
-          <Ionicons name="water" size={24} color="#EF4444" />
-          <Text style={styles.bloodType}>{item.bloodType}</Text>
-        </View>
-        <View style={[styles.urgencyBadge, { backgroundColor: `${getUrgencyColor(item.urgencyLevel)}20` }]}>
-          <Ionicons name={getUrgencyIcon(item.urgencyLevel) as any} size={16} color={getUrgencyColor(item.urgencyLevel)} />
-          <Text style={[styles.urgencyText, { color: getUrgencyColor(item.urgencyLevel) }]}>
-            {item.urgencyLevel?.toUpperCase() || 'MODERATE'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.requestBody}>
-        <View style={styles.infoRow}>
-          <Ionicons name="person" size={18} color="#64748B" />
-          <Text style={styles.infoText}>{item.requesterName}</Text>
-        </View>
-
-        {item.patientName && (
-          <View style={styles.infoRow}>
-            <Ionicons name="medical" size={18} color="#64748B" />
-            <Text style={styles.infoText}>Patient: {item.patientName}</Text>
-          </View>
-        )}
-
-        {item.hospitalName && (
-          <View style={styles.infoRow}>
-            <Ionicons name="business" size={18} color="#64748B" />
-            <Text style={styles.infoText}>{item.hospitalName}</Text>
-          </View>
-        )}
-
-        <View style={styles.infoRow}>
-          <Ionicons name="location" size={18} color="#64748B" />
-          <Text style={styles.infoText}>{item.location.address || 'Location provided'}</Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Ionicons name="time" size={18} color="#64748B" />
-          <Text style={styles.infoText}>
-            {new Date(item.createdAt).toLocaleDateString()} at{' '}
-            {new Date(item.createdAt).toLocaleTimeString()}
-          </Text>
-        </View>
-
-        {item.notes && (
-          <View style={styles.notesContainer}>
-            <Text style={styles.notesLabel}>Notes:</Text>
-            <Text style={styles.notesText}>{item.notes}</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={styles.rejectButton}
-          onPress={() => handleRejectRequest(item)}
-        >
-          <Ionicons name="close-circle" size={20} color="#EF4444" />
-          <Text style={styles.rejectButtonText}>Decline</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.acceptButton}
-          onPress={() => handleAcceptRequest(item)}
-        >
-          <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-          <Text style={styles.acceptButtonText}>Accept Request</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="file-tray-outline" size={80} color="#CBD5E1" />
-      <Text style={styles.emptyTitle}>No Blood Requests</Text>
-      <Text style={styles.emptyText}>
+    <View style={st.emptyWrap}>
+      <LinearGradient colors={[TEAL_PALE, '#99F6E4']} style={st.emptyIconWrap}>
+        <Ionicons name="file-tray-outline" size={46} color={TEAL} />
+      </LinearGradient>
+      <Text style={st.emptyTitle}>No Blood Requests</Text>
+      <Text style={st.emptyText}>
         There are no active blood requests for your blood type at the moment.
       </Text>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#1b8882ff" />
-      <LinearGradient colors={['#1b8882ff', '#16b43eff']} style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Blood Requests</Text>
-          <Text style={styles.headerSubtitle}>
-            {requests.length} compatible request{requests.length !== 1 ? 's' : ''}
-          </Text>
+    <SafeAreaView style={st.container} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={TEAL} />
+      
+      {/* Header */}
+      <LinearGradient colors={[TEAL, TEAL_MID]} style={st.header}>
+        <View style={st.headerTop}>
+          <View style={st.headerCenter}>
+            <Text style={st.headerTitle}>Blood Requests</Text>
+            <Text style={st.headerSub}>
+              {requests.length} compatible request{requests.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
         </View>
       </LinearGradient>
 
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-            All
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'urgent' && styles.filterButtonActive]}
-          onPress={() => setFilter('urgent')}
-        >
-          <Text style={[styles.filterText, filter === 'urgent' && styles.filterTextActive]}>
-            Urgent
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'moderate' && styles.filterButtonActive]}
-          onPress={() => setFilter('moderate')}
-        >
-          <Text style={[styles.filterText, filter === 'moderate' && styles.filterTextActive]}>
-            Moderate
-          </Text>
-        </TouchableOpacity>
+      {/* Filter Tabs */}
+      <View style={st.filterBar}>
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'urgent', label: 'Urgent' },
+          { key: 'moderate', label: 'Moderate' },
+        ].map(tab => {
+          const isActive = filter === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[st.filterTab, isActive && st.filterTabActive]}
+              onPress={() => setFilter(tab.key as any)}
+            >
+              <Text style={[st.filterTabText, isActive && st.filterTabTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
+      {/* List */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1b8882ff" />
-          <Text style={styles.loadingText}>Loading requests...</Text>
+        <View style={st.loadingWrap}>
+          <ActivityIndicator size="large" color={TEAL} />
+          <Text style={st.loadingText}>Loading requests...</Text>
         </View>
       ) : (
         <FlatList
           data={requests}
           renderItem={renderRequestItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={st.listContent}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1b8882ff']} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[TEAL]} tintColor={TEAL} />
           }
         />
       )}
@@ -378,24 +436,31 @@ const RequestsScreen: React.FC = () => {
         animationType="slide"
         onRequestClose={() => setRejectionModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Decline Request</Text>
-              <TouchableOpacity onPress={() => setRejectionModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748B" />
+        <View style={st.modalOverlay}>
+          <View style={st.modalSheet}>
+            <View style={st.modalHandle} />
+            <View style={st.modalHeaderRow}>
+              <View style={[st.modalTitleIcon, { backgroundColor: DANGER_PALE }]}>
+                <Ionicons name="close-circle" size={20} color={DANGER} />
+              </View>
+              <Text style={st.modalTitle}>Decline Request</Text>
+              <TouchableOpacity 
+                style={st.modalCloseBtn} 
+                onPress={() => setRejectionModalVisible(false)}
+              >
+                <Ionicons name="close" size={20} color={TEXT_SOFT} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalDescription}>
+            <Text style={st.modalDesc}>
               You're about to decline this blood donation request. This will remove it from your list.
             </Text>
 
-            <Text style={styles.inputLabel}>Reason (Optional)</Text>
+            <Text style={st.modalInputLabel}>Reason (Optional)</Text>
             <TextInput
-              style={styles.textInput}
+              style={st.modalInput}
               placeholder="Why are you declining this request?"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={TEXT_SOFT}
               value={rejectionReason}
               onChangeText={setRejectionReason}
               multiline
@@ -403,22 +468,26 @@ const RequestsScreen: React.FC = () => {
               textAlignVertical="top"
             />
 
-            <View style={styles.modalActions}>
+            <View style={st.modalBtnsRow}>
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={st.modalCancelBtn}
                 onPress={() => {
                   setRejectionModalVisible(false);
                   setRejectionReason('');
                 }}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={st.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.confirmRejectButton}
-                onPress={confirmRejectRequest}
-              >
-                <Text style={styles.confirmRejectButtonText}>Decline Request</Text>
+              <TouchableOpacity style={st.modalDeclineBtn} onPress={confirmRejectRequest}>
+                <LinearGradient 
+                  colors={[DANGER, '#DC2626']} 
+                  style={st.modalDeclineGrad} 
+                  start={{x:0,y:0}} 
+                  end={{x:1,y:0}}
+                >
+                  <Ionicons name="close-circle" size={18} color="#FFFFFF" />
+                  <Text style={st.modalDeclineText}>Decline Request</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
@@ -428,271 +497,251 @@ const RequestsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  headerContent: {
-    flexDirection: 'column',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 10,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  filterButton: {
+const st = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+
+  // Header
+  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 18 },
+  headerTop: { alignItems: 'center', marginBottom: 0 },
+  headerCenter: { alignItems: 'center' },
+  headerTitle: { fontSize: 24, fontWeight: '900', color: '#FFFFFF' },
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2, fontWeight: '600' },
+
+  // Filter Bar
+  filterBar: { 
+    flexDirection: 'row', 
+    backgroundColor: SURFACE, 
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-  },
-  filterButtonActive: {
-    backgroundColor: '#1b8882ff',
-  },
-  filterText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  filterTextActive: {
-    color: '#FFFFFF',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#64748B',
-  },
-  listContent: {
-    padding: 16,
-  },
-  requestCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  requestHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  bloodTypeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderBottomWidth: 1, 
+    borderBottomColor: BORDER,
     gap: 8,
   },
-  bloodType: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#EF4444',
-  },
-  urgencyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  urgencyText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  requestBody: {
-    padding: 16,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#1E293B',
+  filterTab: { 
     flex: 1,
-  },
-  notesContainer: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-  },
-  notesLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
-    color: '#1E293B',
-    lineHeight: 20,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  rejectButton: {
-    flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 10, 
+    borderRadius: 10,
+    backgroundColor: BG,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: BORDER,
   },
-  rejectButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#EF4444',
+  filterTabActive: { 
+    backgroundColor: TEAL_PALE,
+    borderColor: TEAL,
   },
-  acceptButton: {
-    flex: 1.5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#10B981',
-    paddingVertical: 12,
-    borderRadius: 8,
+  filterTabText: { fontSize: 13, fontWeight: '700', color: TEXT_SOFT },
+  filterTabTextActive: { color: TEAL },
+
+  // Loading
+  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 15, color: TEXT_MID },
+
+  listContent: { padding: 16, paddingBottom: 40 },
+
+  // Card
+  card: { 
+    backgroundColor: SURFACE, 
+    borderRadius: 18, 
+    marginBottom: 16, 
+    overflow: 'hidden', 
+    borderWidth: 1, 
+    borderColor: BORDER, 
+    ...shadow('#000', 0.08, 12, 4) 
   },
-  acceptButtonText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+  cardBand: { paddingHorizontal: 16, paddingVertical: 14 },
+  cardBandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  bloodTypeBlock: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bloodTypeSmallLabel: { 
+    fontSize: 9, 
+    color: 'rgba(255,255,255,0.65)', 
+    fontWeight: '700', 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.5 
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
+  bloodTypeValue: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', marginTop: 1 },
+  urgencyPill: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 5, 
+    paddingHorizontal: 10, 
+    paddingVertical: 6, 
+    borderRadius: 20 
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginTop: 16,
-    marginBottom: 8,
+  urgencyPillText: { fontSize: 10, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
+
+  cardBody: { padding: 16, gap: 10 },
+
+  infoGrid: { flexDirection: 'row', gap: 10 },
+  infoCell: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  infoCellIcon: { 
+    width: 30, 
+    height: 30, 
+    borderRadius: 9, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    flexShrink: 0 
   },
-  emptyText: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    paddingHorizontal: 40,
+  infoCellText: { flex: 1 },
+  infoCellLabel: { 
+    fontSize: 10, 
+    color: TEXT_SOFT, 
+    fontWeight: '600', 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.4, 
+    marginBottom: 2 
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+  infoCellValue: { fontSize: 13, color: TEXT_DARK, fontWeight: '700' },
+
+  hospitalRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  addressText: { flex: 1, fontSize: 12, color: TEXT_MID, lineHeight: 17 },
+
+  chipRow: { flexDirection: 'row', gap: 8 },
+  chip: { 
+    flex: 1, 
+    alignItems: 'center', 
+    gap: 3, 
+    backgroundColor: BG, 
+    borderRadius: 12, 
+    paddingVertical: 9, 
+    borderWidth: 1, 
+    borderColor: BORDER 
   },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
+  chipLabel: { fontSize: 9, color: TEXT_SOFT, fontWeight: '600', textTransform: 'uppercase' },
+  chipValue: { fontSize: 13, fontWeight: '800' },
+
+  notesBox: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-start', 
+    gap: 8, 
+    padding: 10, 
+    backgroundColor: TEAL_PALE, 
+    borderRadius: 10, 
+    borderLeftWidth: 3, 
+    borderLeftColor: TEAL 
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+  notesText: { flex: 1, fontSize: 12, color: TEXT_DARK, lineHeight: 17 },
+
+  cardActions: { 
+    flexDirection: 'row', 
+    gap: 8, 
+    paddingHorizontal: 14, 
+    paddingVertical: 10, 
+    borderTopWidth: 1, 
+    borderTopColor: BORDER, 
+    backgroundColor: BG 
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
+  actionBtnRed: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 5, 
+    backgroundColor: DANGER_PALE, 
+    paddingVertical: 11, 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    borderColor: '#FECACA' 
   },
-  modalDescription: {
-    fontSize: 14,
-    color: '#64748B',
-    lineHeight: 20,
-    marginBottom: 20,
+  actionBtnText: { fontSize: 13, fontWeight: '700' },
+  actionBtnFilled: { flex: 1.4, borderRadius: 12, overflow: 'hidden' },
+  actionBtnFilledGrad: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 5, 
+    paddingVertical: 11 
   },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 8,
+  actionBtnFilledText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+
+  // Empty
+  emptyWrap: { flex: 1, alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40 },
+  emptyIconWrap: { 
+    width: 100, 
+    height: 100, 
+    borderRadius: 50, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 20 
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: '#1E293B',
-    backgroundColor: '#F8FAFC',
-    minHeight: 100,
-    marginBottom: 24,
+  emptyTitle: { 
+    fontSize: 19, 
+    fontWeight: '800', 
+    color: TEXT_DARK, 
+    marginBottom: 8, 
+    textAlign: 'center' 
   },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
+  emptyText: { fontSize: 14, color: TEXT_MID, textAlign: 'center', lineHeight: 20 },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalSheet: { 
+    backgroundColor: SURFACE, 
+    borderTopLeftRadius: 26, 
+    borderTopRightRadius: 26, 
+    padding: 24, 
+    paddingBottom: 40, 
+    ...shadow('#000', 0.2, 30, 10) 
   },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
+  modalHandle: { 
+    width: 40, 
+    height: 4, 
+    borderRadius: 2, 
+    backgroundColor: BORDER, 
+    alignSelf: 'center', 
+    marginBottom: 20 
   },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
+  modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  modalTitleIcon: { 
+    width: 36, 
+    height: 36, 
+    borderRadius: 11, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
   },
-  confirmRejectButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
+  modalTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: TEXT_DARK },
+  modalCloseBtn: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 10, 
+    backgroundColor: BG, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
   },
-  confirmRejectButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+  modalDesc: { fontSize: 14, color: TEXT_MID, lineHeight: 20, marginBottom: 16 },
+  modalInputLabel: { fontSize: 13, fontWeight: '700', color: TEXT_DARK, marginBottom: 8 },
+  modalInput: { 
+    borderWidth: 1.5, 
+    borderColor: BORDER, 
+    borderRadius: 12, 
+    padding: 12, 
+    fontSize: 14, 
+    color: TEXT_DARK, 
+    backgroundColor: BG, 
+    minHeight: 100, 
+    marginBottom: 20 
   },
+  modalBtnsRow: { flexDirection: 'row', gap: 10 },
+  modalCancelBtn: { 
+    flex: 1, 
+    paddingVertical: 14, 
+    borderRadius: 14, 
+    backgroundColor: BG, 
+    alignItems: 'center', 
+    borderWidth: 1, 
+    borderColor: BORDER 
+  },
+  modalCancelText: { fontSize: 14, fontWeight: '700', color: TEXT_MID },
+  modalDeclineBtn: { flex: 1.5, borderRadius: 14, overflow: 'hidden' },
+  modalDeclineGrad: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 6, 
+    paddingVertical: 14 
+  },
+  modalDeclineText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
 });
 
 export default RequestsScreen;

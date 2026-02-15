@@ -17,6 +17,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -29,53 +30,70 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type TabType = 'active' | 'history';
 
+// ─── Brand Colors ─────────────────────────────────────────────────────────
+const B_DARK   = '#1D4ED8';
+const B_MID    = '#2563EB';
+const B_LIGHT  = '#3B82F6';
+const B_SOFT   = '#60A5FA';
+const B_PALE   = '#DBEAFE';
+const B_BG     = '#EFF6FF';
+const SUCCESS  = '#10B981';
+const SUCCESS_PALE = '#D1FAE5';
+const SUCCESS_DARK = '#047857';
+const WARN     = '#F59E0B';
+const WARN_PALE = '#FEF3C7';
+const DANGER   = '#EF4444';
+const DANGER_PALE = '#FEE2E2';
+const PURPLE   = '#8B5CF6';
+const PURPLE_PALE = '#EDE9FE';
+const TEXT_DARK = '#0F172A';
+const TEXT_MID  = '#475569';
+const TEXT_SOFT = '#94A3B8';
+const BORDER   = '#E2E8F0';
+const SURFACE  = '#FFFFFF';
+const BG_LIGHT = '#F8FAFC';
+
+const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
+  Platform.select({
+    web: { boxShadow: `0 2px ${radius}px rgba(0,0,0,${opacity})` } as any,
+    default: {
+      shadowColor: color,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: opacity,
+      shadowRadius: radius,
+      elevation,
+    },
+  });
+
 const DonationHistoryScreen: React.FC = () => {
   const router = useRouter();
   const { user } = useUser();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('active');
-  
-  // Active commitments
   const [acceptedRequests, setAcceptedRequests] = useState<AcceptedRequest[]>([]);
-  
-  // History
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [filter, setFilter] = useState<'all' | 'thisYear' | 'lastYear'>('all');
-  
-  // Modal states
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [selectedCommitment, setSelectedCommitment] = useState<AcceptedRequest | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [donationNotes, setDonationNotes] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
+  useEffect(() => { loadData(); }, [user]);
 
   const loadData = async () => {
     if (!user) return;
-
     try {
       setLoading(true);
-      
-      // Load active commitments (including pending_verification)
       const activeCommitments = await getDonorAcceptedRequests(user.id);
       const pending = activeCommitments.filter(
-        req => req.status === 'pending' || req.status === 'in_progress' || req.status === 'pending_verification'
+        req => ['pending', 'in_progress', 'pending_verification'].includes(req.status)
       );
       setAcceptedRequests(pending);
-      
-      console.log('Loaded active commitments:', pending.length);
-      
-      // Load donation history (only completed/verified)
       const donorHistory = await getDonorHistory(user.id);
       setDonations(donorHistory);
-      
-      console.log('Loaded donation history:', donorHistory.length);
     } catch (error) {
-      console.error('Error loading data:', error);
       Alert.alert('Error', 'Failed to load donation data. Please try again.');
     } finally {
       setLoading(false);
@@ -89,579 +107,431 @@ const DonationHistoryScreen: React.FC = () => {
   };
 
   const getFilteredDonations = () => {
-    const currentYear = new Date().getFullYear();
-    const lastYear = currentYear - 1;
-
-    switch (filter) {
-      case 'thisYear':
-        return donations.filter(
-          (donation) =>
-            new Date(donation.donationDate).getFullYear() === currentYear
-        );
-      case 'lastYear':
-        return donations.filter(
-          (donation) =>
-            new Date(donation.donationDate).getFullYear() === lastYear
-        );
-      default:
-        return donations;
-    }
+    const now = new Date().getFullYear();
+    if (filter === 'thisYear') return donations.filter(d => new Date(d.donationDate).getFullYear() === now);
+    if (filter === 'lastYear') return donations.filter(d => new Date(d.donationDate).getFullYear() === now - 1);
+    return donations;
   };
 
   const filteredDonations = getFilteredDonations();
+  const totalPoints = filteredDonations.reduce((s, d) => s + d.pointsEarned, 0);
+  const totalUnits = filteredDonations.reduce((s, d) => s + (d.unitsCollected || 1), 0);
 
-  const getTotalDonations = () => filteredDonations.length;
-  const getTotalPoints = () =>
-    filteredDonations.reduce((sum, donation) => sum + donation.pointsEarned, 0);
-  const getTotalUnits = () =>
-    filteredDonations.reduce((sum, donation) => sum + (donation.unitsCollected || 1), 0);
-
-  // Handle commitment actions
-  const handleStartCommitment = async (commitment: AcceptedRequest) => {
+  const handleStartCommitment = async (c: AcceptedRequest) => {
     try {
-      await startAcceptedRequest(commitment.id);
+      await startAcceptedRequest(c.id);
       Alert.alert('Success', 'Commitment marked as in progress!');
       await loadData();
-    } catch (error) {
-      console.error('Error starting commitment:', error);
-      Alert.alert('Error', 'Failed to update commitment.');
-    }
+    } catch { Alert.alert('Error', 'Failed to update commitment.'); }
   };
 
-  const handleCancelCommitment = (commitment: AcceptedRequest) => {
-    setSelectedCommitment(commitment);
-    setCancelModalVisible(true);
-  };
+  const handleCancelCommitment = (c: AcceptedRequest) => { setSelectedCommitment(c); setCancelModalVisible(true); };
 
   const confirmCancelCommitment = async () => {
     if (!selectedCommitment) return;
-
-    if (!cancellationReason.trim()) {
-      Alert.alert('Required', 'Please provide a reason for cancellation.');
-      return;
-    }
-
+    if (!cancellationReason.trim()) { Alert.alert('Required', 'Please provide a reason for cancellation.'); return; }
     try {
       await cancelAcceptedRequest(selectedCommitment.id, cancellationReason);
-      
-      // Notify requester
       await createNotification({
         userId: selectedCommitment.requesterId,
         type: 'system_alert',
         title: 'Donation Cancelled',
         message: `${user?.firstName} ${user?.lastName} has cancelled their commitment. Reason: ${cancellationReason}`,
-        data: {
-          acceptedRequestId: selectedCommitment.id,
-          requestId: selectedCommitment.requestId,
-        },
-        isRead: false,
-        timestamp: ''
+        data: { acceptedRequestId: selectedCommitment.id, requestId: selectedCommitment.requestId },
+        isRead: false, timestamp: ''
       });
-      
       setCancelModalVisible(false);
       setSelectedCommitment(null);
       setCancellationReason('');
-      Alert.alert('Cancelled', 'Commitment has been cancelled and the requester has been notified.');
+      Alert.alert('Cancelled', 'Commitment cancelled and requester notified.');
       await loadData();
-    } catch (error) {
-      console.error('Error cancelling commitment:', error);
-      Alert.alert('Error', 'Failed to cancel commitment.');
-    }
+    } catch { Alert.alert('Error', 'Failed to cancel commitment.'); }
   };
 
-  const handleCompleteCommitment = (commitment: AcceptedRequest) => {
-    setSelectedCommitment(commitment);
-    setCompleteModalVisible(true);
-  };
+  const handleCompleteCommitment = (c: AcceptedRequest) => { setSelectedCommitment(c); setCompleteModalVisible(true); };
 
   const confirmCompleteCommitment = async () => {
     if (!user || !selectedCommitment) return;
-
     try {
-      // Mark as pending verification instead of completing immediately
-      await markDonationPendingVerification(
-        selectedCommitment.id,
-        donationNotes || undefined
-      );
-
-      // Send notification to requester
+      await markDonationPendingVerification(selectedCommitment.id, donationNotes || undefined);
       await createNotification({
         userId: selectedCommitment.requesterId,
         type: 'verify_donation',
         title: 'Verify Donation',
-        message: `${user.firstName} ${user.lastName} has marked the donation as complete. Please verify that you received the blood.`,
-        data: {
-          acceptedRequestId: selectedCommitment.id,
-          donorId: user.id,
-          requestId: selectedCommitment.requestId,
-        },
-        isRead: false,
-        timestamp: ''
+        message: `${user.firstName} ${user.lastName} has marked the donation as complete. Please verify.`,
+        data: { acceptedRequestId: selectedCommitment.id, donorId: user.id, requestId: selectedCommitment.requestId },
+        isRead: false, timestamp: ''
       });
-
       setCompleteModalVisible(false);
       setSelectedCommitment(null);
       setDonationNotes('');
-      
-      Alert.alert(
-        'Awaiting Verification',
-        'The requester has been notified to verify your donation. You will receive points once verified.',
-        [{ text: 'OK' }]
-      );
-      
+      Alert.alert('Awaiting Verification', 'The requester has been notified to verify your donation.');
       await loadData();
-    } catch (error) {
-      console.error('Error marking donation complete:', error);
-      Alert.alert('Error', 'Failed to complete donation.');
+    } catch { Alert.alert('Error', 'Failed to complete donation.'); }
+  };
+
+  const formatDate = (d: string) => {
+    try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+    catch { return 'N/A'; }
+  };
+
+  const getUrgencyConfig = (u: string) => {
+    switch (u) {
+      case 'critical': return { color: DANGER, bg: DANGER_PALE, icon: 'warning' };
+      case 'urgent':   return { color: WARN, bg: WARN_PALE, icon: 'alert-circle' };
+      default:         return { color: SUCCESS, bg: SUCCESS_PALE, icon: 'information-circle' };
     }
   };
 
-  const handleOpenChat = (chatId: string) => {
-    router.push(`/(donor)/chat?chatId=${chatId}` as any);
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-    } catch (error) {
-      return 'N/A';
+  const getStatusConfig = (s: string) => {
+    switch (s) {
+      case 'in_progress':          return { label: 'IN PROGRESS', color: B_LIGHT, bg: B_PALE };
+      case 'pending_verification': return { label: 'AWAITING VERIFY', color: WARN, bg: WARN_PALE };
+      default:                     return { label: 'PENDING', color: WARN, bg: WARN_PALE };
     }
   };
 
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
-      case 'critical':
-        return '#EF4444';
-      case 'urgent':
-        return '#F59E0B';
-      case 'moderate':
-        return '#10B981';
-      default:
-        return '#64748B';
-    }
-  };
+  // ─── Commitment Card ───────────────────────────────────────────────────
+  const renderCommitmentItem = ({ item }: { item: AcceptedRequest }) => {
+    const statusCfg = getStatusConfig(item.status);
+    const urgCfg = getUrgencyConfig(item.urgencyLevel);
 
-  const getUrgencyBgColor = (urgency: string) => {
-    switch (urgency) {
-      case 'critical':
-        return '#FEE2E2';
-      case 'urgent':
-        return '#FEF3C7';
-      case 'moderate':
-        return '#D1FAE5';
-      default:
-        return '#F1F5F9';
-    }
-  };
-
-  // Render Active Commitment Item
-  const renderCommitmentItem = ({ item }: { item: AcceptedRequest }) => (
-    <View style={styles.commitmentCard}>
-      <View style={styles.commitmentHeader}>
-        <View style={styles.bloodTypeContainer}>
-          <Ionicons name="water" size={24} color="#EF4444" />
-          <Text style={styles.bloodType}>{item.bloodType}</Text>
-        </View>
-        <View style={[
-          styles.statusBadge,
-          { 
-            backgroundColor: 
-              item.status === 'in_progress' ? '#DBEAFE' : 
-              item.status === 'pending_verification' ? '#FEF3C7' :
-              '#FEF3C7' 
-          }
-        ]}>
-          <Text style={[
-            styles.statusText,
-            { 
-              color: 
-                item.status === 'in_progress' ? '#3B82F6' : 
-                item.status === 'pending_verification' ? '#F59E0B' :
-                '#F59E0B' 
-            }
-          ]}>
-            {item.status === 'in_progress' ? 'IN PROGRESS' : 
-             item.status === 'pending_verification' ? 'AWAITING VERIFICATION' :
-             'PENDING'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.commitmentBody}>
-        {/* Patient Info */}
-        <View style={styles.infoRow}>
-          <Ionicons name="person" size={18} color="#64748B" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Patient</Text>
-            <Text style={styles.infoValue}>{item.patientName}</Text>
+    return (
+      <View style={styles.card}>
+        {/* Card Header */}
+        <LinearGradient
+          colors={item.status === 'in_progress' ? [B_DARK, B_MID] : item.status === 'pending_verification' ? ['#92400E', '#B45309'] : ['#334155', '#475569']}
+          style={styles.cardTopBand}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        >
+          <View style={styles.cardTopRow}>
+            <View style={styles.bloodTypeBlock}>
+              <Ionicons name="water" size={20} color="rgba(255,255,255,0.8)" />
+              <View>
+                <Text style={styles.bloodTypeSmallLabel}>Blood Type</Text>
+                <Text style={styles.bloodTypeValue}>{item.bloodType}</Text>
+              </View>
+            </View>
+            <View style={[styles.statusPill, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusCfg.color }]} />
+              <Text style={styles.statusPillText}>{statusCfg.label}</Text>
+            </View>
           </View>
-        </View>
+        </LinearGradient>
 
-        {/* Hospital Info */}
-        <View style={styles.infoRow}>
-          <Ionicons name="business" size={18} color="#64748B" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Hospital</Text>
-            <Text style={styles.infoValue}>{item.hospitalName}</Text>
-            {item.hospitalAddress && (
-              <Text style={styles.infoSubtext} numberOfLines={2}>
-                {item.hospitalAddress}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Requester Contact */}
-        <View style={styles.infoRow}>
-          <Ionicons name="call" size={18} color="#64748B" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Requester</Text>
-            <Text style={styles.infoValue}>{item.requesterName}</Text>
-            <Text style={styles.infoSubtext}>{item.requesterPhone}</Text>
-          </View>
-        </View>
-
-        {/* Units and Urgency */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Ionicons name="flask" size={18} color="#8B5CF6" />
-            <View style={styles.statTextContainer}>
-              <Text style={styles.statLabel}>Units</Text>
-              <Text style={styles.statValue}>{item.unitsNeeded}</Text>
+        {/* Card Body */}
+        <View style={styles.cardBody}>
+          {/* Patient & Hospital Row */}
+          <View style={styles.infoGrid}>
+            <View style={styles.infoCell}>
+              <View style={[styles.infoCellIcon, { backgroundColor: B_PALE }]}>
+                <Ionicons name="person" size={15} color={B_LIGHT} />
+              </View>
+              <View style={styles.infoCellText}>
+                <Text style={styles.infoCellLabel}>Patient</Text>
+                <Text style={styles.infoCellValue} numberOfLines={1}>{item.patientName}</Text>
+              </View>
+            </View>
+            <View style={styles.infoCell}>
+              <View style={[styles.infoCellIcon, { backgroundColor: SUCCESS_PALE }]}>
+                <Ionicons name="business" size={15} color={SUCCESS} />
+              </View>
+              <View style={styles.infoCellText}>
+                <Text style={styles.infoCellLabel}>Hospital</Text>
+                <Text style={styles.infoCellValue} numberOfLines={1}>{item.hospitalName}</Text>
+              </View>
             </View>
           </View>
 
-          <View style={styles.statDivider} />
+          {/* Hospital Address */}
+          {item.hospitalAddress && (
+            <View style={styles.addressRow}>
+              <Ionicons name="location" size={14} color={TEXT_SOFT} />
+              <Text style={styles.addressText} numberOfLines={2}>{item.hospitalAddress}</Text>
+            </View>
+          )}
 
-          <View style={styles.statItem}>
-            <Ionicons 
-              name={item.urgencyLevel === 'critical' ? 'warning' : 
-                    item.urgencyLevel === 'urgent' ? 'alert-circle' : 
-                    'information-circle'} 
-              size={18} 
-              color={getUrgencyColor(item.urgencyLevel)} 
-            />
-            <View style={styles.statTextContainer}>
-              <Text style={styles.statLabel}>Urgency</Text>
-              <Text style={[styles.statValue, { color: getUrgencyColor(item.urgencyLevel) }]}>
+          {/* Requester Contact */}
+          <View style={styles.contactRow}>
+            <View style={[styles.infoCellIcon, { backgroundColor: PURPLE_PALE }]}>
+              <Ionicons name="call" size={14} color={PURPLE} />
+            </View>
+            <View>
+              <Text style={styles.infoCellLabel}>Requester Contact</Text>
+              <Text style={styles.infoCellValue}>{item.requesterName} · {item.requesterPhone}</Text>
+            </View>
+          </View>
+
+          {/* Stats Pills */}
+          <View style={styles.statsPillsRow}>
+            <View style={styles.statPill}>
+              <Ionicons name="flask" size={14} color={PURPLE} />
+              <Text style={styles.statPillLabel}>Units</Text>
+              <Text style={[styles.statPillValue, { color: PURPLE }]}>{item.unitsNeeded}</Text>
+            </View>
+            <View style={[styles.statPill, { backgroundColor: urgCfg.bg }]}>
+              <Ionicons name={urgCfg.icon as any} size={14} color={urgCfg.color} />
+              <Text style={styles.statPillLabel}>Urgency</Text>
+              <Text style={[styles.statPillValue, { color: urgCfg.color }]}>
                 {item.urgencyLevel.charAt(0).toUpperCase() + item.urgencyLevel.slice(1)}
               </Text>
             </View>
+            <View style={styles.statPill}>
+              <Ionicons name="calendar" size={14} color={B_LIGHT} />
+              <Text style={styles.statPillLabel}>Accepted</Text>
+              <Text style={[styles.statPillValue, { color: B_LIGHT }]}>{formatDate(item.acceptedDate)}</Text>
+            </View>
           </View>
+
+          {/* Notes */}
+          {item.notes && (
+            <View style={styles.notesBox}>
+              <Ionicons name="document-text" size={14} color={B_LIGHT} />
+              <Text style={styles.notesText}>{item.notes}</Text>
+            </View>
+          )}
+
+          {/* Verification Notice */}
+          {item.status === 'pending_verification' && (
+            <View style={styles.verifyNotice}>
+              <Ionicons name="time-outline" size={16} color={WARN} />
+              <Text style={styles.verifyNoticeText}>Waiting for requester to verify your donation</Text>
+            </View>
+          )}
         </View>
 
-        {/* Accepted Date */}
-        <View style={styles.infoRow}>
-          <Ionicons name="calendar" size={18} color="#64748B" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Accepted On</Text>
-            <Text style={styles.infoValue}>{formatDate(item.acceptedDate)}</Text>
-          </View>
+        {/* Card Actions */}
+        <View style={styles.cardActions}>
+          <TouchableOpacity style={styles.chatBtn} onPress={() => router.push(`/(shared)/chat?chatId=${item.chatId}` as any)}>
+            <Ionicons name="chatbubble-ellipses" size={16} color={B_LIGHT} />
+            <Text style={styles.chatBtnText}>Chat</Text>
+          </TouchableOpacity>
+
+          {item.status === 'pending' && (
+            <TouchableOpacity style={styles.startBtn} onPress={() => handleStartCommitment(item)}>
+              <Ionicons name="play-circle" size={16} color={SUCCESS} />
+              <Text style={styles.startBtnText}>Start</Text>
+            </TouchableOpacity>
+          )}
+
+          {item.status !== 'pending_verification' && (
+            <TouchableOpacity style={styles.completeBtn} onPress={() => handleCompleteCommitment(item)}>
+              <LinearGradient colors={[SUCCESS, '#059669']} style={styles.completeBtnGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
+                <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                <Text style={styles.completeBtnText}>Complete</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity style={styles.cancelIconBtn} onPress={() => handleCancelCommitment(item)}>
+            <Ionicons name="close-circle" size={20} color={DANGER} />
+          </TouchableOpacity>
         </View>
-
-        {/* Additional Notes */}
-        {item.notes && (
-          <View style={styles.notesContainer}>
-            <Ionicons name="document-text" size={16} color="#64748B" />
-            <Text style={styles.notesText}>{item.notes}</Text>
-          </View>
-        )}
-        
-        {/* Verification Notice */}
-        {item.status === 'pending_verification' && (
-          <View style={styles.verificationNotice}>
-            <Ionicons name="time-outline" size={18} color="#F59E0B" />
-            <Text style={styles.verificationText}>
-              Waiting for requester to verify your donation
-            </Text>
-          </View>
-        )}
       </View>
+    );
+  };
 
-      <View style={styles.commitmentActions}>
-        <TouchableOpacity
-          style={styles.chatButton}
-          onPress={() => handleOpenChat(item.chatId)}
-        >
-          <Ionicons name="chatbubble" size={18} color="#3B82F6" />
-          <Text style={styles.chatButtonText}>Chat</Text>
-        </TouchableOpacity>
-
-        {item.status === 'pending' && (
-          <TouchableOpacity
-            style={styles.startButton}
-            onPress={() => handleStartCommitment(item)}
-          >
-            <Ionicons name="play" size={18} color="#10B981" />
-            <Text style={styles.startButtonText}>Start</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Only show Complete button if not pending verification */}
-        {item.status !== 'pending_verification' && (
-          <TouchableOpacity
-            style={styles.completeButton}
-            onPress={() => handleCompleteCommitment(item)}
-          >
-            <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
-            <Text style={styles.completeButtonText}>Complete</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => handleCancelCommitment(item)}
-        >
-          <Ionicons name="close-circle" size={18} color="#EF4444" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  // Render Donation History Item
+  // ─── Donation History Card ─────────────────────────────────────────────
   const renderDonationItem = ({ item }: { item: DonationRecord }) => (
-    <View style={styles.donationCard}>
-      <View style={styles.donationHeader}>
-        <View style={styles.dateContainer}>
-          <Ionicons name="calendar" size={20} color="#3B82F6" />
-          <View style={styles.dateTextContainer}>
-            <Text style={styles.dateText}>
-              {new Date(item.donationDate).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
+    <View style={styles.card}>
+      <LinearGradient colors={[B_DARK, B_MID]} style={styles.cardTopBand} start={{x:0,y:0}} end={{x:1,y:0}}>
+        <View style={styles.donationTopRow}>
+          <View style={styles.bloodTypeBlock}>
+            <Ionicons name="water" size={20} color="rgba(255,255,255,0.8)" />
+            <View>
+              <Text style={styles.bloodTypeSmallLabel}>Blood Type</Text>
+              <Text style={styles.bloodTypeValue}>{item.bloodType}</Text>
+            </View>
+          </View>
+          <View style={styles.pointsBadge}>
+            <Ionicons name="star" size={14} color={WARN} />
+            <Text style={styles.pointsBadgeText}>+{item.pointsEarned} pts</Text>
+          </View>
+        </View>
+      </LinearGradient>
+
+      <View style={styles.cardBody}>
+        {/* Date Row */}
+        <View style={styles.donationDateRow}>
+          <View style={[styles.infoCellIcon, { backgroundColor: B_PALE }]}>
+            <Ionicons name="calendar" size={15} color={B_LIGHT} />
+          </View>
+          <View>
+            <Text style={styles.donationDateMain}>
+              {new Date(item.donationDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </Text>
-            <Text style={styles.timeText}>
-              {new Date(item.donationDate).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+            <Text style={styles.donationDateTime}>
+              {new Date(item.donationDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             </Text>
           </View>
         </View>
-        <View style={styles.pointsBadge}>
-          <Ionicons name="star" size={16} color="#F59E0B" />
-          <Text style={styles.pointsText}>+{item.pointsEarned} pts</Text>
-        </View>
-      </View>
 
-      <View style={styles.donationBody}>
-        <View style={styles.infoRow}>
-          <View style={styles.infoItem}>
-            <Ionicons name="business" size={18} color="#64748B" />
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Location</Text>
-              <Text style={styles.infoValue} numberOfLines={2}>
-                {item.bloodBankName || item.location?.address || 'Not specified'}
-              </Text>
-            </View>
+        {/* Location */}
+        <View style={styles.contactRow}>
+          <View style={[styles.infoCellIcon, { backgroundColor: SUCCESS_PALE }]}>
+            <Ionicons name="business" size={14} color={SUCCESS} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.infoCellLabel}>Location</Text>
+            <Text style={styles.infoCellValue} numberOfLines={2}>
+              {item.bloodBankName || item.location?.address || 'Not specified'}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Ionicons name="water" size={18} color="#EF4444" />
-            <View style={styles.statTextContainer}>
-              <Text style={styles.statLabel}>Blood Type</Text>
-              <Text style={styles.statValue}>{item.bloodType}</Text>
-            </View>
+        {/* Stats */}
+        <View style={styles.statsPillsRow}>
+          <View style={styles.statPill}>
+            <Ionicons name="flask" size={14} color={PURPLE} />
+            <Text style={styles.statPillLabel}>Units</Text>
+            <Text style={[styles.statPillValue, { color: PURPLE }]}>{item.unitsCollected || 1}</Text>
           </View>
-
-          <View style={styles.statDivider} />
-
-          <View style={styles.statItem}>
-            <Ionicons name="flask" size={18} color="#8B5CF6" />
-            <View style={styles.statTextContainer}>
-              <Text style={styles.statLabel}>Units</Text>
-              <Text style={styles.statValue}>{item.unitsCollected || 1}</Text>
-            </View>
+          <View style={[styles.statPill, { backgroundColor: WARN_PALE }]}>
+            <Ionicons name="star" size={14} color={WARN} />
+            <Text style={styles.statPillLabel}>Points Earned</Text>
+            <Text style={[styles.statPillValue, { color: WARN }]}>{item.pointsEarned}</Text>
           </View>
         </View>
 
         {item.notes && (
-          <View style={styles.notesContainer}>
-            <Ionicons name="document-text" size={16} color="#64748B" />
+          <View style={styles.notesBox}>
+            <Ionicons name="document-text" size={14} color={B_LIGHT} />
             <Text style={styles.notesText}>{item.notes}</Text>
           </View>
         )}
       </View>
 
       {item.certificateUrl && (
-        <TouchableOpacity style={styles.certificateButton}>
-          <Ionicons name="download" size={18} color="#3B82F6" />
-          <Text style={styles.certificateText}>Download Certificate</Text>
+        <TouchableOpacity style={styles.certBtn}>
+          <LinearGradient colors={[B_DARK, B_MID]} style={styles.certBtnGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
+            <Ionicons name="ribbon" size={16} color="#FFFFFF" />
+            <Text style={styles.certBtnText}>Download Certificate</Text>
+          </LinearGradient>
         </TouchableOpacity>
       )}
     </View>
   );
 
   const renderEmptyCommitments = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="heart-outline" size={80} color="#CBD5E1" />
+    <View style={styles.emptyWrap}>
+      <View style={styles.emptyIconWrap}>
+        <LinearGradient colors={[B_PALE, '#C7D2FE']} style={styles.emptyIconGrad}>
+          <Ionicons name="heart-outline" size={48} color={B_MID} />
+        </LinearGradient>
       </View>
       <Text style={styles.emptyTitle}>No Active Commitments</Text>
-      <Text style={styles.emptyText}>
-        You haven't accepted any blood requests yet. Start by finding requests that match your blood type.
-      </Text>
-      <TouchableOpacity
-        style={styles.findRequestsButton}
-        onPress={() => router.push('/(donor)/requests' as any)}
-      >
-        <Ionicons name="search" size={20} color="#FFFFFF" />
-        <Text style={styles.findRequestsButtonText}>Find Blood Requests</Text>
+      <Text style={styles.emptyText}>You haven't accepted any blood requests yet.</Text>
+      <TouchableOpacity style={styles.emptyActionBtn} onPress={() => router.push('/(donor)/requests' as any)}>
+        <LinearGradient colors={[B_DARK, B_MID]} style={styles.emptyActionGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
+          <Ionicons name="search" size={18} color="#FFFFFF" />
+          <Text style={styles.emptyActionText}>Find Blood Requests</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
 
   const renderEmptyHistory = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="time-outline" size={80} color="#CBD5E1" />
+    <View style={styles.emptyWrap}>
+      <View style={styles.emptyIconWrap}>
+        <LinearGradient colors={[B_PALE, '#C7D2FE']} style={styles.emptyIconGrad}>
+          <Ionicons name="time-outline" size={48} color={B_MID} />
+        </LinearGradient>
       </View>
       <Text style={styles.emptyTitle}>No Donation History</Text>
-      <Text style={styles.emptyText}>
-        Complete your active commitments to build your donation history.
-      </Text>
+      <Text style={styles.emptyText}>Complete your active commitments to build your donation history.</Text>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#3B82F6" />
-      
+      <StatusBar barStyle="light-content" backgroundColor={B_DARK} />
+
       {/* Header */}
-      <LinearGradient colors={['#3B82F6', '#2563EB']} style={styles.header}>
+      <LinearGradient colors={[B_DARK, B_MID]} style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Donations</Text>
-          <View style={styles.placeholder} />
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle}>My Donations</Text>
+            <Text style={styles.headerSub}>Track your impact</Text>
+          </View>
+          <View style={{ width: 40 }} />
         </View>
 
-        {/* Stats Summary (show on both tabs) */}
+        {/* Stats Summary */}
         {donations.length > 0 && (
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Ionicons name="water" size={24} color="#FFFFFF" />
-              <Text style={styles.statCardValue}>{getTotalDonations()}</Text>
-              <Text style={styles.statCardLabel}>Donations</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <Ionicons name="flask" size={24} color="#FFFFFF" />
-              <Text style={styles.statCardValue}>{getTotalUnits()}</Text>
-              <Text style={styles.statCardLabel}>Units</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <Ionicons name="star" size={24} color="#FFFFFF" />
-              <Text style={styles.statCardValue}>{getTotalPoints()}</Text>
-              <Text style={styles.statCardLabel}>Points</Text>
-            </View>
+          <View style={styles.statsRow}>
+            {[
+              { icon: 'water', value: filteredDonations.length, label: 'Donations', color: B_SOFT },
+              { icon: 'flask', value: totalUnits, label: 'Units', color: '#A78BFA' },
+              { icon: 'star', value: totalPoints, label: 'Points', color: WARN },
+            ].map((s, i) => (
+              <View key={i} style={styles.statCard}>
+                <Ionicons name={s.icon as any} size={20} color={s.color} />
+                <Text style={styles.statValue}>{s.value}</Text>
+                <Text style={styles.statLabel}>{s.label}</Text>
+              </View>
+            ))}
           </View>
         )}
       </LinearGradient>
 
-      {/* Tab Switcher */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'active' && styles.tabActive]}
-          onPress={() => setActiveTab('active')}
-        >
-          <Ionicons 
-            name="time" 
-            size={20} 
-            color={activeTab === 'active' ? '#3B82F6' : '#64748B'} 
-          />
-          <Text style={[styles.tabText, activeTab === 'active' && styles.tabTextActive]}>
-            Active ({acceptedRequests.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'history' && styles.tabActive]}
-          onPress={() => setActiveTab('history')}
-        >
-          <Ionicons 
-            name="time-outline" 
-            size={20} 
-            color={activeTab === 'history' ? '#3B82F6' : '#64748B'} 
-          />
-          <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>
-            History ({donations.length})
-          </Text>
-        </TouchableOpacity>
+      {/* Tabs */}
+      <View style={styles.tabBar}>
+        {[
+          { key: 'active', label: 'Active', icon: 'time', count: acceptedRequests.length },
+          { key: 'history', label: 'History', icon: 'checkmark-done-circle', count: donations.length },
+        ].map((tab) => {
+          const isActive = activeTab === tab.key as TabType;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, isActive && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key as TabType)}
+            >
+              <Ionicons name={tab.icon as any} size={18} color={isActive ? B_MID : TEXT_SOFT} />
+              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                {tab.label}
+              </Text>
+              {tab.count > 0 && (
+                <View style={[styles.tabBadge, isActive && styles.tabBadgeActive]}>
+                  <Text style={[styles.tabBadgeText, isActive && styles.tabBadgeTextActive]}>
+                    {tab.count}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      {/* Filter Buttons (only for history tab) */}
+      {/* Filter Buttons (history tab) */}
       {activeTab === 'history' && donations.length > 0 && (
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              filter === 'all' && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilter('all')}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                filter === 'all' && styles.filterTextActive,
-              ]}
-            >
-              All Time
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              filter === 'thisYear' && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilter('thisYear')}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                filter === 'thisYear' && styles.filterTextActive,
-              ]}
-            >
-              This Year
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              filter === 'lastYear' && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilter('lastYear')}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                filter === 'lastYear' && styles.filterTextActive,
-              ]}
-            >
-              Last Year
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.filterRow}>
+          {(['all', 'thisYear', 'lastYear'] as const).map((f) => {
+            const labels = { all: 'All Time', thisYear: 'This Year', lastYear: 'Last Year' };
+            const isActive = filter === f;
+            return (
+              <TouchableOpacity
+                key={f}
+                style={[styles.filterBtn, isActive && styles.filterBtnActive]}
+                onPress={() => setFilter(f)}
+              >
+                <Text style={[styles.filterBtnText, isActive && styles.filterBtnTextActive]}>
+                  {labels[f]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
       {/* Content */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Loading...</Text>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={B_MID} />
+          <Text style={styles.loadingText}>Loading your donations...</Text>
         </View>
       ) : (
         <>
@@ -669,140 +539,97 @@ const DonationHistoryScreen: React.FC = () => {
             <FlatList
               data={acceptedRequests}
               renderItem={renderCommitmentItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(i) => i.id}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={renderEmptyCommitments}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={['#3B82F6']}
-                  tintColor="#3B82F6"
-                />
-              }
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
             />
           ) : (
             <FlatList
               data={filteredDonations}
               renderItem={renderDonationItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(i) => i.id}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={renderEmptyHistory}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={['#3B82F6']}
-                  tintColor="#3B82F6"
-                />
-              }
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
             />
           )}
         </>
       )}
 
-      {/* Cancel Commitment Modal */}
-      <Modal
-        visible={cancelModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCancelModalVisible(false)}
-      >
+      {/* Cancel Modal */}
+      <Modal visible={cancelModalVisible} transparent animationType="slide" onRequestClose={() => setCancelModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeaderRow}>
+              <View style={[styles.modalTitleIcon, { backgroundColor: DANGER_PALE }]}>
+                <Ionicons name="close-circle" size={20} color={DANGER} />
+              </View>
               <Text style={styles.modalTitle}>Cancel Commitment</Text>
-              <TouchableOpacity onPress={() => setCancelModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748B" />
+              <TouchableOpacity onPress={() => setCancelModalVisible(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={22} color={TEXT_SOFT} />
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.modalDescription}>
-              Are you sure you want to cancel this commitment? The requester will be notified.
-            </Text>
-
-            <Text style={styles.inputLabel}>Reason for Cancellation *</Text>
+            <Text style={styles.modalDesc}>The requester will be notified of your cancellation.</Text>
+            <Text style={styles.modalInputLabel}>Reason for Cancellation *</Text>
             <TextInput
-              style={styles.textInput}
+              style={styles.modalInput}
               placeholder="Please provide a reason..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={TEXT_SOFT}
               value={cancellationReason}
               onChangeText={setCancellationReason}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
             />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setCancelModalVisible(false);
-                  setCancellationReason('');
-                }}
-              >
-                <Text style={styles.modalCancelButtonText}>Keep Commitment</Text>
+            <View style={styles.modalBtnsRow}>
+              <TouchableOpacity style={styles.modalKeepBtn} onPress={() => { setCancelModalVisible(false); setCancellationReason(''); }}>
+                <Text style={styles.modalKeepText}>Keep Commitment</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.modalConfirmButton}
-                onPress={confirmCancelCommitment}
-              >
-                <Text style={styles.modalConfirmButtonText}>Cancel Commitment</Text>
+              <TouchableOpacity style={styles.modalConfirmCancelBtn} onPress={confirmCancelCommitment}>
+                <Text style={styles.modalConfirmCancelText}>Cancel It</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Complete Donation Modal */}
-      <Modal
-        visible={completeModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCompleteModalVisible(false)}
-      >
+      {/* Complete Modal */}
+      <Modal visible={completeModalVisible} transparent animationType="slide" onRequestClose={() => setCompleteModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeaderRow}>
+              <View style={[styles.modalTitleIcon, { backgroundColor: SUCCESS_PALE }]}>
+                <Ionicons name="checkmark-circle" size={20} color={SUCCESS} />
+              </View>
               <Text style={styles.modalTitle}>Complete Donation</Text>
-              <TouchableOpacity onPress={() => setCompleteModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748B" />
+              <TouchableOpacity onPress={() => setCompleteModalVisible(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={22} color={TEXT_SOFT} />
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.modalDescription}>
-              Congratulations on completing your donation! Please add any additional notes.
-            </Text>
-
-            <Text style={styles.inputLabel}>Notes (Optional)</Text>
+            <Text style={styles.modalDesc}>Congratulations! Add any notes about how the donation went.</Text>
+            <Text style={styles.modalInputLabel}>Notes (Optional)</Text>
             <TextInput
-              style={styles.textInput}
+              style={styles.modalInput}
               placeholder="How did it go? Any notes to add..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={TEXT_SOFT}
               value={donationNotes}
               onChangeText={setDonationNotes}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
             />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setCompleteModalVisible(false);
-                  setDonationNotes('');
-                }}
-              >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+            <View style={styles.modalBtnsRow}>
+              <TouchableOpacity style={styles.modalKeepBtn} onPress={() => { setCompleteModalVisible(false); setDonationNotes(''); }}>
+                <Text style={styles.modalKeepText}>Cancel</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.modalCompleteButton}
-                onPress={confirmCompleteCommitment}
-              >
-                <Text style={styles.modalCompleteButtonText}>Mark Complete</Text>
+              <TouchableOpacity style={styles.modalCompleteBtn} onPress={confirmCompleteCommitment}>
+                <LinearGradient colors={[SUCCESS, '#059669']} style={styles.modalCompleteBtnGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
+                  <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                  <Text style={styles.modalCompleteText}>Mark Complete</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
@@ -813,543 +640,261 @@ const DonationHistoryScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
+  container: { flex: 1, backgroundColor: BG_LIGHT },
+
+  // Header
+  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  backBtn: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingBottom: 24,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  placeholder: {
-    width: 40,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
+  headerTitleWrap: { alignItems: 'center' },
+  headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
+  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
+
+  // Stats
+  statsRow: { flexDirection: 'row', gap: 10 },
   statCard: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-  },
-  statCardValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginTop: 8,
-  },
-  statCardLabel: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginTop: 4,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: '#3B82F6',
-  },
-  verificationNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  verificationText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#92400E',
-    fontWeight: '500',
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  tabTextActive: {
-    color: '#3B82F6',
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 14,
     paddingVertical: 12,
-    gap: 10,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-  },
-  filterButtonActive: {
-    backgroundColor: '#3B82F6',
-  },
-  filterText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  filterTextActive: {
-    color: '#FFFFFF',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#64748B',
-  },
-  listContent: {
-    padding: 16,
-  },
-  // Commitment Card Styles
-  commitmentCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  commitmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F8FAFC',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  bloodTypeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bloodType: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#EF4444',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  commitmentBody: {
-    padding: 16,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 12,
-  },
-  infoTextContainer: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 2,
-  },
-  infoValue: {
-    fontSize: 14,
-    color: '#1E293B',
-    fontWeight: '500',
-  },
-  infoSubtext: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  statItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statTextContainer: {
-    flex: 1,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    marginBottom: 2,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: 8,
-  },
-  notesContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 4,
-    padding: 12,
-    backgroundColor: '#EFF6FF',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#3B82F6',
-  },
-  notesText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#1E293B',
-    lineHeight: 18,
-  },
-  commitmentActions: {
-    flexDirection: 'row',
-    gap: 8,
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-  },
-  chatButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#EFF6FF',
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
-  },
-  chatButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3B82F6',
-  },
-  startButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#D1FAE5',
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  startButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#10B981',
-  },
-  completeButton: {
-    flex: 1.5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#10B981',
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  completeButtonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  cancelButton: {
-    width: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
-  },
-  // Donation Card Styles
-  donationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  donationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F8FAFC',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dateTextContainer: {
-    flexDirection: 'column',
-  },
-  dateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  timeText: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  pointsBadge: {
-    flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  pointsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#F59E0B',
-  },
-  donationBody: {
-    padding: 16,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    flex: 1,
-  },
-  certificateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-  },
-  certificateText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3B82F6',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  findRequestsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  findRequestsButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: '#64748B',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 8,
-  },
-  textInput: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: '#1E293B',
-    backgroundColor: '#F8FAFC',
-    minHeight: 100,
-    marginBottom: 24,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  modalActions: {
+  statValue: { fontSize: 22, fontWeight: '900', color: '#FFFFFF' },
+  statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: '600' },
+
+  // Tabs
+  tabBar: {
     flexDirection: 'row',
-    gap: 12,
+    backgroundColor: SURFACE,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+    paddingHorizontal: 8,
   },
-  modalCancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
+  tab: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 14,
+    borderBottomWidth: 2.5, borderBottomColor: 'transparent',
   },
-  modalCancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
+  tabActive: { borderBottomColor: B_MID },
+  tabText: { fontSize: 14, fontWeight: '700', color: TEXT_SOFT },
+  tabTextActive: { color: B_MID },
+  tabBadge: {
+    backgroundColor: BORDER, borderRadius: 10,
+    paddingHorizontal: 7, paddingVertical: 2,
   },
-  modalConfirmButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
+  tabBadgeActive: { backgroundColor: B_PALE },
+  tabBadgeText: { fontSize: 11, fontWeight: '700', color: TEXT_SOFT },
+  tabBadgeTextActive: { color: B_MID },
+
+  // Filters
+  filterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16, paddingVertical: 10,
+    gap: 8, backgroundColor: SURFACE,
+    borderBottomWidth: 1, borderBottomColor: BORDER,
   },
-  modalConfirmButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+  filterBtn: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 20, backgroundColor: BG_LIGHT,
+    borderWidth: 1, borderColor: BORDER,
   },
-  modalCompleteButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#10B981',
-    alignItems: 'center',
+  filterBtnActive: { backgroundColor: B_MID, borderColor: B_MID },
+  filterBtnText: { fontSize: 13, fontWeight: '600', color: TEXT_MID },
+  filterBtnTextActive: { color: '#FFFFFF' },
+
+  // Loading
+  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 15, color: TEXT_MID },
+
+  // List
+  listContent: { padding: 16, paddingBottom: 40 },
+
+  // Card
+  card: {
+    backgroundColor: SURFACE,
+    borderRadius: 18,
+    marginBottom: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: BORDER,
+    ...shadow('#000', 0.08, 12, 4),
   },
-  modalCompleteButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+  cardTopBand: { paddingHorizontal: 16, paddingVertical: 14 },
+  cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  donationTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bloodTypeBlock: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bloodTypeSmallLabel: { fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  bloodTypeValue: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', marginTop: 1 },
+  statusPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
   },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusPillText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
+  pointsBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+  },
+  pointsBadgeText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+
+  // Card Body
+  cardBody: { padding: 16, gap: 10 },
+
+  // Info Grid
+  infoGrid: { flexDirection: 'row', gap: 10 },
+  infoCell: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  infoCellIcon: {
+    width: 30, height: 30, borderRadius: 9,
+    justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
+  },
+  infoCellText: { flex: 1 },
+  infoCellLabel: { fontSize: 10, color: TEXT_SOFT, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+  infoCellValue: { fontSize: 13, color: TEXT_DARK, fontWeight: '700' },
+
+  // Address
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingLeft: 2 },
+  addressText: { flex: 1, fontSize: 12, color: TEXT_MID, lineHeight: 17 },
+
+  // Contact Row
+  contactRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+
+  // Stats Pills
+  statsPillsRow: { flexDirection: 'row', gap: 8 },
+  statPill: {
+    flex: 1, flexDirection: 'column', alignItems: 'center', gap: 3,
+    backgroundColor: BG_LIGHT, borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: BORDER,
+  },
+  statPillLabel: { fontSize: 10, color: TEXT_SOFT, fontWeight: '600', textTransform: 'uppercase' },
+  statPillValue: { fontSize: 14, fontWeight: '800' },
+
+  // Notes Box
+  notesBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    padding: 12, backgroundColor: B_BG, borderRadius: 10,
+    borderLeftWidth: 3, borderLeftColor: B_MID,
+  },
+  notesText: { flex: 1, fontSize: 13, color: TEXT_DARK, lineHeight: 18 },
+
+  // Verification Notice
+  verifyNotice: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 11, backgroundColor: WARN_PALE, borderRadius: 10,
+    borderWidth: 1, borderColor: '#FDE68A',
+  },
+  verifyNoticeText: { flex: 1, fontSize: 12, color: '#92400E', fontWeight: '600' },
+
+  // Card Actions
+  cardActions: {
+    flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10,
+    borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: BG_LIGHT,
+  },
+  chatBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, backgroundColor: B_PALE, paddingVertical: 9, borderRadius: 10,
+    borderWidth: 1, borderColor: '#BFDBFE',
+  },
+  chatBtnText: { fontSize: 13, fontWeight: '700', color: B_MID },
+  startBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, backgroundColor: SUCCESS_PALE, paddingVertical: 9, borderRadius: 10,
+    borderWidth: 1, borderColor: '#A7F3D0',
+  },
+  startBtnText: { fontSize: 13, fontWeight: '700', color: SUCCESS },
+  completeBtn: { flex: 1.5, borderRadius: 10, overflow: 'hidden' },
+  completeBtnGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, paddingVertical: 10,
+  },
+  completeBtnText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+  cancelIconBtn: {
+    width: 40, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: DANGER_PALE, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA',
+  },
+
+  // Donation Date
+  donationDateRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  donationDateMain: { fontSize: 15, fontWeight: '800', color: TEXT_DARK },
+  donationDateTime: { fontSize: 12, color: TEXT_SOFT, marginTop: 2 },
+
+  // Certificate
+  certBtn: { overflow: 'hidden' },
+  certBtnGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 13,
+  },
+  certBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+
+  // Empty State
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 40 },
+  emptyIconWrap: { marginBottom: 20, ...shadow(B_MID, 0.15, 20, 6) },
+  emptyIconGrad: {
+    width: 110, height: 110, borderRadius: 55,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: TEXT_DARK, marginBottom: 8, textAlign: 'center' },
+  emptyText: { fontSize: 14, color: TEXT_MID, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  emptyActionBtn: { borderRadius: 14, overflow: 'hidden', ...shadow(B_MID, 0.25, 10, 4) },
+  emptyActionGrad: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 14, paddingHorizontal: 28,
+  },
+  emptyActionText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: SURFACE,
+    borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    padding: 24, paddingBottom: 40,
+    ...shadow('#000', 0.2, 30, 10),
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: BORDER, alignSelf: 'center', marginBottom: 20,
+  },
+  modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  modalTitleIcon: { width: 36, height: 36, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  modalTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: TEXT_DARK },
+  modalCloseBtn: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: BG_LIGHT, justifyContent: 'center', alignItems: 'center',
+  },
+  modalDesc: { fontSize: 14, color: TEXT_MID, lineHeight: 20, marginBottom: 18 },
+  modalInputLabel: { fontSize: 13, fontWeight: '700', color: TEXT_DARK, marginBottom: 8 },
+  modalInput: {
+    borderWidth: 1.5, borderColor: BORDER, borderRadius: 12,
+    padding: 12, fontSize: 14, color: TEXT_DARK,
+    backgroundColor: BG_LIGHT, minHeight: 100, marginBottom: 20,
+  },
+  modalBtnsRow: { flexDirection: 'row', gap: 10 },
+  modalKeepBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: BG_LIGHT, alignItems: 'center',
+    borderWidth: 1, borderColor: BORDER,
+  },
+  modalKeepText: { fontSize: 14, fontWeight: '700', color: TEXT_MID },
+  modalConfirmCancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: DANGER, alignItems: 'center',
+  },
+  modalConfirmCancelText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  modalCompleteBtn: { flex: 1.5, borderRadius: 14, overflow: 'hidden' },
+  modalCompleteBtnGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 14,
+  },
+  modalCompleteText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
 });
 
 export default DonationHistoryScreen;

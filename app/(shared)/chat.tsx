@@ -2,31 +2,41 @@ import { ChatBubble } from '@/src/components/chat/ChatBubble';
 import { ChatInput } from '@/src/components/chat/ChatInput';
 import { useUser } from '@/src/contexts/UserContext';
 import {
-    getChatById,
-    getChatMessages,
-    markMessagesAsRead,
-    sendMessage,
-    subscribeToChatMessages,
+  getChatById,
+  getChatMessages,
+  markMessagesAsRead,
+  sendMessage,
+  subscribeToChatMessages,
 } from '@/src/services/firebase/database';
 import { Chat, ChatMessage } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+
+// ⭐ REAL WHATSAPP CHAT COLOR
+const WHATSAPP_BG = '#EFEAE2';
+
+const TEAL = '#0D9488';
+const TEAL_MID = '#14B8A6';
+
+
 const ChatScreen: React.FC = () => {
+
   const router = useRouter();
   const { user } = useUser();
   const params = useLocalSearchParams<{ chatId: string }>();
@@ -38,20 +48,24 @@ const ChatScreen: React.FC = () => {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+
     if (!params.chatId || !user) return;
 
     loadChat();
     loadMessages();
 
-    // Subscribe to real-time messages
-    const unsubscribe = subscribeToChatMessages(params.chatId, (newMessages) => {
-      setMessages(newMessages);
-      // Mark messages as read
-      markMessagesAsRead(params.chatId, user.id);
-    });
+    const unsubscribe = subscribeToChatMessages(
+      params.chatId,
+      (newMessages) => {
+        setMessages(newMessages);
+        markMessagesAsRead(params.chatId, user.id);
+      }
+    );
 
     return () => unsubscribe();
+
   }, [params.chatId, user]);
+
 
   const loadChat = async () => {
     if (!params.chatId) return;
@@ -59,11 +73,11 @@ const ChatScreen: React.FC = () => {
     try {
       const chatData = await getChatById(params.chatId);
       setChat(chatData);
-    } catch (error) {
-      console.error('Error loading chat:', error);
+    } catch {
       Alert.alert('Error', 'Failed to load chat details.');
     }
   };
+
 
   const loadMessages = async () => {
     if (!params.chatId) return;
@@ -72,25 +86,30 @@ const ChatScreen: React.FC = () => {
       setLoading(true);
       const chatMessages = await getChatMessages(params.chatId);
       setMessages(chatMessages);
-      
+
       if (user) {
         await markMessagesAsRead(params.chatId, user.id);
       }
-    } catch (error) {
-      console.error('Error loading messages:', error);
+
     } finally {
       setLoading(false);
     }
   };
 
+
   const handleSend = async (messageText: string) => {
+
     if (!user || !chat || !params.chatId) return;
 
-    const otherParticipantId = chat.participants.find(id => id !== user.id);
+    const otherParticipantId =
+      chat.participants.find(id => id !== user.id);
+
     if (!otherParticipantId) return;
 
     setSending(true);
+
     try {
+
       await sendMessage(
         params.chatId,
         user.id,
@@ -99,23 +118,33 @@ const ChatScreen: React.FC = () => {
         messageText
       );
 
-      // Scroll to bottom after sending
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      Alert.alert('Error', 'Failed to send message. Please try again.');
+
+    } catch {
+
+      Alert.alert('Error', 'Failed to send message.');
+
     } finally {
+
       setSending(false);
     }
   };
 
+
   const getOtherParticipantName = (): string => {
+
     if (!chat || !user) return 'Chat';
-    const otherParticipantId = chat.participants.find(id => id !== user.id);
-    return otherParticipantId ? chat.participantNames[otherParticipantId] : 'Unknown';
+
+    const otherParticipantId =
+      chat.participants.find(id => id !== user.id);
+
+    return otherParticipantId
+      ? chat.participantNames[otherParticipantId]
+      : 'Unknown';
   };
+
 
   const renderMessage = ({ item }: { item: ChatMessage }) => (
     <ChatBubble
@@ -124,217 +153,158 @@ const ChatScreen: React.FC = () => {
     />
   );
 
-  const renderDateSeparator = (date: string) => (
-    <View style={styles.dateSeparator}>
-      <View style={styles.dateLine} />
-      <Text style={styles.dateText}>{date}</Text>
-      <View style={styles.dateLine} />
-    </View>
-  );
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-        </View>
+      <SafeAreaView style={st.loadingWrap}>
+        <ActivityIndicator size="large" color={TEAL} />
       </SafeAreaView>
     );
   }
 
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#3B82F6" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+
+    <SafeAreaView style={{ flex: 1, backgroundColor: WHATSAPP_BG }}>
+      <StatusBar barStyle="light-content" backgroundColor={TEAL} />
+
+      {/* HEADER */}
+      <LinearGradient colors={[TEAL, TEAL_MID]} style={st.header}>
+
+        <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <View style={styles.headerAvatar}>
-            <Text style={styles.headerAvatarText}>
+        <View style={st.headerCenter}>
+          <View style={st.headerAvatar}>
+            <Text style={st.headerAvatarText}>
               {getOtherParticipantName().charAt(0).toUpperCase()}
             </Text>
           </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerName}>{getOtherParticipantName()}</Text>
-            <Text style={styles.headerStatus}>
+
+          <View>
+            <Text style={st.headerName}>
+              {getOtherParticipantName()}
+            </Text>
+
+            <Text style={st.headerStatus}>
               {user.userType === 'donor' ? 'Requester' : 'Donor'}
             </Text>
           </View>
         </View>
 
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-vertical" size={24} color="#FFFFFF" />
+        <TouchableOpacity style={st.backBtn}>
+          <Ionicons name="ellipsis-vertical" size={20} color="#fff" />
         </TouchableOpacity>
-      </View>
 
-      {/* Messages List */}
+      </LinearGradient>
+
+
+      {/* CHAT AREA */}
       <KeyboardAvoidingView
-        style={styles.content}
+        style={{ flex: 1, backgroundColor: WHATSAPP_BG }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={90}
       >
+
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
-            <Text style={styles.loadingText}>Loading messages...</Text>
+
+          <View style={st.loadingWrap}>
+            <ActivityIndicator size="large" color={TEAL} />
+            <Text>Loading messages...</Text>
           </View>
+
         ) : (
+
           <>
             <FlatList
               ref={flatListRef}
               data={messages}
               renderItem={renderMessage}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.messagesList}
-              inverted={false}
+              contentContainerStyle={st.messagesList}
               onContentSizeChange={() =>
                 flatListRef.current?.scrollToEnd({ animated: true })
               }
-              ListEmptyComponent={
-                <View style={styles.emptyMessages}>
-                  <Ionicons name="chatbubbles-outline" size={64} color="#CBD5E1" />
-                  <Text style={styles.emptyText}>No messages yet</Text>
-                  <Text style={styles.emptySubtext}>
-                    Start the conversation by sending a message
-                  </Text>
-                </View>
-              }
             />
 
-            {/* Chat Input */}
             <ChatInput
               onSend={handleSend}
               disabled={sending || loading}
-              placeholder="Type your message..."
+              placeholder="Type message..."
             />
           </>
         )}
+
       </KeyboardAvoidingView>
+
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
+
+const st = StyleSheet.create({
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#3B82F6',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2563EB',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   headerCenter: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 12,
+    gap: 10,
   },
+
   headerAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255,255,255,0.25)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
+
   headerAvatarText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 16,
   },
-  headerInfo: {
-    flex: 1,
-  },
+
   headerName: {
+    color: '#fff',
+    fontWeight: '800',
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
+
   headerStatus: {
-    fontSize: 13,
-    color: '#E0E7FF',
-    marginTop: 2,
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
   },
-  moreButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    flex: 1,
-  },
-  loadingContainer: {
+
+  loadingWrap: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#64748B',
-  },
+
   messagesList: {
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
     flexGrow: 1,
-  },
-  emptyMessages: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  dateSeparator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16,
-    paddingHorizontal: 20,
-  },
-  dateLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E2E8F0',
-  },
-  dateText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginHorizontal: 12,
-    fontWeight: '500',
   },
 });
 

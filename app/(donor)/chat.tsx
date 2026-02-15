@@ -1,3 +1,4 @@
+import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { getUserChats } from '@/src/services/firebase/database';
 import { Chat } from '@/src/types/types';
@@ -6,31 +7,43 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  Platform,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const shadow = (c = '#000', o = 0.08, r = 10, e = 3) =>
+  Platform.select({
+    web: { boxShadow: `0 2px ${r}px rgba(0,0,0,${o})` } as any,
+    default: {
+      shadowColor: c,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: o,
+      shadowRadius: r,
+      elevation: e
+    },
+  });
 
 const ChatListScreen: React.FC = () => {
   const router = useRouter();
   const { user } = useUser();
+  const { colors, isDark } = useAppTheme();
+
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadChats();
-  }, [user]);
+  useEffect(() => { loadChats(); }, [user]);
 
   const loadChats = async () => {
     if (!user) return;
-
     try {
       setLoading(true);
       const userChats = await getUserChats(user.id);
@@ -62,283 +75,286 @@ const ChatListScreen: React.FC = () => {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) {
-      return date.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } else if (days === 1) {
-      return 'Yesterday';
-    } else if (days < 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      });
-    }
+    if (days === 0) return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'short' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
+
+  const ListHeader = () => (
+    <View style={[st.header, { backgroundColor: '#075E54' }]}>
+      <View style={st.headerRow}>
+        <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={st.headerTitle}>Chats</Text>
+        <View style={st.headerActions}>
+          <TouchableOpacity style={st.headerIconBtn}>
+            <Ionicons name="search" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={st.headerIconBtn}>
+            <Ionicons name="ellipsis-vertical" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
 
   const renderChatItem = ({ item }: { item: Chat }) => {
     const otherParticipantName = getOtherParticipantName(item);
     const unreadCount = getUnreadCount(item);
+    const hasUnread = unreadCount > 0;
 
     return (
       <TouchableOpacity
-        style={styles.chatItem}
+        style={[st.chatCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}
         onPress={() => router.push(`/(shared)/chat?chatId=${item.id}` as any)}
-        activeOpacity={0.7}
+        activeOpacity={0.6}
       >
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
+        <View style={st.avatarWrap}>
+          <View style={[st.avatar, { backgroundColor: '#128C7E' }]}>
+            <Text style={st.avatarText}>
               {otherParticipantName.charAt(0).toUpperCase()}
             </Text>
           </View>
-          {unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadCount}>
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </Text>
-            </View>
-          )}
         </View>
 
-        <View style={styles.chatContent}>
-          <View style={styles.chatHeader}>
-            <Text style={styles.chatName} numberOfLines={1}>
+        <View style={st.chatContent}>
+          <View style={st.chatHeader}>
+            <Text
+              style={[st.chatName, { color: isDark ? '#FFFFFF' : '#000000' }, hasUnread && st.chatNameUnread]}
+              numberOfLines={1}
+            >
               {otherParticipantName}
             </Text>
-            <Text style={styles.chatTime}>{formatTime(item.lastMessageTime)}</Text>
+            <Text style={[st.chatTime, { color: hasUnread ? '#25D366' : '#8696A0' }]}>
+              {formatTime(item.lastMessageTime)}
+            </Text>
           </View>
-          <Text
-            style={[
-              styles.lastMessage,
-              unreadCount > 0 && styles.lastMessageUnread,
-            ]}
-            numberOfLines={1}
-          >
-            {item.lastMessage || 'No messages yet'}
-          </Text>
+          <View style={st.lastMessageRow}>
+            <Text
+              style={[st.lastMessage, { color: '#667781' }, hasUnread && { color: isDark ? '#FFFFFF' : '#000000', fontWeight: '500' }]}
+              numberOfLines={1}
+            >
+              {item.lastMessage || 'Tap to start chatting'}
+            </Text>
+            {hasUnread && (
+              <View style={st.unreadBadge}>
+                <Text style={st.unreadCount}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-
-        <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
       </TouchableOpacity>
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="chatbubbles-outline" size={80} color="#CBD5E1" />
+  const renderEmptyState = () => {
+    if (loading) {
+      return (
+        <View style={st.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[st.loadingText, { color: colors.textSecondary }]}>Loading chats...</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={st.emptyWrap}>
+        <LinearGradient colors={isDark ? ['#1E293B', '#334155'] : ['#DBEAFE', '#EFF6FF']} style={st.emptyIconWrap}>
+          <Ionicons name="chatbubbles-outline" size={46} color={colors.primary} />
+        </LinearGradient>
+        <Text style={[st.emptyTitle, { color: colors.text }]}>No Conversations Yet</Text>
+        <Text style={[st.emptyText, { color: colors.textSecondary }]}>
+          Connect with requesters to start chatting.
+        </Text>
       </View>
-      <Text style={styles.emptyTitle}>No Conversations Yet</Text>
-      <Text style={styles.emptyText}>
-        When you accept a blood request or create one, you'll be able to chat here.
-      </Text>
-    </View>
-  );
+    );
+  };
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+      <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]} edges={['top']}>
+        <View style={st.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#3B82F6" />
-      
-      <LinearGradient colors={['#3B82F6', '#2563EB']} style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Messages</Text>
-          <View style={styles.placeholder} />
-        </View>
-      </LinearGradient>
+    <SafeAreaView style={[st.container, { backgroundColor: isDark ? '#000000' : '#F0F2F5' }]} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor="#075E54" />
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Loading chats...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={chats}
-          renderItem={renderChatItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={chats.length === 0 ? styles.emptyList : styles.list}
-          ListEmptyComponent={renderEmptyState}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#3B82F6']}
-              tintColor="#3B82F6"
-            />
-          }
-        />
-      )}
+      <FlatList
+        data={chats}
+        renderItem={renderChatItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={st.listContent}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={renderEmptyState}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
+const st = StyleSheet.create({
+  container: { flex: 1 },
+
+  // Header - WhatsApp Style
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 16,
   },
-  headerContent: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between'
   },
-  backButton: {
+  backBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 8,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#FFFFFF',
-  },
-  placeholder: {
-    width: 40,
-  },
-  loadingContainer: {
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#64748B',
-  },
-  list: {
-    paddingTop: 8,
-  },
-  emptyList: {
+
+  // Loading
+  loadingWrap: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 60
   },
-  chatItem: {
+  loadingText: { fontSize: 15 },
+
+  listContent: { paddingBottom: 20 },
+
+  // Chat Card - WhatsApp Style
+  chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 0.5,
+    borderBottomColor: '#E9EDEF',
   },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 12,
+
+  avatarWrap: {
+    marginRight: 12
   },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 19,
+    fontWeight: '500',
     color: '#FFFFFF',
   },
   unreadBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#EF4444',
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
+    backgroundColor: '#25D366',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    paddingHorizontal: 5,
   },
   unreadCount: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
-  chatContent: {
-    flex: 1,
-  },
+
+  chatContent: { flex: 1, gap: 3 },
   chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   chatName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontSize: 17,
+    fontWeight: '400',
     flex: 1,
     marginRight: 8,
   },
+  chatNameUnread: { fontWeight: '600' },
   chatTime: {
-    fontSize: 13,
-    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '400',
+  },
+  lastMessageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   lastMessage: {
     fontSize: 14,
-    color: '#64748B',
-  },
-  lastMessageUnread: {
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  emptyContainer: {
+    lineHeight: 18,
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
+    marginRight: 8,
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#F1F5F9',
+
+  // Empty State
+  emptyWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40
+  },
+  emptyIconWrap: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    backgroundColor: '#E9EDEF',
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
+    fontSize: 19,
+    fontWeight: '600',
     marginBottom: 8,
     textAlign: 'center',
+    color: '#000000',
   },
   emptyText: {
     fontSize: 14,
-    color: '#64748B',
     textAlign: 'center',
     lineHeight: 20,
+    color: '#667781',
   },
 });
 

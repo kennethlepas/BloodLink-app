@@ -6,16 +6,43 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  Platform,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+// ─── Colors ──────────────────────────────────────────────────────────────────
+const TEAL      = '#0D9488';
+const TEAL_MID  = '#14B8A6';
+const TEAL_PALE = '#CCFBF1';
+const GREEN     = '#10B981';
+const DANGER    = '#EF4444';
+const BLUE      = '#3B82F6';
+const SURFACE   = '#FFFFFF';
+const BG        = '#F8FAFC';
+const TEXT_DARK = '#0F172A';
+const TEXT_MID  = '#475569';
+const TEXT_SOFT = '#94A3B8';
+const BORDER    = '#E2E8F0';
+
+const shadow = (c = '#000', o = 0.08, r = 10, e = 3) =>
+  Platform.select({
+    web: { boxShadow: `0 2px ${r}px rgba(0,0,0,${o})` } as any,
+    default: { 
+      shadowColor: c, 
+      shadowOffset: { width: 0, height: 2 }, 
+      shadowOpacity: o, 
+      shadowRadius: r, 
+      elevation: e 
+    },
+  });
 
 const ChatListScreen: React.FC = () => {
   const router = useRouter();
@@ -83,58 +110,62 @@ const ChatListScreen: React.FC = () => {
   const renderChatItem = ({ item }: { item: Chat }) => {
     const otherParticipantName = getOtherParticipantName(item);
     const unreadCount = getUnreadCount(item);
+    const hasUnread = unreadCount > 0;
 
     return (
       <TouchableOpacity
-        style={styles.chatItem}
+        style={st.chatCard}
         onPress={() => router.push(`/(shared)/chat?chatId=${item.id}` as any)}
         activeOpacity={0.7}
       >
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
+        <View style={st.avatarWrap}>
+          <LinearGradient 
+            colors={[TEAL, TEAL_MID]} 
+            style={st.avatar}
+          >
+            <Text style={st.avatarText}>
               {otherParticipantName.charAt(0).toUpperCase()}
             </Text>
-          </View>
-          {unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadCount}>
+          </LinearGradient>
+          {hasUnread && (
+            <View style={st.unreadBadge}>
+              <Text style={st.unreadCount}>
                 {unreadCount > 99 ? '99+' : unreadCount}
               </Text>
             </View>
           )}
         </View>
 
-        <View style={styles.chatContent}>
-          <View style={styles.chatHeader}>
-            <Text style={styles.chatName} numberOfLines={1}>
+        <View style={st.chatContent}>
+          <View style={st.chatHeader}>
+            <Text 
+              style={[st.chatName, hasUnread && st.chatNameUnread]} 
+              numberOfLines={1}
+            >
               {otherParticipantName}
             </Text>
-            <Text style={styles.chatTime}>{formatTime(item.lastMessageTime)}</Text>
+            <Text style={st.chatTime}>{formatTime(item.lastMessageTime)}</Text>
           </View>
           <Text
-            style={[
-              styles.lastMessage,
-              unreadCount > 0 && styles.lastMessageUnread,
-            ]}
-            numberOfLines={1}
+            style={[st.lastMessage, hasUnread && st.lastMessageUnread]}
+            numberOfLines={2}
           >
             {item.lastMessage || 'No messages yet'}
           </Text>
         </View>
 
-        <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+        <Ionicons name="chevron-forward" size={20} color={TEXT_SOFT} />
       </TouchableOpacity>
     );
   };
 
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="chatbubbles-outline" size={80} color="#CBD5E1" />
-      </View>
-      <Text style={styles.emptyTitle}>No Conversations Yet</Text>
-      <Text style={styles.emptyText}>
+    <View style={st.emptyWrap}>
+      <LinearGradient colors={[TEAL_PALE, '#99F6E4']} style={st.emptyIconWrap}>
+        <Ionicons name="chatbubbles-outline" size={46} color={TEAL} />
+      </LinearGradient>
+      <Text style={st.emptyTitle}>No Conversations Yet</Text>
+      <Text style={st.emptyText}>
         When you accept a blood request or create one, you'll be able to chat here.
       </Text>
     </View>
@@ -142,49 +173,52 @@ const ChatListScreen: React.FC = () => {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+      <SafeAreaView style={st.container} edges={['top']}>
+        <View style={st.loadingWrap}>
+          <ActivityIndicator size="large" color={TEAL} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#3B82F6" />
+    <SafeAreaView style={st.container} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={TEAL} />
       
-      <LinearGradient colors={['#3B82F6', '#2563EB']} style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+      {/* Header */}
+      <LinearGradient colors={[TEAL, TEAL_MID]} style={st.header}>
+        <View style={st.headerRow}>
+          <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Messages</Text>
-          <View style={styles.placeholder} />
+          <View style={st.headerCenter}>
+            <Text style={st.headerTitle}>Messages</Text>
+            <Text style={st.headerSub}>
+              {chats.length} conversation{chats.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <View style={{ width: 38 }} />
         </View>
       </LinearGradient>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Loading chats...</Text>
+        <View style={st.loadingWrap}>
+          <ActivityIndicator size="large" color={TEAL} />
+          <Text style={st.loadingText}>Loading chats...</Text>
         </View>
       ) : (
         <FlatList
           data={chats}
           renderItem={renderChatItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={chats.length === 0 ? styles.emptyList : styles.list}
+          contentContainerStyle={chats.length === 0 ? st.emptyList : st.listContent}
           ListEmptyComponent={renderEmptyState}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={['#3B82F6']}
-              tintColor="#3B82F6"
+              colors={[TEAL]}
+              tintColor={TEAL}
             />
           }
         />
@@ -193,152 +227,149 @@ const ChatListScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
+const st = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+
+  // Header
+  header: { paddingHorizontal: 16, paddingVertical: 14 },
+  headerRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between' 
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  backBtn: { 
+    width: 38, 
+    height: 38, 
+    borderRadius: 12, 
+    backgroundColor: 'rgba(255,255,255,0.2)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
   },
-  headerContent: {
+  headerCenter: { alignItems: 'center', flex: 1 },
+  headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
+  headerSub: { 
+    fontSize: 11, 
+    color: 'rgba(255,255,255,0.75)', 
+    marginTop: 1 
+  },
+
+  // Loading
+  loadingWrap: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 12 
+  },
+  loadingText: { fontSize: 15, color: TEXT_MID },
+
+  listContent: { padding: 16, paddingBottom: 40 },
+  emptyList: { flex: 1 },
+
+  // Chat Card
+  chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: SURFACE,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    ...shadow('#000', 0.06, 8, 3),
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  placeholder: {
-    width: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#64748B',
-  },
-  list: {
-    paddingTop: 8,
-  },
-  emptyList: {
-    flex: 1,
-  },
-  chatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 12,
+
+  avatarWrap: { 
+    position: 'relative', 
+    marginRight: 12 
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#3B82F6',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: '#FFFFFF',
   },
   unreadBadge: {
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#EF4444',
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
+    backgroundColor: DANGER,
+    borderRadius: 11,
+    minWidth: 22,
+    height: 22,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 6,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: SURFACE,
   },
   unreadCount: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
-  chatContent: {
-    flex: 1,
-  },
+
+  chatContent: { flex: 1, gap: 4 },
   chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
   },
   chatName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontWeight: '700',
+    color: TEXT_DARK,
     flex: 1,
     marginRight: 8,
   },
+  chatNameUnread: { fontWeight: '800' },
   chatTime: {
-    fontSize: 13,
-    color: '#94A3B8',
+    fontSize: 12,
+    color: TEXT_SOFT,
+    fontWeight: '500',
   },
   lastMessage: {
     fontSize: 14,
-    color: '#64748B',
+    color: TEXT_MID,
+    lineHeight: 19,
   },
   lastMessageUnread: {
     fontWeight: '600',
-    color: '#1E293B',
+    color: TEXT_DARK,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
+
+  // Empty State
+  emptyWrap: { 
+    flex: 1, 
+    alignItems: 'center', 
+    paddingVertical: 80, 
+    paddingHorizontal: 40 
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
+  emptyIconWrap: { 
+    width: 100, 
+    height: 100, 
+    borderRadius: 50, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 20 
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 8,
-    textAlign: 'center',
+  emptyTitle: { 
+    fontSize: 19, 
+    fontWeight: '800', 
+    color: TEXT_DARK, 
+    marginBottom: 8, 
+    textAlign: 'center' 
   },
-  emptyText: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
+  emptyText: { 
+    fontSize: 14, 
+    color: TEXT_MID, 
+    textAlign: 'center', 
+    lineHeight: 20 
   },
 });
 

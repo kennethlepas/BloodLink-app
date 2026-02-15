@@ -1,3 +1,7 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// FindDonorsScreen.tsx
+// ═══════════════════════════════════════════════════════════════════════════
+
 import { useUser } from '@/src/contexts/UserContext';
 import { getUsersByBloodType } from '@/src/services/firebase/database';
 import { BloodType, Donor } from '@/src/types/types';
@@ -7,171 +11,161 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Platform,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator, Alert, FlatList, Image, Platform,
+  RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const BLOOD_TYPES: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-interface DonorCardProps {
-  donor: Donor;
-  onContact: (donor: Donor) => void;
-  onViewProfile: (donor: Donor) => void;
-}
+// ─── Colors ──────────────────────────────────────────────────────────────────
+const TEAL      = '#0D9488';
+const TEAL_MID  = '#14B8A6';
+const TEAL_PALE = '#CCFBF1';
+const TEAL_BG   = '#F0FDFA';
+const GREEN     = '#10B981';
+const GREEN_PALE= '#D1FAE5';
+const WARN      = '#F59E0B';
+const WARN_PALE = '#FEF3C7';
+const DANGER    = '#EF4444';
+const BLUE      = '#3B82F6';
+const BLUE_PALE = '#DBEAFE';
+const PURPLE    = '#8B5CF6';
+const SURFACE   = '#FFFFFF';
+const BG        = '#F8FAFC';
+const TEXT_DARK = '#0F172A';
+const TEXT_MID  = '#475569';
+const TEXT_SOFT = '#94A3B8';
+const BORDER    = '#E2E8F0';
+
+const shadow = (c = '#000', o = 0.08, r = 10, e = 3) =>
+  Platform.select({
+    web: { boxShadow: `0 2px ${r}px rgba(0,0,0,${o})` } as any,
+    default: { shadowColor: c, shadowOffset: { width: 0, height: 2 }, shadowOpacity: o, shadowRadius: r, elevation: e },
+  });
+
+// ─── Donor Card ──────────────────────────────────────────────────────────────
+interface DonorCardProps { donor: Donor; onContact: (d: Donor) => void; onViewProfile: (d: Donor) => void; }
 
 const DonorCard: React.FC<DonorCardProps> = ({ donor, onContact, onViewProfile }) => {
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  };
+  const initials = `${donor.firstName.charAt(0)}${donor.lastName.charAt(0)}`.toUpperCase();
 
-  const getAvailabilityStatus = () => {
-    if (!donor.isAvailable) {
-      return { text: 'Unavailable', color: '#94A3B8', bgColor: '#F1F5F9' };
-    }
-    
-    // Check if donor can donate (56 days since last donation)
+  const getStatus = () => {
+    if (!donor.isAvailable) return { text: 'Unavailable', color: TEXT_SOFT, bg: BG, dot: '#CBD5E1' };
     if (donor.lastDonationDate) {
-      const daysSinceLastDonation = Math.floor(
-        (Date.now() - new Date(donor.lastDonationDate).getTime()) / (1000 * 60 * 60 * 24)
-      );
-      
-      if (daysSinceLastDonation < 56) {
-        const daysRemaining = 56 - daysSinceLastDonation;
-        return {
-          text: `Available in ${daysRemaining}d`,
-          color: '#F59E0B',
-          bgColor: '#FEF3C7',
-        };
-      }
+      const days = Math.floor((Date.now() - new Date(donor.lastDonationDate).getTime()) / 86400000);
+      if (days < 56) return { text: `${56 - days}d until eligible`, color: WARN, bg: WARN_PALE, dot: WARN };
     }
-    
-    return { text: 'Available', color: '#10B981', bgColor: '#D1FAE5' };
+    return { text: 'Available Now', color: GREEN, bg: GREEN_PALE, dot: GREEN };
   };
 
-  const status = getAvailabilityStatus();
+  const status = getStatus();
 
   return (
-    <View style={styles.donorCard}>
-      <View style={styles.donorHeader}>
-        <View style={styles.donorProfileSection}>
-          {donor.profilePicture ? (
-            <Image source={{ uri: donor.profilePicture }} style={styles.donorAvatar} />
-          ) : (
-            <View style={styles.donorAvatarPlaceholder}>
-              <Text style={styles.donorInitials}>
-                {getInitials(donor.firstName, donor.lastName)}
-              </Text>
+    <View style={fd.card}>
+      <View style={fd.cardInner}>
+        {/* Avatar + Info */}
+        <View style={fd.topRow}>
+          <View style={fd.avatarWrap}>
+            {donor.profilePicture
+              ? <Image source={{ uri: donor.profilePicture }} style={fd.avatarImg} />
+              : <LinearGradient colors={[TEAL, TEAL_MID]} style={fd.avatarFallback}>
+                  <Text style={fd.avatarInitials}>{initials}</Text>
+                </LinearGradient>
+            }
+            {/* Blood type badge */}
+            <View style={fd.bloodBadge}>
+              <Ionicons name="water" size={8} color="#FFFFFF" />
+              <Text style={fd.bloodBadgeText}>{donor.bloodType}</Text>
             </View>
-          )}
-          
-          <View style={styles.donorInfo}>
-            <Text style={styles.donorName}>
-              {donor.firstName} {donor.lastName}
-            </Text>
-            
-            <View style={styles.donorMetaRow}>
-              <View style={styles.bloodTypeBadge}>
-                <Ionicons name="water" size={14} color="#DC2626" />
-                <Text style={styles.bloodTypeText}>{donor.bloodType}</Text>
-              </View>
-              
-              {donor.totalDonations > 0 && (
-                <View style={styles.donationsBadge}>
-                  <Ionicons name="heart" size={12} color="#EF4444" />
-                  <Text style={styles.donationsText}>{donor.totalDonations || 0} donations</Text>
-                </View>
-              )}
-            </View>
+          </View>
 
+          <View style={fd.infoBlock}>
+            <Text style={fd.donorName} numberOfLines={1}>{donor.firstName} {donor.lastName}</Text>
             {donor.location?.city && (
-              <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={14} color="#64748B" />
-                <Text style={styles.locationText}>
-                  {donor.location.city}
-                  {donor.location.region && `, ${donor.location.region}`}
+              <View style={fd.locationRow}>
+                <Ionicons name="location-outline" size={12} color={TEXT_SOFT} />
+                <Text style={fd.locationText} numberOfLines={1}>
+                  {donor.location.city}{donor.location.region ? `, ${donor.location.region}` : ''}
                 </Text>
               </View>
             )}
+            {donor.totalDonations > 0 && (
+              <View style={fd.donationsRow}>
+                <Ionicons name="heart" size={12} color={DANGER} />
+                <Text style={fd.donationsText}>{donor.totalDonations} donation{donor.totalDonations !== 1 ? 's' : ''}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Status badge */}
+          <View style={[fd.statusBadge, { backgroundColor: status.bg }]}>
+            <View style={[fd.statusDot, { backgroundColor: status.dot }]} />
+            <Text style={[fd.statusText, { color: status.color }]}>{status.text}</Text>
           </View>
         </View>
 
-        <View style={[styles.statusBadge, { backgroundColor: status.bgColor }]}>
-          <Text style={[styles.statusText, { color: status.color }]}>{status.text}</Text>
-        </View>
-      </View>
-
-      {/* Donor Stats */}
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Ionicons name="trophy-outline" size={18} color="#F59E0B" />
-          <Text style={styles.statValue}>{donor.points || 0}</Text>
-          <Text style={styles.statLabel}>Points</Text>
-        </View>
-
-        {donor.lastDonationDate && (
-          <View style={styles.statItem}>
-            <Ionicons name="calendar-outline" size={18} color="#3B82F6" />
-            <Text style={styles.statValue}>
-              {new Date(donor.lastDonationDate).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              })}
-            </Text>
-            <Text style={styles.statLabel}>Last Donation</Text>
+        {/* Stats Row */}
+        <View style={fd.statsRow}>
+          <View style={fd.statItem}>
+            <Ionicons name="trophy-outline" size={16} color={WARN} />
+            <Text style={fd.statValue}>{donor.points || 0}</Text>
+            <Text style={fd.statLabel}>Points</Text>
           </View>
-        )}
-
-        {donor.medicalHistory?.weight && (
-          <View style={styles.statItem}>
-            <Ionicons name="fitness-outline" size={18} color="#10B981" />
-            <Text style={styles.statValue}>{donor.medicalHistory.weight}kg</Text>
-            <Text style={styles.statLabel}>Weight</Text>
+          {donor.lastDonationDate && (
+            <View style={fd.statItem}>
+              <Ionicons name="calendar-outline" size={16} color={BLUE} />
+              <Text style={fd.statValue}>
+                {new Date(donor.lastDonationDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </Text>
+              <Text style={fd.statLabel}>Last Donated</Text>
+            </View>
+          )}
+          <View style={fd.statItem}>
+            <Ionicons name="water" size={16} color={DANGER} />
+            <Text style={[fd.statValue, { color: DANGER }]}>{donor.bloodType}</Text>
+            <Text style={fd.statLabel}>Blood Type</Text>
           </View>
-        )}
-      </View>
+          {donor.medicalHistory?.weight && (
+            <View style={fd.statItem}>
+              <Ionicons name="fitness-outline" size={16} color={PURPLE} />
+              <Text style={fd.statValue}>{donor.medicalHistory.weight}kg</Text>
+              <Text style={fd.statLabel}>Weight</Text>
+            </View>
+          )}
+        </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={styles.viewProfileButton}
-          onPress={() => onViewProfile(donor)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="person-outline" size={18} color="#3B82F6" />
-          <Text style={styles.viewProfileText}>View Profile</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.contactButton,
-            !donor.isAvailable && styles.contactButtonDisabled,
-          ]}
-          onPress={() => onContact(donor)}
-          disabled={!donor.isAvailable}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chatbubble-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.contactButtonText}>Contact</Text>
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={fd.actions}>
+          <TouchableOpacity style={fd.profileBtn} onPress={() => onViewProfile(donor)} activeOpacity={0.75}>
+            <Ionicons name="person-outline" size={16} color={TEAL} />
+            <Text style={fd.profileBtnText}>View Profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[fd.contactBtn, !donor.isAvailable && fd.contactBtnDisabled]}
+            onPress={() => onContact(donor)}
+            disabled={!donor.isAvailable}
+            activeOpacity={0.75}
+          >
+            <LinearGradient
+              colors={!donor.isAvailable ? ['#CBD5E1', '#94A3B8'] : [TEAL, TEAL_MID]}
+              style={fd.contactBtnGrad}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color="#FFFFFF" />
+              <Text style={fd.contactBtnText}>Contact</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 };
 
+// ─── Screen ──────────────────────────────────────────────────────────────────
 export default function FindDonorsScreen() {
   const router = useRouter();
   const { user } = useUser();
-
   const [donors, setDonors] = useState<Donor[]>([]);
   const [filteredDonors, setFilteredDonors] = useState<Donor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,543 +174,220 @@ export default function FindDonorsScreen() {
   const [selectedBloodType, setSelectedBloodType] = useState<BloodType | 'all'>('all');
   const [availableOnly, setAvailableOnly] = useState(true);
 
-  useEffect(() => {
-    loadDonors();
-  }, []);
-
-  useEffect(() => {
-    filterDonors();
-  }, [donors, searchQuery, selectedBloodType, availableOnly]);
+  useEffect(() => { loadDonors(); }, []);
+  useEffect(() => { filterDonors(); }, [donors, searchQuery, selectedBloodType, availableOnly]);
 
   const loadDonors = async () => {
     try {
       setLoading(true);
-      
-      // For now, we'll fetch all blood types and filter client-side
-      // In production, you might want to implement a more efficient query
-      const allDonors: Donor[] = [];
-      
-      for (const bloodType of BLOOD_TYPES) {
-        const typeDonors = await getUsersByBloodType(bloodType);
-        allDonors.push(...typeDonors);
-      }
-
-      setDonors(allDonors);
-    } catch (error) {
-      console.error('Error loading donors:', error);
+      const all: Donor[] = [];
+      for (const bt of BLOOD_TYPES) all.push(...await getUsersByBloodType(bt));
+      setDonors(all);
+    } catch {
       Alert.alert('Error', 'Failed to load donors. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadDonors();
-    setRefreshing(false);
-  };
+  const onRefresh = async () => { setRefreshing(true); await loadDonors(); setRefreshing(false); };
 
   const filterDonors = () => {
-    let filtered = [...donors];
-
-    // Filter by blood type
-    if (selectedBloodType !== 'all') {
-      filtered = filtered.filter((donor) => donor.bloodType === selectedBloodType);
-    }
-
-    // Filter by availability
-    if (availableOnly) {
-      filtered = filtered.filter((donor) => donor.isAvailable);
-    }
-
-    // Filter by search query (name or location)
+    let f = [...donors];
+    if (selectedBloodType !== 'all') f = f.filter(d => d.bloodType === selectedBloodType);
+    if (availableOnly) f = f.filter(d => d.isAvailable);
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((donor) => {
-        const fullName = `${donor.firstName} ${donor.lastName}`.toLowerCase();
-        const location = donor.location?.city?.toLowerCase() || '';
-        const region = donor.location?.region?.toLowerCase() || '';
-        
-        return (
-          fullName.includes(query) ||
-          location.includes(query) ||
-          region.includes(query)
-        );
-      });
+      const q = searchQuery.toLowerCase();
+      f = f.filter(d =>
+        `${d.firstName} ${d.lastName}`.toLowerCase().includes(q) ||
+        d.location?.city?.toLowerCase().includes(q) ||
+        d.location?.region?.toLowerCase().includes(q)
+      );
     }
-
-    setFilteredDonors(filtered);
+    setFilteredDonors(f);
   };
 
-  const handleContactDonor = (donor: Donor) => {
-    // Navigate to chat or create blood request
-    Alert.alert(
-      'Contact Donor',
-      `Would you like to contact ${donor.firstName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Send Message',
-          onPress: () => {
-            // Navigate to chat
-            Alert.alert('Coming Soon', 'Chat functionality will be available soon');
-          },
-        },
-        {
-          text: 'Create Request',
-          onPress: () => {
-            // Navigate to create request with pre-filled blood type
-            router.push('/(requester)/needblood' as any);
-          },
-        },
-      ]
-    );
-  };
+  const handleContactDonor = (donor: Donor) =>
+    Alert.alert('Contact Donor', `Would you like to contact ${donor.firstName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Send Message', onPress: () => Alert.alert('Coming Soon', 'Chat functionality coming soon') },
+      { text: 'Create Request', onPress: () => router.push('/(requester)/needblood' as any) },
+    ]);
 
-  const handleViewProfile = (donor: Donor) => {
-    // Navigate to donor profile view screen with donor data
-    router.push({
-      pathname: '/(requester)/donor-profile' as any,
-      params: {
-        donorData: JSON.stringify(donor),
-      },
-    });
-  };
+  const handleViewProfile = (donor: Donor) =>
+    router.push({ pathname: '/(requester)/donor-profile' as any, params: { donorData: JSON.stringify(donor) } });
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <Ionicons name="people-outline" size={64} color="#CBD5E1" />
-      <Text style={styles.emptyStateTitle}>No Donors Found</Text>
-      <Text style={styles.emptyStateText}>
-        {searchQuery
-          ? 'Try adjusting your search filters'
-          : 'No donors match the selected criteria'}
-      </Text>
-      <TouchableOpacity
-        style={styles.resetButton}
-        onPress={() => {
-          setSearchQuery('');
-          setSelectedBloodType('all');
-          setAvailableOnly(false);
-        }}
-      >
-        <Text style={styles.resetButtonText}>Reset Filters</Text>
+  const renderEmpty = () => (
+    <View style={fd.emptyWrap}>
+      <LinearGradient colors={[TEAL_PALE, '#99F6E4']} style={fd.emptyIconBox}>
+        <Ionicons name="people-outline" size={46} color={TEAL} />
+      </LinearGradient>
+      <Text style={fd.emptyTitle}>No Donors Found</Text>
+      <Text style={fd.emptyText}>{searchQuery ? 'Try adjusting your search filters' : 'No donors match the selected criteria'}</Text>
+      <TouchableOpacity style={fd.resetBtn}
+        onPress={() => { setSearchQuery(''); setSelectedBloodType('all'); setAvailableOnly(false); }}>
+        <Text style={fd.resetBtnText}>Reset Filters</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <LinearGradient colors={['#1b8882ff', '#16b43eff']} style={styles.headerGradient}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+    <SafeAreaView style={fd.container} edges={['top']}>
+      <LinearGradient colors={[TEAL, TEAL_MID]} style={fd.header}>
+        <View style={fd.headerRow}>
+          <TouchableOpacity style={fd.backBtn} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Find Donors</Text>
-          <View style={styles.headerSpacer} />
+          <View style={fd.headerCenter}>
+            <Text style={fd.headerTitle}>Find Donors</Text>
+            <Text style={fd.headerSub}>{filteredDonors.length} donor{filteredDonors.length !== 1 ? 's' : ''} found</Text>
+          </View>
+          <View style={{ width: 40 }} />
         </View>
       </LinearGradient>
 
-      {/* Search and Filters */}
-      <View style={styles.filtersContainer}>
-        {/* Search Bar */}
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#64748B" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name or location..."
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+      {/* Search + Filters */}
+      <View style={fd.filtersWrap}>
+        <View style={fd.searchBar}>
+          <Ionicons name="search" size={18} color={TEXT_SOFT} />
+          <TextInput style={fd.searchInput} placeholder="Search by name or location…"
+            placeholderTextColor={TEXT_SOFT} value={searchQuery} onChangeText={setSearchQuery} />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color="#94A3B8" />
+              <Ionicons name="close-circle" size={18} color={TEXT_SOFT} />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Blood Type Filter */}
-        <View style={styles.filterRow}>
-          <View style={styles.pickerWrapper}>
-            <Ionicons name="water" size={18} color="#64748B" />
-            <Picker
-              selectedValue={selectedBloodType}
-              onValueChange={(value) => setSelectedBloodType(value as BloodType | 'all')}
-              style={styles.picker}
-            >
+        <View style={fd.filterRow}>
+          <View style={fd.pickerWrap}>
+            <View style={fd.pickerIconContainer}>
+              <Ionicons name="water" size={18} color={TEXT_SOFT} />
+            </View>
+            <Picker selectedValue={selectedBloodType}
+              onValueChange={v => setSelectedBloodType(v as BloodType | 'all')}
+              style={fd.picker}>
               <Picker.Item label="All Blood Types" value="all" />
-              {BLOOD_TYPES.map((type) => (
-                <Picker.Item key={type} label={type} value={type} />
-              ))}
+              {BLOOD_TYPES.map(t => <Picker.Item key={t} label={t} value={t} />)}
             </Picker>
           </View>
-
+          
           <TouchableOpacity
-            style={[
-              styles.availabilityToggle,
-              availableOnly && styles.availabilityToggleActive,
-            ]}
+            style={[fd.availToggle, availableOnly && fd.availToggleActive]}
             onPress={() => setAvailableOnly(!availableOnly)}
-            activeOpacity={0.7}
           >
-            <Ionicons
-              name={availableOnly ? 'checkmark-circle' : 'checkmark-circle-outline'}
-              size={20}
-              color={availableOnly ? '#10B981' : '#64748B'}
-            />
-            <Text
-              style={[
-                styles.availabilityText,
-                availableOnly && styles.availabilityTextActive,
-              ]}
-            >
-              Available Only
-            </Text>
+            <Ionicons name={availableOnly ? 'checkmark-circle' : 'checkmark-circle-outline'}
+              size={18} color={availableOnly ? GREEN : TEXT_SOFT} />
+            <Text style={[fd.availText, availableOnly && fd.availTextActive]}>Available Only</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Results Count */}
-        <Text style={styles.resultsCount}>
-          {filteredDonors.length} {filteredDonors.length === 1 ? 'donor' : 'donors'} found
-        </Text>
       </View>
 
-      {/* Donors List */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Loading donors...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredDonors}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <DonorCard
-              donor={item}
-              onContact={handleContactDonor}
-              onViewProfile={handleViewProfile}
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListEmptyComponent={renderEmptyState}
-        />
-      )}
+      {loading
+        ? <View style={fd.loadingWrap}><ActivityIndicator size="large" color={TEAL} /><Text style={fd.loadingText}>Loading donors…</Text></View>
+        : <FlatList data={filteredDonors} keyExtractor={i => i.id}
+            renderItem={({ item }) => <DonorCard donor={item} onContact={handleContactDonor} onViewProfile={handleViewProfile} />}
+            contentContainerStyle={fd.listContent} showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[TEAL]} tintColor={TEAL} />}
+            ListEmptyComponent={renderEmpty} />
+      }
     </SafeAreaView>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
+const fd = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+  header: { paddingHorizontal: 16, paddingVertical: 14 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  headerCenter: { alignItems: 'center', flex: 1 },
+  headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
+  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
+
+  filtersWrap: { backgroundColor: SURFACE, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 10, marginBottom: 10, borderWidth: 1, borderColor: BORDER },
+  searchInput: { flex: 1, fontSize: 14, color: TEXT_DARK },
+  
+  filterRow: { gap: 10 },
+  pickerWrap: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: BG, 
+    borderRadius: 12, 
+    paddingRight: 12,
+    borderWidth: 1, 
+    borderColor: BORDER,
+    overflow: 'hidden',
   },
-  headerGradient: {
-    paddingBottom: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  backButton: {
+  pickerIconContainer: {
     width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    flex: 1,
-    textAlign: 'center',
+  picker: { 
+    flex: 1, 
+    height: 50,
+    marginLeft: -8,
   },
-  headerSpacer: {
-    width: 40,
-  },
-  filtersContainer: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 12,
-    gap: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1E293B',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  pickerWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  picker: {
-    flex: 1,
-    height: 48,
-  },
-  availabilityToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  availabilityToggleActive: {
-    backgroundColor: '#D1FAE5',
-  },
-  availabilityText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  availabilityTextActive: {
-    color: '#10B981',
-  },
-  resultsCount: {
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  listContent: {
-    padding: 20,
-  },
-  donorCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 3,
-        }),
-  },
-  donorHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  donorProfileSection: {
-    flexDirection: 'row',
-    gap: 12,
-    flex: 1,
-  },
-  donorAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: '#3B82F6',
-  },
-  donorAvatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#3B82F6',
+  availToggle: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
     justifyContent: 'center',
-    alignItems: 'center',
+    gap: 6, 
+    backgroundColor: BG, 
+    borderRadius: 12, 
+    paddingHorizontal: 14, 
+    paddingVertical: 12, 
+    borderWidth: 1, 
+    borderColor: BORDER 
   },
-  donorInitials: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  donorInfo: {
-    flex: 1,
-    gap: 6,
-  },
-  donorName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1E293B',
-  },
-  donorMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bloodTypeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  bloodTypeText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#DC2626',
-  },
-  donationsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  donationsText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#EF4444',
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  locationText: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1E293B',
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  viewProfileButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 6,
-  },
-  viewProfileText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3B82F6',
-  },
-  contactButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#10B981',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 6,
-  },
-  contactButtonDisabled: {
-    backgroundColor: '#CBD5E1',
-  },
-  contactButtonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#64748B',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#64748B',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 15,
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  resetButton: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  resetButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
+  availToggleActive: { backgroundColor: GREEN_PALE, borderColor: '#A7F3D0' },
+  availText: { fontSize: 13, fontWeight: '600', color: TEXT_SOFT },
+  availTextActive: { color: GREEN },
+
+  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 15, color: TEXT_MID },
+  listContent: { padding: 16, paddingBottom: 40 },
+
+  card: { backgroundColor: SURFACE, borderRadius: 18, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, ...shadow('#000', 0.08, 12, 4) },
+  cardInner: { padding: 16 },
+
+  topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+  avatarWrap: { position: 'relative' },
+  avatarImg: { width: 58, height: 58, borderRadius: 29, borderWidth: 2, borderColor: TEAL_PALE },
+  avatarFallback: { width: 58, height: 58, borderRadius: 29, justifyContent: 'center', alignItems: 'center' },
+  avatarInitials: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
+  bloodBadge: { position: 'absolute', bottom: -2, right: -4, backgroundColor: DANGER, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 7, borderWidth: 1.5, borderColor: SURFACE },
+  bloodBadgeText: { fontSize: 8, fontWeight: '900', color: '#FFFFFF' },
+
+  infoBlock: { flex: 1, gap: 4 },
+  donorName: { fontSize: 16, fontWeight: '800', color: TEXT_DARK },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  locationText: { fontSize: 12, color: TEXT_MID, flex: 1 },
+  donationsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  donationsText: { fontSize: 12, color: DANGER, fontWeight: '600' },
+
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start', marginTop: 2 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 11, fontWeight: '700' },
+
+  statsRow: { flexDirection: 'row', justifyContent: 'space-around', borderTopWidth: 1, borderBottomWidth: 1, borderColor: BORDER, paddingVertical: 12, marginBottom: 12 },
+  statItem: { alignItems: 'center', gap: 3 },
+  statValue: { fontSize: 14, fontWeight: '800', color: TEXT_DARK },
+  statLabel: { fontSize: 10, color: TEXT_SOFT, fontWeight: '600' },
+
+  actions: { flexDirection: 'row', gap: 10 },
+  profileBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: TEAL_PALE, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: '#99F6E4' },
+  profileBtnText: { fontSize: 13, fontWeight: '700', color: TEAL },
+  contactBtn: { flex: 1, borderRadius: 12, overflow: 'hidden' },
+  contactBtnDisabled: { opacity: 0.6 },
+  contactBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11 },
+  contactBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+
+  emptyWrap: { flex: 1, alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40 },
+  emptyIconBox: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 19, fontWeight: '800', color: TEXT_DARK, marginBottom: 8, textAlign: 'center' },
+  emptyText: { fontSize: 14, color: TEXT_MID, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+  resetBtn: { backgroundColor: TEAL, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 },
+  resetBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
 });

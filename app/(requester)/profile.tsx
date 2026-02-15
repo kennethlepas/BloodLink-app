@@ -20,16 +20,128 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DESIGN TOKENS - HOSPITAL THEME (REQUESTER - TEAL ACCENT)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const COLORS = {
+  // Primary - Medical Teal (Requester theme)
+  primary50: '#F0FDFA',
+  primary100: '#CCFBF1',
+  primary200: '#99F6E4',
+  primary500: '#14B8A6',
+  primary600: '#0D9488',
+  primary700: '#0F766E',
+
+  // Secondary - Medical Blue
+  secondary50: '#EFF6FF',
+  secondary100: '#DBEAFE',
+  secondary200: '#BFDBFE',
+  secondary500: '#3B82F6',
+  secondary600: '#2563EB',
+  secondary700: '#1D4ED8',
+
+  // Accent - Blood Red
+  accent50: '#FEF2F2',
+  accent100: '#FEE2E2',
+  accent200: '#FECACA',
+  accent500: '#EF4444',
+  accent600: '#DC2626',
+  accent700: '#B91C1C',
+
+  // Success - Medical Green
+  success50: '#F0FDF4',
+  success100: '#DCFCE7',
+  success200: '#BBF7D0',
+  success500: '#22C55E',
+  success600: '#16A34A',
+  success700: '#15803D',
+
+  // Warning - Amber
+  warning50: '#FFFBEB',
+  warning100: '#FEF3C7',
+  warning200: '#FDE68A',
+  warning500: '#F59E0B',
+  warning600: '#D97706',
+  warning700: '#B45309',
+
+  // Neutrals
+  neutral50: '#F8FAFC',
+  neutral100: '#F1F5F9',
+  neutral200: '#E2E8F0',
+  neutral400: '#94A3B8',
+  neutral500: '#64748B',
+  neutral600: '#475569',
+  neutral700: '#334155',
+  neutral800: '#1E293B',
+  neutral900: '#0F172A',
+
+  // Semantic
+  background: '#F8FAFC',
+  surface: '#FFFFFF',
+  border: '#E2E8F0',
+  divider: '#F1F5F9',
+};
+
+const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+  huge: 40,
+};
+
+const TYPOGRAPHY = {
+  xs: 11,
+  sm: 12,
+  base: 14,
+  lg: 16,
+  xl: 18,
+  xxl: 20,
+  xxxl: 24,
+};
+
+const RADIUS = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  full: 9999,
+};
+
+const createShadow = (elevation: number) => {
+  if (Platform.OS === 'web') {
+    return {
+      boxShadow: `0 ${elevation}px ${elevation * 2}px rgba(0,0,0,${0.08 + elevation * 0.01})`,
+    } as any;
+  }
+  return {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: elevation },
+    shadowOpacity: 0.08 + elevation * 0.01,
+    shadowRadius: elevation * 2,
+    elevation,
+  };
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REUSABLE COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════════
+
 interface StatCardProps {
   icon: keyof typeof Ionicons.glyphMap;
   value: string | number;
   label: string;
   color: string;
+  bgColor: string;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ icon, value, label, color }) => (
+const StatCard: React.FC<StatCardProps> = ({ icon, value, label, color, bgColor }) => (
   <View style={styles.statCard}>
-    <View style={[styles.statIconContainer, { backgroundColor: `${color}20` }]}>
+    <View style={[styles.statIconWrapper, { backgroundColor: bgColor }]}>
       <Ionicons name={icon} size={24} color={color} />
     </View>
     <Text style={styles.statValue}>{value}</Text>
@@ -45,100 +157,107 @@ interface RequestItemProps {
 const RequestItem: React.FC<RequestItemProps> = ({ request, onPress }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return '#F59E0B';
-      case 'accepted':
-        return '#3B82F6';
-      case 'completed':
-        return '#10B981';
-      case 'cancelled':
-        return '#EF4444';
-      default:
-        return '#94A3B8';
-    }
+  const getStatusConfig = (status: string) => {
+    const configs = {
+      pending: {
+        color: COLORS.warning700,
+        bg: COLORS.warning50,
+        border: COLORS.warning200,
+        icon: 'time-outline' as const,
+        label: 'Pending',
+      },
+      accepted: {
+        color: COLORS.secondary700,
+        bg: COLORS.secondary50,
+        border: COLORS.secondary200,
+        icon: 'checkmark-circle-outline' as const,
+        label: 'Accepted',
+      },
+      completed: {
+        color: COLORS.success700,
+        bg: COLORS.success50,
+        border: COLORS.success200,
+        icon: 'checkmark-done-circle-outline' as const,
+        label: 'Completed',
+      },
+      cancelled: {
+        color: COLORS.accent700,
+        bg: COLORS.accent50,
+        border: COLORS.accent200,
+        icon: 'close-circle-outline' as const,
+        label: 'Cancelled',
+      },
+    };
+    return configs[status as keyof typeof configs] || configs.pending;
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'time-outline';
-      case 'accepted':
-        return 'checkmark-circle-outline';
-      case 'completed':
-        return 'checkmark-done-circle-outline';
-      case 'cancelled':
-        return 'close-circle-outline';
-      default:
-        return 'help-circle-outline';
-    }
-  };
+  const statusConfig = getStatusConfig(request.status);
 
   return (
-    <TouchableOpacity style={styles.requestItem} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.requestCard} onPress={onPress} activeOpacity={0.7}>
+      {/* Header */}
       <View style={styles.requestHeader}>
-        <View style={styles.requestBloodTypeContainer}>
-          <Ionicons name="water" size={24} color="#DC2626" />
-          <Text style={styles.requestBloodType}>{request.bloodType}</Text>
+        <View style={styles.requestBloodType}>
+          <View style={styles.requestBloodIcon}>
+            <LinearGradient
+              colors={[COLORS.accent500, COLORS.accent600]}
+              style={styles.bloodIconGradient}
+            >
+              <Ionicons name="water" size={18} color="#FFFFFF" />
+            </LinearGradient>
+          </View>
+          <Text style={styles.requestBloodTypeText}>{request.bloodType}</Text>
         </View>
         <View
           style={[
-            styles.statusBadge,
-            { backgroundColor: `${getStatusColor(request.status)}20` },
+            styles.requestStatusBadge,
+            {
+              backgroundColor: statusConfig.bg,
+              borderColor: statusConfig.border,
+            },
           ]}
         >
-          <Ionicons
-            name={getStatusIcon(request.status) as any}
-            size={14}
-            color={getStatusColor(request.status)}
-          />
-          <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
-            {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+          <Ionicons name={statusConfig.icon} size={14} color={statusConfig.color} />
+          <Text style={[styles.requestStatusText, { color: statusConfig.color }]}>
+            {statusConfig.label}
           </Text>
         </View>
       </View>
 
-      <View style={styles.requestInfo}>
-        <View style={styles.requestInfoItem}>
-          <Ionicons name="person-outline" size={16} color="#64748B" />
-          <Text style={styles.requestInfoText}>
+      {/* Details */}
+      <View style={styles.requestDetails}>
+        <View style={styles.requestDetailRow}>
+          <Ionicons name="person-outline" size={16} color={COLORS.neutral500} />
+          <Text style={styles.requestDetailText} numberOfLines={1}>
             {typeof request.patientName === 'string' ? request.patientName : 'Patient'}
           </Text>
         </View>
-        <View style={styles.requestInfoItem}>
-          <Ionicons name="location-outline" size={16} color="#64748B" />
-          <Text style={styles.requestInfoText}>
-            {request.hospitalName || request.location.address || 'Hospital'}
+        <View style={styles.requestDetailRow}>
+          <Ionicons name="location-outline" size={16} color={COLORS.neutral500} />
+          <Text style={styles.requestDetailText} numberOfLines={1}>
+            {request.hospitalName || request.location.address || 'Medical Facility'}
           </Text>
         </View>
-        <View style={styles.requestInfoItem}>
-          <Ionicons name="calendar-outline" size={16} color="#64748B" />
-          <Text style={styles.requestInfoText}>{formatDate(request.createdAt)}</Text>
+        <View style={styles.requestDetailRow}>
+          <Ionicons name="calendar-outline" size={16} color={COLORS.neutral500} />
+          <Text style={styles.requestDetailText}>{formatDate(request.createdAt)}</Text>
         </View>
       </View>
 
-      {request.urgency === 'critical' && (
-        <View style={styles.urgencyBadge}>
-          <Ionicons name="warning" size={14} color="#DC2626" />
-          <Text style={styles.urgencyText}>Critical</Text>
-        </View>
-      )}
-
+      {/* Accepted Donor */}
       {request.acceptedDonorName && (
-        <View style={styles.donorInfo}>
-          <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-          <Text style={styles.donorInfoText}>
-            Accepted by: {request.acceptedDonorName}
+        <View style={styles.requestDonorBadge}>
+          <Ionicons name="checkmark-circle" size={16} color={COLORS.success600} />
+          <Text style={styles.requestDonorText} numberOfLines={1}>
+            Donor: {request.acceptedDonorName}
           </Text>
         </View>
       )}
@@ -146,11 +265,15 @@ const RequestItem: React.FC<RequestItemProps> = ({ request, onPress }) => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
 const RequesterProfileScreen: React.FC = () => {
   const router = useRouter();
   const { user, logout, updateUserData } = useUser();
   const { pickAndUploadImage, takeAndUploadPhoto, uploading: imageUploading } = useImagePicker();
-  
+
   const [requestHistory, setRequestHistory] = useState<BloodRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -161,7 +284,7 @@ const RequesterProfileScreen: React.FC = () => {
 
   const loadRequestHistory = async () => {
     if (!user?.id) return;
-    
+
     try {
       setLoading(true);
       const history = await getUserBloodRequests(user.id);
@@ -186,24 +309,11 @@ const RequesterProfileScreen: React.FC = () => {
       return;
     }
 
-    Alert.alert(
-      'Update Profile Picture',
-      'Choose an option',
-      [
-        {
-          text: 'Take Photo',
-          onPress: uploadImageFromCamera,
-        },
-        {
-          text: 'Choose from Gallery',
-          onPress: uploadImageFromGallery,
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
-    );
+    Alert.alert('Update Profile Picture', 'Choose an option', [
+      { text: 'Take Photo', onPress: uploadImageFromCamera },
+      { text: 'Choose from Gallery', onPress: uploadImageFromGallery },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const uploadImageFromGallery = async () => {
@@ -211,7 +321,7 @@ const RequesterProfileScreen: React.FC = () => {
 
     try {
       const imageUrl = await pickAndUploadImage('bloodlink/profile_pictures');
-      
+
       if (imageUrl) {
         await updateUser(user.id, { profilePicture: imageUrl });
         await updateUserData({ profilePicture: imageUrl });
@@ -228,7 +338,7 @@ const RequesterProfileScreen: React.FC = () => {
 
     try {
       const imageUrl = await takeAndUploadPhoto('bloodlink/profile_pictures');
-      
+
       if (imageUrl) {
         await updateUser(user.id, { profilePicture: imageUrl });
         await updateUserData({ profilePicture: imageUrl });
@@ -241,41 +351,29 @@ const RequesterProfileScreen: React.FC = () => {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logout();
-              router.replace('/(auth)/login' as any);
-            } catch (error) {
-              console.error('Logout error:', error);
-            }
-          },
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await logout();
+            router.replace('/(auth)/login' as any);
+          } catch (error) {
+            console.error('Logout error:', error);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleEditProfile = () => {
-    // Navigate to edit profile screen
-    Alert.alert('Coming Soon', 'Edit profile feature will be available soon');
+    router.push('/(requester)/edit-profile' as any);
   };
 
   const handleRequestPress = (request: BloodRequest) => {
-    const patientName = typeof request.patientName === 'string' ? request.patientName : 'Patient';
-    const hospitalName = request.hospitalName || request.location.address || 'Hospital';
-    
-    Alert.alert(
-      'Request Details',
-      `Status: ${request.status}\nPatient: ${patientName}\nHospital: ${hospitalName}`,
-      [{ text: 'OK' }]
-    );
+    router.push(`/(requester)/my-requests` as any);
   };
 
   const handleCreateRequest = () => {
@@ -286,26 +384,37 @@ const RequesterProfileScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Loading profile...</Text>
+          <ActivityIndicator size="large" color={COLORS.primary600} />
+          <Text style={styles.loadingText}>Loading your profile...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const activeRequests = requestHistory.filter(r => r.status === 'pending' || r.status === 'accepted');
-  const completedRequests = requestHistory.filter(r => r.status === 'completed');
+  const activeRequests = requestHistory.filter(
+    (r) => r.status === 'pending' || r.status === 'accepted'
+  );
+  const completedRequests = requestHistory.filter((r) => r.status === 'completed');
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <LinearGradient colors={['#1b8882ff', '#16b43eff']} style={styles.headerGradient}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Profile</Text>
+      {/* Header */}
+      <LinearGradient
+        colors={[COLORS.primary600, COLORS.primary700]}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.headerSubtitle}>REQUESTER DASHBOARD</Text>
+            <Text style={styles.headerTitle}>My Profile</Text>
+          </View>
           <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => Alert.alert('Coming Soon', 'Settings will be available soon')}
+            style={styles.headerButton}
+            onPress={() => Alert.alert('Settings', 'Settings coming soon')}
           >
-            <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+            <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -314,196 +423,280 @@ const RequesterProfileScreen: React.FC = () => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary600]}
+            tintColor={COLORS.primary600}
+          />
         }
       >
         {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <TouchableOpacity
-            style={styles.profilePictureContainer}
-            onPress={handleProfilePictureUpdate}
-            disabled={imageUploading}
-          >
-            {user.profilePicture ? (
-              <Image source={{ uri: user.profilePicture }} style={styles.profilePicture} />
-            ) : (
-              <View style={styles.profilePlaceholder}>
-                <Ionicons name="person" size={50} color="#94A3B8" />
+        <View style={styles.profileSection}>
+          <View style={styles.profileCard}>
+            {/* Avatar */}
+            <View style={styles.avatarSection}>
+              <TouchableOpacity
+                style={styles.avatarWrapper}
+                onPress={handleProfilePictureUpdate}
+                disabled={imageUploading}
+                activeOpacity={0.8}
+              >
+                {user.profilePicture ? (
+                  <Image source={{ uri: user.profilePicture }} style={styles.avatar} />
+                ) : (
+                  <LinearGradient
+                    colors={[COLORS.primary100, COLORS.primary200]}
+                    style={styles.avatarPlaceholder}
+                  >
+                    <Ionicons name="person" size={44} color={COLORS.primary600} />
+                  </LinearGradient>
+                )}
+                <View style={styles.cameraButton}>
+                  {imageUploading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Ionicons name="camera" size={16} color="#FFFFFF" />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {/* Name and Blood Type */}
+              <View style={styles.profileInfo}>
+                <Text style={styles.userName}>
+                  {user.firstName} {user.lastName}
+                </Text>
+                <View style={styles.bloodTypeBadge}>
+                  <Ionicons name="water" size={16} color="#FFFFFF" />
+                  <Text style={styles.bloodTypeText}>{user.bloodType}</Text>
+                </View>
               </View>
-            )}
-            <View style={styles.cameraIconContainer}>
-              {imageUploading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Ionicons name="camera" size={18} color="#FFFFFF" />
-              )}
             </View>
-          </TouchableOpacity>
 
-          <Text style={styles.userName}>
-            {user.firstName} {user.lastName}
-          </Text>
-          
-          <View style={styles.bloodTypeBadge}>
-            <Ionicons name="water" size={16} color="#3B82F6" />
-            <Text style={styles.bloodTypeText}>{user.bloodType}</Text>
+            {/* Contact Info */}
+            <View style={styles.contactSection}>
+              <View style={styles.contactItem}>
+                <View style={styles.contactIcon}>
+                  <Ionicons name="mail" size={16} color={COLORS.primary600} />
+                </View>
+                <Text style={styles.contactText} numberOfLines={1}>
+                  {user.email}
+                </Text>
+              </View>
+              <View style={styles.contactItem}>
+                <View style={styles.contactIcon}>
+                  <Ionicons name="call" size={16} color={COLORS.primary600} />
+                </View>
+                <Text style={styles.contactText}>{user.phoneNumber}</Text>
+              </View>
+            </View>
+
+            {/* Edit Button */}
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={handleEditProfile}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="create-outline" size={18} color={COLORS.primary600} />
+              <Text style={styles.editButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
           </View>
+        </View>
 
-          <View style={styles.contactInfo}>
-            <View style={styles.contactItem}>
-              <Ionicons name="mail-outline" size={16} color="#64748B" />
-              <Text style={styles.contactText}>{user.email}</Text>
-            </View>
-            <View style={styles.contactItem}>
-              <Ionicons name="call-outline" size={16} color="#64748B" />
-              <Text style={styles.contactText}>{user.phoneNumber}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-            <Ionicons name="create-outline" size={18} color="#3B82F6" />
-            <Text style={styles.editButtonText}>Edit Profile</Text>
+        {/* Create Request CTA */}
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.ctaCard} onPress={handleCreateRequest} activeOpacity={0.85}>
+            <LinearGradient
+              colors={[COLORS.accent500, COLORS.accent600]}
+              style={styles.ctaGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <View style={styles.ctaIconWrapper}>
+                <Ionicons name="add-circle" size={48} color="rgba(255,255,255,0.9)" />
+              </View>
+              <View style={styles.ctaContent}>
+                <Text style={styles.ctaTitle}>Need Blood Urgently?</Text>
+                <Text style={styles.ctaSubtitle}>
+                  Create a new request to connect with donors
+                </Text>
+              </View>
+              <View style={styles.ctaArrow}>
+                <Ionicons name="arrow-forward" size={24} color="rgba(255,255,255,0.8)" />
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
-        {/* Quick Action - Create Request */}
-        <TouchableOpacity style={styles.createRequestCard} onPress={handleCreateRequest}>
-          <LinearGradient
-            colors={['#3B82F6', '#2563EB']}
-            style={styles.createRequestGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <View style={styles.createRequestContent}>
-              <View>
-                <Text style={styles.createRequestTitle}>Need Blood?</Text>
-                <Text style={styles.createRequestSubtitle}>Create a new blood request</Text>
-              </View>
-              <View style={styles.createRequestIcon}>
-                <Ionicons name="add-circle" size={40} color="#FFFFFF" />
-              </View>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
-
         {/* Statistics */}
-        <View style={styles.statsContainer}>
-          <StatCard
-            icon="document-text-outline"
-            value={requestHistory.length}
-            label="Total Requests"
-            color="#3B82F6"
-          />
-          <StatCard
-            icon="time-outline"
-            value={activeRequests.length}
-            label="Active Requests"
-            color="#F59E0B"
-          />
-          <StatCard
-            icon="checkmark-done-circle-outline"
-            value={completedRequests.length}
-            label="Completed"
-            color="#10B981"
-          />
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Request Overview</Text>
+          <View style={styles.statsGrid}>
+            <StatCard
+              icon="document-text-outline"
+              value={requestHistory.length}
+              label="Total Requests"
+              color={COLORS.secondary600}
+              bgColor={COLORS.secondary50}
+            />
+            <StatCard
+              icon="time-outline"
+              value={activeRequests.length}
+              label="Active"
+              color={COLORS.warning600}
+              bgColor={COLORS.warning50}
+            />
+            <StatCard
+              icon="checkmark-done-circle-outline"
+              value={completedRequests.length}
+              label="Completed"
+              color={COLORS.success600}
+              bgColor={COLORS.success50}
+            />
+          </View>
         </View>
 
         {/* Request History */}
-        <View style={styles.historySection}>
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Request History</Text>
-            <Text style={styles.sectionCount}>
-              {requestHistory.length} {requestHistory.length === 1 ? 'request' : 'requests'}
-            </Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{requestHistory.length}</Text>
+            </View>
           </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#3B82F6" />
+              <ActivityIndicator size="small" color={COLORS.primary600} />
               <Text style={styles.loadingText}>Loading history...</Text>
             </View>
           ) : requestHistory.length > 0 ? (
             <>
+              {/* Active Requests */}
               {activeRequests.length > 0 && (
-                <>
-                  <Text style={styles.subsectionTitle}>Active Requests</Text>
-                  {activeRequests.map((request) => (
-                    <RequestItem
-                      key={request.id}
-                      request={request}
-                      onPress={() => handleRequestPress(request)}
-                    />
-                  ))}
-                </>
+                <View style={styles.requestsSection}>
+                  <Text style={styles.subsectionTitle}>ACTIVE REQUESTS</Text>
+                  <View style={styles.requestsList}>
+                    {activeRequests.slice(0, 3).map((request) => (
+                      <RequestItem
+                        key={request.id}
+                        request={request}
+                        onPress={() => handleRequestPress(request)}
+                      />
+                    ))}
+                  </View>
+                  {activeRequests.length > 3 && (
+                    <TouchableOpacity
+                      style={styles.viewMoreButton}
+                      onPress={() => router.push('/(requester)/my-requests' as any)}
+                    >
+                      <Text style={styles.viewMoreText}>View All Active Requests</Text>
+                      <Ionicons name="arrow-forward" size={16} color={COLORS.primary600} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
 
+              {/* Completed Requests */}
               {completedRequests.length > 0 && (
-                <>
-                  <Text style={styles.subsectionTitle}>Past Requests</Text>
-                  {completedRequests.map((request) => (
-                    <RequestItem
-                      key={request.id}
-                      request={request}
-                      onPress={() => handleRequestPress(request)}
-                    />
-                  ))}
-                </>
+                <View style={styles.requestsSection}>
+                  <Text style={styles.subsectionTitle}>COMPLETED REQUESTS</Text>
+                  <View style={styles.requestsList}>
+                    {completedRequests.slice(0, 2).map((request) => (
+                      <RequestItem
+                        key={request.id}
+                        request={request}
+                        onPress={() => handleRequestPress(request)}
+                      />
+                    ))}
+                  </View>
+                  {completedRequests.length > 2 && (
+                    <TouchableOpacity
+                      style={styles.viewMoreButton}
+                      onPress={() => router.push('/(requester)/my-requests' as any)}
+                    >
+                      <Text style={styles.viewMoreText}>View All Requests</Text>
+                      <Ionicons name="arrow-forward" size={16} color={COLORS.primary600} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
-
-              {requestHistory.filter(r => r.status === 'cancelled').map((request) => (
-                <RequestItem
-                  key={request.id}
-                  request={request}
-                  onPress={() => handleRequestPress(request)}
-                />
-              ))}
             </>
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyStateText}>No requests yet</Text>
-              <Text style={styles.emptyStateSubtext}>
-                Create your first blood request to get started
+              <View style={styles.emptyIconWrapper}>
+                <LinearGradient
+                  colors={[COLORS.primary50, COLORS.primary100]}
+                  style={styles.emptyIcon}
+                >
+                  <Ionicons
+                    name="document-text-outline"
+                    size={48}
+                    color={COLORS.primary600}
+                  />
+                </LinearGradient>
+              </View>
+              <Text style={styles.emptyTitle}>No Requests Yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Create your first blood request to connect with donors
               </Text>
-              <TouchableOpacity style={styles.emptyStateButton} onPress={handleCreateRequest}>
-                <Text style={styles.emptyStateButtonText}>Create Request</Text>
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={handleCreateRequest}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={20} color="#FFFFFF" />
+                <Text style={styles.emptyButtonText}>Create Request</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionsSection}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => router.push('/(shared)/find-bloodbank' as any)}
-          >
-            <Ionicons name="business-outline" size={20} color="#3B82F6" />
-            <Text style={styles.actionButtonText}>Find Blood Banks</Text>
-            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-          </TouchableOpacity>
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsList}>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => router.push('/(shared)/find-bloodbank' as any)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: COLORS.primary50 }]}>
+                <Ionicons name="business" size={22} color={COLORS.primary600} />
+              </View>
+              <View style={styles.actionInfo}>
+                <Text style={styles.actionTitle}>Find Blood Banks</Text>
+                <Text style={styles.actionSubtitle}>Locate nearby medical facilities</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.neutral400} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => router.push('/(requester)/find-donors' as any)}
-          >
-            <Ionicons name="people-outline" size={20} color="#10B981" />
-            <Text style={styles.actionButtonText}>Find Donors</Text>
-            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => router.push('/(requester)/find-donors' as any)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: COLORS.secondary50 }]}>
+                <Ionicons name="people" size={22} color={COLORS.secondary600} />
+              </View>
+              <View style={styles.actionInfo}>
+                <Text style={styles.actionTitle}>Find Donors</Text>
+                <Text style={styles.actionSubtitle}>Search available blood donors</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.neutral400} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
+        {/* Logout */}
+        <View style={styles.section}>
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => Alert.alert('Coming Soon', 'Emergency contacts will be available soon')}
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
           >
-            <Ionicons name="call-outline" size={20} color="#DC2626" />
-            <Text style={styles.actionButtonText}>Emergency Contacts</Text>
-            <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#DC2626" />
-            <Text style={styles.logoutButtonText}>Logout</Text>
+            <Ionicons name="log-out-outline" size={20} color={COLORS.accent600} />
+            <Text style={styles.logoutText}>Logout from Account</Text>
           </TouchableOpacity>
         </View>
 
@@ -513,413 +706,490 @@ const RequesterProfileScreen: React.FC = () => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════════════════════════════════
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: COLORS.background,
   },
-  headerGradient: {
-    paddingBottom: 20,
-  },
+
+  // Header
   header: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xxxl,
+    borderBottomLeftRadius: RADIUS.xl,
+    borderBottomRightRadius: RADIUS.xl,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
+  },
+  headerSubtitle: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 4,
+    letterSpacing: 0.5,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: TYPOGRAPHY.xxxl,
+    fontWeight: '900',
     color: '#FFFFFF',
   },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+
   scrollView: {
     flex: 1,
   },
+
+  // Profile Section
+  profileSection: {
+    paddingHorizontal: SPACING.xl,
+    marginTop: -SPACING.xxl,
+  },
   profileCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    marginTop: -20,
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...createShadow(5),
+  },
+  avatarSection: {
     alignItems: 'center',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 12,
-          elevation: 5,
-        }),
+    marginBottom: SPACING.xl,
   },
-  profilePictureContainer: {
+  avatarWrapper: {
     position: 'relative',
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
-  profilePicture: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#3B82F6',
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 4,
+    borderColor: COLORS.primary100,
   },
-  profilePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F1F5F9',
+  avatarPlaceholder: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#E2E8F0',
   },
-  cameraIconContainer: {
+  cameraButton: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#3B82F6',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary600,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: COLORS.surface,
+    ...createShadow(3),
+  },
+  profileInfo: {
+    alignItems: 'center',
   },
   userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 8,
+    fontSize: TYPOGRAPHY.xl,
+    fontWeight: '700',
+    color: COLORS.neutral900,
+    marginBottom: SPACING.sm,
   },
   bloodTypeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#DBEAFE',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
     gap: 6,
-    marginBottom: 16,
+    backgroundColor: COLORS.primary600,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
   },
   bloodTypeText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#3B82F6',
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
-  contactInfo: {
-    width: '100%',
-    gap: 8,
-    marginBottom: 16,
+  contactSection: {
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+    paddingTop: SPACING.lg,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: SPACING.md,
+  },
+  contactIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.primary50,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   contactText: {
-    fontSize: 14,
-    color: '#64748B',
+    flex: 1,
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '500',
+    color: COLORS.neutral700,
   },
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#3B82F6',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primary50,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary200,
   },
   editButtonText: {
-    fontSize: 14,
+    fontSize: TYPOGRAPHY.base,
     fontWeight: '600',
-    color: '#3B82F6',
+    color: COLORS.primary700,
   },
-  createRequestCard: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 4px 12px rgba(59, 130, 246, 0.3)' } as any
-      : {
-          shadowColor: '#3B82F6',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 12,
-          elevation: 8,
-        }),
-  },
-  createRequestGradient: {
-    padding: 20,
-  },
-  createRequestContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  createRequestTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  createRequestSubtitle: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-  createRequestIcon: {
-    opacity: 0.9,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 16,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 3,
-        }),
-  },
-  statIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
-  },
-  historySection: {
-    marginHorizontal: 20,
-    marginTop: 24,
+
+  // Sections
+  section: {
+    paddingHorizontal: SPACING.xl,
+    marginTop: SPACING.xxl,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1E293B',
+    fontSize: TYPOGRAPHY.lg,
+    fontWeight: '700',
+    color: COLORS.neutral900,
+    marginBottom: SPACING.md,
   },
-  sectionCount: {
-    fontSize: 14,
-    color: '#64748B',
+
+  // CTA Card
+  ctaCard: {
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    ...createShadow(8),
+  },
+  ctaGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.xl,
+    gap: SPACING.lg,
+  },
+  ctaIconWrapper: {
+    opacity: 0.9,
+  },
+  ctaContent: {
+    flex: 1,
+  },
+  ctaTitle: {
+    fontSize: TYPOGRAPHY.lg,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  ctaSubtitle: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  ctaArrow: {
+    opacity: 0.8,
+  },
+
+  // Stats
+  statsGrid: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...createShadow(1),
+  },
+  statIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  statValue: {
+    fontSize: TYPOGRAPHY.xl,
+    fontWeight: '800',
+    color: COLORS.neutral900,
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: '500',
+    color: COLORS.neutral500,
+    textAlign: 'center',
+  },
+
+  // History
+  countBadge: {
+    backgroundColor: COLORS.primary50,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.primary200,
+  },
+  countText: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '700',
+    color: COLORS.primary700,
+  },
+  requestsSection: {
+    marginBottom: SPACING.xl,
   },
   subsectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 12,
-    marginTop: 8,
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '700',
+    color: COLORS.neutral600,
+    marginBottom: SPACING.md,
+    letterSpacing: 0.8,
   },
-  requestItem: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 3,
-        }),
+  requestsList: {
+    gap: SPACING.sm,
+  },
+  requestCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...createShadow(1),
   },
   requestHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  requestBloodTypeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    marginBottom: SPACING.md,
   },
   requestBloodType: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#DC2626',
-  },
-  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    gap: SPACING.sm,
+  },
+  requestBloodIcon: {
+    borderRadius: RADIUS.sm,
+    overflow: 'hidden',
+  },
+  bloodIconGradient: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  requestBloodTypeText: {
+    fontSize: TYPOGRAPHY.lg,
+    fontWeight: '800',
+    color: COLORS.accent600,
+  },
+  requestStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  requestInfo: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  requestInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  requestInfoText: {
-    fontSize: 14,
-    color: '#64748B',
-    flex: 1,
-  },
-  urgencyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  urgencyText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#DC2626',
-  },
-  donorInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 10,
+    paddingHorizontal: SPACING.md,
     paddingVertical: 6,
-    borderRadius: 8,
-    gap: 6,
-    marginTop: 8,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
   },
-  donorInfoText: {
-    fontSize: 13,
-    color: '#166534',
-    fontWeight: '500',
+  requestStatusText: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: '700',
   },
-  actionsSection: {
-    marginHorizontal: 20,
-    marginTop: 24,
-    gap: 12,
+  requestDetails: {
+    gap: SPACING.sm,
   },
-  actionButton: {
+  requestDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 3,
-        }),
+    gap: SPACING.sm,
   },
-  actionButtonText: {
+  requestDetailText: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '500',
+    color: COLORS.neutral700,
   },
+  requestDonorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.success50,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.success200,
+  },
+  requestDonorText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '600',
+    color: COLORS.success700,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  viewMoreText: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '700',
+    color: COLORS.primary600,
+  },
+
+  // Actions
+  actionsList: {
+    gap: SPACING.md,
+  },
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...createShadow(1),
+  },
+  actionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: RADIUS.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionInfo: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: TYPOGRAPHY.base,
+    fontWeight: '700',
+    color: COLORS.neutral900,
+    marginBottom: 2,
+  },
+  actionSubtitle: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: '500',
+    color: COLORS.neutral500,
+  },
+
+  // Logout
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
-    marginTop: 8,
+    gap: SPACING.sm,
+    height: 52,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.accent50,
+    borderWidth: 1.5,
+    borderColor: COLORS.accent200,
   },
-  logoutButtonText: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#DC2626',
+  logoutText: {
+    fontSize: TYPOGRAPHY.base,
+    fontWeight: '600',
+    color: COLORS.accent700,
   },
-  loadingContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#64748B',
-  },
+
+  // Empty State
   emptyState: {
-    paddingVertical: 40,
+    alignItems: 'center',
+    paddingVertical: SPACING.huge,
+  },
+  emptyIconWrapper: {
+    marginBottom: SPACING.xl,
+  },
+  emptyIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyStateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 12,
+  emptyTitle: {
+    fontSize: TYPOGRAPHY.lg,
+    fontWeight: '700',
+    color: COLORS.neutral900,
+    marginBottom: SPACING.sm,
   },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#94A3B8',
-    marginTop: 4,
+  emptySubtitle: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '500',
+    color: COLORS.neutral500,
     textAlign: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: SPACING.xxl,
+    marginBottom: SPACING.xl,
   },
-  emptyStateButton: {
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 16,
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary600,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    ...createShadow(3),
   },
-  emptyStateButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  emptyButtonText: {
+    fontSize: TYPOGRAPHY.base,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
+
+  // Loading
+  loadingContainer: {
+    paddingVertical: SPACING.xxxl,
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  loadingText: {
+    fontSize: TYPOGRAPHY.sm,
+    fontWeight: '500',
+    color: COLORS.neutral500,
+  },
+
   bottomSpacer: {
-    height: 40,
+    height: SPACING.huge,
   },
 });
 

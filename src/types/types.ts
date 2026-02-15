@@ -2,6 +2,21 @@ export type UserType = 'donor' | 'requester';
 
 export type BloodType = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 
+
+
+export interface InterestedDonor {
+  id: string;
+  donorId: string;
+  donorName: string;
+  donorPhone?: string;
+  donorBloodType: BloodType;
+  donorProfilePicture?: string;
+  requestId: string;
+  interestedAt: string;
+  status: 'pending' | 'selected' | 'declined';
+  message?: string; 
+}
+
 export interface Location {
   latitude: number;
   longitude: number;
@@ -73,6 +88,8 @@ export interface BloodRequest {
   description?: string;
   notes?: string;
   status: RequestStatus;
+  interestedDonorIds?: string[];
+  selectedDonorId?: string;
   acceptedDonorId?: string;
   acceptedDonorName?: string;
   createdAt: string;
@@ -197,6 +214,8 @@ export type NotificationType =
   | 'blood_request' 
   | 'request_accepted' 
   | 'request_completed'
+  | 'request_fulfilled'  
+  | 'donor_interested'
   | 'verify_donation' 
   | 'donation_verified'
   | 'donation_disputed'

@@ -1,5 +1,7 @@
+import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { ChatMessage } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -14,6 +16,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   isOwnMessage,
   onLongPress,
 }) => {
+  const { colors } = useAppTheme();
+
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', {
@@ -21,6 +25,58 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
       minute: '2-digit',
     });
   };
+
+  const BubbleContent = () => (
+    <>
+      {message.type === 'image' && message.imageUrl && (
+        <Image
+          source={{ uri: message.imageUrl }}
+          style={styles.messageImage}
+          resizeMode="cover"
+        />
+      )}
+
+      {message.type === 'location' && message.location && (
+        <View style={[styles.locationContainer, { backgroundColor: isOwnMessage ? 'rgba(255,255,255,0.2)' : '#F1F5F9' }]}>
+          <Ionicons name="location" size={24} color={isOwnMessage ? '#FFF' : colors.primary} />
+          <Text style={[styles.locationText, { color: isOwnMessage ? '#FFF' : colors.primary }]}>
+            Location: {message.location.latitude.toFixed(6)},{' '}
+            {message.location.longitude.toFixed(6)}
+          </Text>
+        </View>
+      )}
+
+      {message.message && (
+        <Text
+          style={[
+            styles.messageText,
+            isOwnMessage ? styles.ownMessageText : { color: colors.text },
+          ]}
+        >
+          {message.message}
+        </Text>
+      )}
+
+      <View style={styles.footer}>
+        <Text
+          style={[
+            styles.timeText,
+            isOwnMessage ? { color: 'rgba(255,255,255,0.7)' } : { color: colors.textMuted },
+          ]}
+        >
+          {formatTime(message.timestamp)}
+        </Text>
+        {isOwnMessage && (
+          <Ionicons
+            name={message.isRead ? 'checkmark-done' : 'checkmark'}
+            size={14}
+            color={message.isRead ? '#FFF' : 'rgba(255,255,255,0.7)'}
+            style={styles.readIcon}
+          />
+        )}
+      </View>
+    </>
+  );
 
   return (
     <TouchableOpacity
@@ -31,60 +87,24 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
       onLongPress={onLongPress}
       activeOpacity={0.7}
     >
-      <View
-        style={[
-          styles.bubble,
-          isOwnMessage ? styles.ownBubble : styles.otherBubble,
-        ]}
-      >
-        {message.type === 'image' && message.imageUrl && (
-          <Image
-            source={{ uri: message.imageUrl }}
-            style={styles.messageImage}
-            resizeMode="cover"
-          />
-        )}
-        
-        {message.type === 'location' && message.location && (
-          <View style={styles.locationContainer}>
-            <Ionicons name="location" size={24} color="#3B82F6" />
-            <Text style={styles.locationText}>
-              Location: {message.location.latitude.toFixed(6)},{' '}
-              {message.location.longitude.toFixed(6)}
-            </Text>
-          </View>
-        )}
-        
-        {message.message && (
-          <Text
-            style={[
-              styles.messageText,
-              isOwnMessage ? styles.ownMessageText : styles.otherMessageText,
-            ]}
-          >
-            {message.message}
-          </Text>
-        )}
-
-        <View style={styles.footer}>
-          <Text
-            style={[
-              styles.timeText,
-              isOwnMessage ? styles.ownTimeText : styles.otherTimeText,
-            ]}
-          >
-            {formatTime(message.timestamp)}
-          </Text>
-          {isOwnMessage && (
-            <Ionicons
-              name={message.isRead ? 'checkmark-done' : 'checkmark'}
-              size={14}
-              color={message.isRead ? '#3B82F6' : '#94A3B8'}
-              style={styles.readIcon}
-            />
-          )}
+      {isOwnMessage ? (
+        <LinearGradient
+          colors={[colors.primary, '#60A5FA']}
+          style={[styles.bubble, styles.ownBubble]}
+        >
+          <BubbleContent />
+        </LinearGradient>
+      ) : (
+        <View
+          style={[
+            styles.bubble,
+            styles.otherBubble,
+            { backgroundColor: colors.surface },
+          ]}
+        >
+          <BubbleContent />
         </View>
-      </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -102,21 +122,21 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: '75%',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
   },
   ownBubble: {
-    backgroundColor: '#3B82F6',
-    borderBottomRightRadius: 4,
+    borderTopRightRadius: 2, // Bubble effect
   },
   otherBubble: {
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 4,
+    borderTopLeftRadius: 2, // Bubble effect
+    borderWidth: 0.5,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   messageText: {
     fontSize: 16,
@@ -124,9 +144,6 @@ const styles = StyleSheet.create({
   },
   ownMessageText: {
     color: '#FFFFFF',
-  },
-  otherMessageText: {
-    color: '#1E293B',
   },
   messageImage: {
     width: 200,
@@ -139,29 +156,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     padding: 8,
-    backgroundColor: '#EFF6FF',
     borderRadius: 8,
     marginBottom: 8,
   },
   locationText: {
     fontSize: 14,
-    color: '#1E40AF',
     flex: 1,
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     marginTop: 4,
     gap: 4,
   },
   timeText: {
-    fontSize: 11,
-  },
-  ownTimeText: {
-    color: '#E0E7FF',
-  },
-  otherTimeText: {
-    color: '#94A3B8',
+    fontSize: 10,
   },
   readIcon: {
     marginLeft: 2,
