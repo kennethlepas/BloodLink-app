@@ -1,6 +1,6 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
-import { getUserChats } from '@/src/services/firebase/database';
+import { deleteChat, getUserChats } from '@/src/services/firebase/database';
 import { Chat } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,15 +8,18 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   RefreshControl,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const shadow = (c = '#000', o = 0.08, r = 10, e = 3) =>
@@ -39,6 +42,7 @@ const ChatListScreen: React.FC = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => { loadChats(); }, [user]);
 
@@ -81,24 +85,84 @@ const ChatListScreen: React.FC = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  // Filter chats based on search query
+  const filteredChats = chats.filter(chat => {
+    if (!searchQuery.trim()) return true;
+    const otherParticipantName = getOtherParticipantName(chat);
+    return otherParticipantName.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const handleDeleteChat = (chatId: string, chatName: string) => {
+    Alert.alert(
+      'Delete Chat',
+      `Are you sure you want to delete this conversation with ${chatName}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteChat(chatId);
+              // Remove from local state
+              setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
+            } catch (error) {
+              console.error('Error deleting chat:', error);
+              Alert.alert('Error', 'Failed to delete chat. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const ListHeader = () => (
-    <View style={[st.header, { backgroundColor: '#075E54' }]}>
+    <View style={[st.header, { backgroundColor: colors.primary }]}>
       <View style={st.headerRow}>
-        <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
+
         <Text style={st.headerTitle}>Chats</Text>
         <View style={st.headerActions}>
-          <TouchableOpacity style={st.headerIconBtn}>
-            <Ionicons name="search" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
           <TouchableOpacity style={st.headerIconBtn}>
             <Ionicons name="ellipsis-vertical" size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Search Bar */}
+      <View style={st.searchContainer}>
+        <Ionicons name="search" size={18} color="rgba(255,255,255,0.7)" style={st.searchIcon} />
+        <TextInput
+          style={st.searchInput}
+          placeholder="Search chats..."
+          placeholderTextColor="rgba(255,255,255,0.6)"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          cursorColor="#000000"
+          selectionColor="rgba(0,0,0,0.3)"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={st.clearBtn}>
+            <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
+
+  const renderRightActions = (chatId: string, chatName: string) => {
+    return (
+      <TouchableOpacity
+        style={st.deleteButton}
+        onPress={() => handleDeleteChat(chatId, chatName)}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="trash-outline" size={24} color="#FFFFFF" />
+        <Text style={st.deleteButtonText}>Delete</Text>
+      </TouchableOpacity>
+    );
+  };
 
   const renderChatItem = ({ item }: { item: Chat }) => {
     const otherParticipantName = getOtherParticipantName(item);
@@ -106,48 +170,53 @@ const ChatListScreen: React.FC = () => {
     const hasUnread = unreadCount > 0;
 
     return (
-      <TouchableOpacity
-        style={[st.chatCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}
-        onPress={() => router.push(`/(shared)/chat?chatId=${item.id}` as any)}
-        activeOpacity={0.6}
+      <Swipeable
+        renderRightActions={() => renderRightActions(item.id, otherParticipantName)}
+        overshootRight={false}
       >
-        <View style={st.avatarWrap}>
-          <View style={[st.avatar, { backgroundColor: '#128C7E' }]}>
-            <Text style={st.avatarText}>
-              {otherParticipantName.charAt(0).toUpperCase()}
-            </Text>
+        <TouchableOpacity
+          style={[st.chatCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}
+          onPress={() => router.push(`/(shared)/chat?chatId=${item.id}` as any)}
+          activeOpacity={0.6}
+        >
+          <View style={st.avatarWrap}>
+            <View style={[st.avatar, { backgroundColor: colors.primary }]}>
+              <Text style={st.avatarText}>
+                {otherParticipantName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        <View style={st.chatContent}>
-          <View style={st.chatHeader}>
-            <Text
-              style={[st.chatName, { color: isDark ? '#FFFFFF' : '#000000' }, hasUnread && st.chatNameUnread]}
-              numberOfLines={1}
-            >
-              {otherParticipantName}
-            </Text>
-            <Text style={[st.chatTime, { color: hasUnread ? '#25D366' : '#8696A0' }]}>
-              {formatTime(item.lastMessageTime)}
-            </Text>
+          <View style={st.chatContent}>
+            <View style={st.chatHeader}>
+              <Text
+                style={[st.chatName, { color: isDark ? '#FFFFFF' : '#000000' }, hasUnread && st.chatNameUnread]}
+                numberOfLines={1}
+              >
+                {otherParticipantName}
+              </Text>
+              <Text style={[st.chatTime, { color: hasUnread ? colors.primary : colors.textSecondary }]}>
+                {formatTime(item.lastMessageTime)}
+              </Text>
+            </View>
+            <View style={st.lastMessageRow}>
+              <Text
+                style={[st.lastMessage, { color: '#667781' }, hasUnread && { color: isDark ? '#FFFFFF' : '#000000', fontWeight: '500' }]}
+                numberOfLines={1}
+              >
+                {item.lastMessage || 'Tap to start chatting'}
+              </Text>
+              {hasUnread && (
+                <View style={[st.unreadBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={st.unreadCount}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-          <View style={st.lastMessageRow}>
-            <Text
-              style={[st.lastMessage, { color: '#667781' }, hasUnread && { color: isDark ? '#FFFFFF' : '#000000', fontWeight: '500' }]}
-              numberOfLines={1}
-            >
-              {item.lastMessage || 'Tap to start chatting'}
-            </Text>
-            {hasUnread && (
-              <View style={st.unreadBadge}>
-                <Text style={st.unreadCount}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Swipeable>
     );
   };
 
@@ -184,16 +253,17 @@ const ChatListScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={[st.container, { backgroundColor: isDark ? '#000000' : '#F0F2F5' }]} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#075E54" />
+    <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]} edges={['top']}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.primary} />
 
       <FlatList
-        data={chats}
+        data={filteredChats}
         renderItem={renderChatItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={st.listContent}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={renderEmptyState}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -243,6 +313,29 @@ const st = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Search Bar
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    height: 40,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#FFFFFF',
+    paddingVertical: 8,
+  },
+  clearBtn: {
+    padding: 4,
   },
 
   // Loading
@@ -325,6 +418,21 @@ const st = StyleSheet.create({
     lineHeight: 18,
     flex: 1,
     marginRight: 8,
+  },
+
+  // Delete Button (Swipe Action)
+  deleteButton: {
+    backgroundColor: '#DC2626',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    height: '100%',
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
 
   // Empty State

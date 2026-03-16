@@ -1,14 +1,14 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
+import { KENYA_COUNTIES, getTownsByCounty } from '@/src/constants/kenyaLocations';
 import { useUser } from '@/src/contexts/UserContext';
 import { createUser } from '@/src/services/firebase/database';
 import { auth, db } from '@/src/services/firebase/firebase';
 import { BloodType, SignupFormData, UserType } from '@/src/types/types';
 import { transformFirebaseUser } from '@/src/types/userTransform';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import {
@@ -24,7 +24,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -45,17 +45,19 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
   const router = useRouter();
   const { login } = useUser();
   const params = useLocalSearchParams<{ userType?: 'donor' | 'requester' }>();
-  
+
   const { pickAndUploadImage, takeAndUploadPhoto, uploading: imageUploading, error: imageError } = useImagePicker();
-  
   const [loading, setLoading] = useState(false);
+  const [isBloodTypeExpanded, setIsBloodTypeExpanded] = useState(false);
+  const [isCountyExpanded, setIsCountyExpanded] = useState(false);
+  const [isTownExpanded, setIsTownExpanded] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  
+
   const selectedUserType = propUserType || params.userType || 'donor';
-  
+
   const [formData, setFormData] = useState<SignupFormData & { profilePicture?: string }>({
     firstName: '',
     lastName: '',
@@ -65,7 +67,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
     confirmPassword: '',
     bloodType: 'O+',
     userType: selectedUserType,
-    weight: undefined,
+    county: '',
+    town: '',
     profilePicture: undefined,
   });
 
@@ -98,7 +101,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
   const uploadImageFromGallery = async () => {
     try {
       const imageUrl = await pickAndUploadImage('bloodlink/profile_pictures');
-      
+
       if (imageUrl) {
         handleInputChange('profilePicture', imageUrl);
       }
@@ -111,7 +114,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
   const uploadImageFromCamera = async () => {
     try {
       const imageUrl = await takeAndUploadPhoto('bloodlink/profile_pictures');
-      
+
       if (imageUrl) {
         handleInputChange('profilePicture', imageUrl);
       }
@@ -150,10 +153,12 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
 
       case 'password':
         if (!value) return 'Password is required';
-        if (value.length < 6) return 'Password must be at least 6 characters';
+        if (value.length < 8) return 'Password must be at least 8 characters';
+        if (value.length > 10) return 'Password cannot exceed 10 characters';
         if (!/(?=.*[a-z])/.test(value)) return 'Password must contain at least one lowercase letter';
         if (!/(?=.*[A-Z])/.test(value)) return 'Password must contain at least one uppercase letter';
         if (!/(?=.*\d)/.test(value)) return 'Password must contain at least one number';
+        if (!/(?=.*[!@#$%^&*(),.?":{}|<>])/.test(value)) return 'Password must contain at least one special character';
         break;
 
       case 'confirmPassword':
@@ -161,13 +166,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
         if (value !== formData.password) return 'Passwords do not match';
         break;
 
-      case 'weight':
-        if (selectedUserType === 'donor' && value) {
-          const weight = Number(value);
-          if (isNaN(weight)) return 'Weight must be a number';
-          if (weight < 50) return 'Donors must weigh at least 50kg';
-          if (weight > 200) return 'Please enter a valid weight';
-        }
+      case 'county':
+        if (!value) return 'County is required';
+        break;
+      case 'town':
+        if (!value) return 'Town/City is required';
         break;
     }
     return undefined;
@@ -184,11 +187,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
       'phoneNumber',
       'password',
       'confirmPassword',
+      'county',
+      'town',
     ];
-
-    if (selectedUserType === 'donor' && formData.weight) {
-      fields.push('weight');
-    }
 
     fields.forEach((field) => {
       const error = validateField(field, formData[field]);
@@ -203,7 +204,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
       hasError = true;
     }
 
-    // Check if terms are accepted
+    // Check if terms and conditions are accepted
     if (!acceptedTerms) {
       newErrors.terms = 'You must accept the Terms & Conditions';
       hasError = true;
@@ -269,6 +270,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
         phoneNumber: formData.phoneNumber.trim(),
         bloodType: formData.bloodType,
         userType: selectedUserType,
+        county: formData.county,
+        town: formData.town,
         isActive: true,
         points: 0,
         acceptedTermsAt: new Date().toISOString(),
@@ -281,42 +284,35 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
         baseUserData.totalDonations = 0;
         baseUserData.isVerified = false;
       }
-      
+
       if (formData.profilePicture) {
         baseUserData.profilePicture = formData.profilePicture;
       }
 
-      if (formData.weight) {
-        baseUserData.weight = formData.weight;
-      }
-
       await createUser(firebaseUser.uid, baseUserData);
+
+      await sendEmailVerification(firebaseUser);
 
       const specificCollection = selectedUserType === 'donor' ? 'donors' : 'requesters';
       await setDoc(doc(db, specificCollection, firebaseUser.uid), baseUserData);
 
       const userForContext = transformFirebaseUser(baseUserData);
-
       await login(userForContext);
 
       Alert.alert(
-        'Success!',
-        'Your account has been created successfully.',
+        'Account Created',
+        'Please check your email to verify your account.',
         [
           {
             text: 'OK',
             onPress: () => {
-              if (selectedUserType === 'donor') {
-                router.replace('/(donor)' as any);
-              } else {
-                router.replace('/(requester)' as any);
-              }
+              router.replace('/(auth)/verify-email' as any);
             },
           },
         ]
       );
     } catch (error: any) {
-      console.error('Signup error:', error);
+      console.log('Signup error:', error);
 
       let errorMessage = 'Failed to create account. Please try again.';
 
@@ -350,8 +346,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor="#0A2647" />
-      <LinearGradient 
-        colors={['#0A2647', '#144272', '#2C74B3']} 
+
+      <LinearGradient
+        colors={['#0A2647', '#144272', '#2C74B3']}
         style={styles.gradient}
         locations={[0, 0.5, 1]}
       >
@@ -486,38 +483,164 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Blood Type *</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={formData.bloodType}
-                      onValueChange={(value: any) => handleInputChange('bloodType', value)}
-                      style={styles.picker}
-                      enabled={!loading}
-                    >
+                  <TouchableOpacity
+                    style={[styles.pickerTrigger, isBloodTypeExpanded && styles.pickerTriggerExpanded]}
+                    onPress={() => {
+                      setIsBloodTypeExpanded(!isBloodTypeExpanded);
+                      setIsCountyExpanded(false);
+                      setIsTownExpanded(false);
+                    }}
+                    disabled={loading}
+                  >
+                    <Text style={[styles.pickerTriggerText, !formData.bloodType && { color: '#94A3B8' }]}>
+                      {formData.bloodType || 'Select blood type'}
+                    </Text>
+                    <Ionicons name={isBloodTypeExpanded ? "chevron-up" : "chevron-down"} size={20} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {isBloodTypeExpanded && (
+                    <View style={styles.inlineSelectionContainer}>
                       {BLOOD_TYPES.map((type) => (
-                        <Picker.Item key={type} label={type} value={type} />
+                        <TouchableOpacity
+                          key={type}
+                          style={[
+                            styles.selectionItem,
+                            formData.bloodType === type && { backgroundColor: '#3B82F620', borderColor: '#3B82F6' }
+                          ]}
+                          onPress={() => {
+                            handleInputChange('bloodType', type);
+                            setIsBloodTypeExpanded(false);
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons
+                              name="water"
+                              size={20}
+                              color={formData.bloodType === type ? '#3B82F6' : '#64748B'}
+                            />
+                            <Text style={[
+                              styles.selectionText,
+                              { marginLeft: 10, marginTop: 0, fontSize: moderateScale(14) },
+                              formData.bloodType === type && { color: '#3B82F6', fontWeight: '700' }
+                            ]}>
+                              {type}
+                            </Text>
+                          </View>
+                          {formData.bloodType === type && (
+                            <Ionicons name="checkmark-circle" size={18} color="#3B82F6" />
+                          )}
+                        </TouchableOpacity>
                       ))}
-                    </Picker>
-                  </View>
-                  {errors.bloodType && <Text style={styles.errorText}>{errors.bloodType}</Text>}
+                    </View>
+                  )}
+                </View>
+                {errors.bloodType && <Text style={styles.errorText}>{errors.bloodType}</Text>}
+
+                {/* Location Section - Moved here as requested */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>County *</Text>
+                  <TouchableOpacity
+                    style={[styles.pickerTrigger, isCountyExpanded && styles.pickerTriggerExpanded]}
+                    onPress={() => {
+                      setIsCountyExpanded(!isCountyExpanded);
+                      setIsBloodTypeExpanded(false);
+                      setIsTownExpanded(false);
+                    }}
+                    disabled={loading}
+                  >
+                    <Text style={[styles.pickerTriggerText, !formData.county && { color: '#94A3B8' }]}>
+                      {formData.county || 'Select your county'}
+                    </Text>
+                    <Ionicons name={isCountyExpanded ? "chevron-up" : "chevron-down"} size={20} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {isCountyExpanded && (
+                    <View style={[styles.inlineSelectionContainer, { maxHeight: verticalScale(250) }]}>
+                      <ScrollView nestedScrollEnabled={true}>
+                        {KENYA_COUNTIES.map((county) => (
+                          <TouchableOpacity
+                            key={county}
+                            style={[
+                              styles.selectionItem,
+                              formData.county === county && { backgroundColor: '#3B82F620', borderColor: '#3B82F6' }
+                            ]}
+                            onPress={() => {
+                              handleInputChange('county', county);
+                              handleInputChange('town', '');
+                              setIsCountyExpanded(false);
+                            }}
+                          >
+                            <Text style={[
+                              styles.selectionText,
+                              { marginTop: 0, fontSize: moderateScale(14) },
+                              formData.county === county && { color: '#3B82F6', fontWeight: '700' }
+                            ]}>
+                              {county}
+                            </Text>
+                            {formData.county === county && (
+                              <Ionicons name="checkmark-circle" size={18} color="#3B82F6" />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                  {errors.county && <Text style={styles.errorText}>{errors.county}</Text>}
                 </View>
 
-                {selectedUserType === 'donor' && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Weight (kg) *</Text>
-                    <TextInput
-                      style={[styles.input, errors.weight && styles.inputError]}
-                      value={formData.weight?.toString() || ''}
-                      onChangeText={(value) => handleInputChange('weight', value ? Number(value) : undefined)}
-                      onBlur={() => handleBlur('weight')}
-                      placeholder="Enter your weight"
-                      placeholderTextColor="#94A3B8"
-                      keyboardType="numeric"
-                      editable={!loading}
-                    />
-                    <Text style={styles.helpText}>Minimum weight: 50kg (for donors)</Text>
-                    {errors.weight && <Text style={styles.errorText}>{errors.weight}</Text>}
-                  </View>
-                )}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Town/City *</Text>
+                  <TouchableOpacity
+                    style={[styles.pickerTrigger, isTownExpanded && styles.pickerTriggerExpanded]}
+                    onPress={() => {
+                      if (!formData.county) {
+                        Alert.alert('Selection Required', 'Please select a county first');
+                        return;
+                      }
+                      setIsTownExpanded(!isTownExpanded);
+                      setIsBloodTypeExpanded(false);
+                      setIsCountyExpanded(false);
+                    }}
+                    disabled={loading}
+                  >
+                    <Text style={[styles.pickerTriggerText, !formData.town && { color: '#94A3B8' }]}>
+                      {formData.town || 'Select your town'}
+                    </Text>
+                    <Ionicons name={isTownExpanded ? "chevron-up" : "chevron-down"} size={20} color="#64748B" />
+                  </TouchableOpacity>
+
+                  {isTownExpanded && (
+                    <View style={[styles.inlineSelectionContainer, { maxHeight: verticalScale(250) }]}>
+                      <ScrollView nestedScrollEnabled={true}>
+                        {getTownsByCounty(formData.county || '').map((town) => (
+                          <TouchableOpacity
+                            key={town}
+                            style={[
+                              styles.selectionItem,
+                              formData.town === town && { backgroundColor: '#3B82F620', borderColor: '#3B82F6' }
+                            ]}
+                            onPress={() => {
+                              handleInputChange('town', town);
+                              setIsTownExpanded(false);
+                            }}
+                          >
+                            <Text style={[
+                              styles.selectionText,
+                              { marginTop: 0, fontSize: moderateScale(14) },
+                              formData.town === town && { color: '#3B82F6', fontWeight: '700' }
+                            ]}>
+                              {town}
+                            </Text>
+                            {formData.town === town && (
+                              <Ionicons name="checkmark-circle" size={18} color="#3B82F6" />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                  {errors.town && <Text style={styles.errorText}>{errors.town}</Text>}
+                </View>
 
                 <View style={styles.infoBox}>
                   <Ionicons name="information-circle" size={moderateScale(20)} color="#3B82F6" />
@@ -544,6 +667,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                       secureTextEntry={!showPassword}
                       autoComplete="password-new"
                       editable={!loading}
+                      maxLength={10}
                     />
                     <TouchableOpacity
                       style={styles.eyeIcon}
@@ -569,6 +693,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                       secureTextEntry={!showConfirmPassword}
                       autoComplete="password-new"
                       editable={!loading}
+                      maxLength={10}
                     />
                     <TouchableOpacity
                       style={styles.eyeIcon}
@@ -583,10 +708,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
 
                 <View style={styles.passwordRequirements}>
                   <Text style={styles.requirementsTitle}>Password must contain:</Text>
-                  <Text style={styles.requirementItem}>• At least 6 characters</Text>
+                  <Text style={styles.requirementItem}>• 8 to 10 characters</Text>
                   <Text style={styles.requirementItem}>• One uppercase letter</Text>
                   <Text style={styles.requirementItem}>• One lowercase letter</Text>
                   <Text style={styles.requirementItem}>• One number</Text>
+                  <Text style={styles.requirementItem}>• One special character (@, #, etc.)</Text>
                 </View>
               </View>
 
@@ -615,7 +741,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                   <View style={styles.termsTextContainer}>
                     <Text style={styles.termsText}>
                       I agree to the{' '}
-                      <Text 
+                      <Text
                         style={styles.termsLink}
                         onPress={(e) => {
                           e.stopPropagation();
@@ -625,7 +751,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                         Terms
                       </Text>
                       {' '}and{' '}
-                      <Text 
+                      <Text
                         style={styles.termsLink}
                         onPress={(e) => {
                           e.stopPropagation();
@@ -681,9 +807,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
               </View>
             </View>
           </ScrollView>
-        </KeyboardAvoidingView>
-      </LinearGradient>
-    </SafeAreaView>
+        </KeyboardAvoidingView >
+      </LinearGradient >
+    </SafeAreaView >
   );
 };
 
@@ -735,12 +861,12 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' } as any
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 12,
-          elevation: 5,
-        }),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
+      }),
   },
   profileSection: {
     alignItems: 'center',
@@ -996,6 +1122,75 @@ const styles = StyleSheet.create({
     color: '#3B82F6',
     fontWeight: '700',
     textDecorationLine: 'underline',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  selectionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingTop: 8,
+  },
+  selectionItem: {
+    width: '100%',
+    paddingVertical: verticalScale(14),
+    paddingHorizontal: scale(16),
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    marginBottom: 8,
+  },
+  selectionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginTop: 4,
+  },
+  pickerTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: verticalScale(50),
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  pickerTriggerText: {
+    fontSize: moderateScale(15),
+    color: '#1E293B',
+  },
+  modalList: {
+    marginTop: verticalScale(10),
+  },
+  pickerTriggerExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderColor: '#3B82F6',
+  },
+  inlineSelectionContainer: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderTopWidth: 0,
+    borderColor: '#3B82F6',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    padding: 8,
+    marginBottom: 4,
   },
 });
 

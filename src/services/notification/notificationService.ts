@@ -1,10 +1,7 @@
 import { createNotification } from '@/src/services/firebase/database';
 import { NotificationType } from '@/src/types/types';
 
-// ============================================================================
 // NOTIFICATION SERVICE
-// Handles creation of all notification types for both donors and requesters
-// ============================================================================
 
 /**
  * 1. Notify donor they can donate after donation period has elapsed
@@ -15,15 +12,15 @@ export const notifyDonorEligibleToDonate = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId: donorId,
-        type: 'donation_reminder',
-        title: 'You Can Donate Again! 🩸',
-        message: `Hi ${donorName}! Your donation eligibility period has ended. You can now help save lives by donating blood again.`,
-        data: {
-            action: 'open_donor_home',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: donorId,
+      type: 'donation_reminder',
+      title: 'You Can Donate Again! 🩸',
+      message: `Hi ${donorName}! Your donation eligibility period has ended. You can now help save lives by donating blood again.`,
+      data: {
+        action: 'open_donor_home',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('Donation eligibility notification sent to donor:', donorId);
   } catch (error) {
@@ -47,24 +44,24 @@ export const notifyEligibleDonorsOfNewRequest = async (
   eligibleDonorIds: string[]
 ): Promise<void> => {
   try {
-    const urgencyEmoji = 
+    const urgencyEmoji =
       requestDetails.urgencyLevel === 'critical' ? '🚨' :
-      requestDetails.urgencyLevel === 'urgent' ? '⚠️' : '📢';
+        requestDetails.urgencyLevel === 'urgent' ? '⚠️' : '📢';
 
     const notificationPromises = eligibleDonorIds.map((donorId) =>
       createNotification({
-          userId: donorId,
-          type: 'blood_request',
-          title: `${urgencyEmoji} New ${requestDetails.urgencyLevel.toUpperCase()} Blood Request`,
-          message: `${requestDetails.requesterName} needs ${requestDetails.unitsNeeded} unit(s) of ${requestDetails.bloodType} blood at ${requestDetails.hospitalName}. Can you help?`,
-          data: {
-              requestId,
-              bloodType: requestDetails.bloodType,
-              urgencyLevel: requestDetails.urgencyLevel,
-              action: 'view_request',
-          },
-          isRead: false,
-          timestamp: ''
+        userId: donorId,
+        type: 'blood_request',
+        title: `${urgencyEmoji} New ${requestDetails.urgencyLevel.toUpperCase()} Blood Request`,
+        message: `${requestDetails.requesterName} needs ${requestDetails.unitsNeeded} unit(s) of ${requestDetails.bloodType} blood at ${requestDetails.hospitalName}. Can you help?`,
+        data: {
+          requestId,
+          bloodType: requestDetails.bloodType,
+          urgencyLevel: requestDetails.urgencyLevel,
+          action: 'view_request',
+        },
+        isRead: false,
+        timestamp: ''
       })
     );
 
@@ -90,18 +87,18 @@ export const notifyRequesterOfAcceptance = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId: requesterId,
-        type: 'request_accepted',
-        title: '✅ Your Request Has Been Accepted!',
-        message: `Great news! ${donorDetails.donorName} has accepted your blood donation request. You can now chat with them to coordinate the donation.`,
-        data: {
-            requestId,
-            donorId: donorDetails.donorId,
-            donorName: donorDetails.donorName,
-            action: 'open_chat',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: requesterId,
+      type: 'request_accepted',
+      title: '✅ Your Request Has Been Accepted!',
+      message: `Great news! ${donorDetails.donorName} has accepted your blood donation request. You can now chat with them to coordinate the donation.`,
+      data: {
+        requestId,
+        donorId: donorDetails.donorId,
+        donorName: donorDetails.donorName,
+        action: 'open_chat',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('Request acceptance notification sent to requester:', requesterId);
   } catch (error) {
@@ -123,16 +120,16 @@ export const notifyRequesterOfDecline = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId: requesterId,
-        type: 'blood_request',
-        title: 'Request Update',
-        message: `${donorDetails.donorName} is unable to fulfill your ${donorDetails.bloodType} blood request at this time. We're still searching for other donors.`,
-        data: {
-            requestId,
-            action: 'view_request',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: requesterId,
+      type: 'blood_request',
+      title: 'Request Update',
+      message: `${donorDetails.donorName} is unable to fulfill your ${donorDetails.bloodType} blood request at this time. We're still searching for other donors.`,
+      data: {
+        requestId,
+        action: 'view_request',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('Request decline notification sent to requester:', requesterId);
   } catch (error) {
@@ -156,17 +153,17 @@ export const notifyRequesterOfDonationCompletion = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId: requesterId,
-        type: 'verify_donation',
-        title: '🎉 Donation Completed - Please Verify',
-        message: `${donorDetails.donorName} has completed the blood donation at ${donorDetails.hospitalName}. Please verify the donation to complete the process.`,
-        data: {
-            acceptedRequestId,
-            donorId: donorDetails.donorId,
-            action: 'verify_donation',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: requesterId,
+      type: 'verify_donation',
+      title: '🎉 Donation Completed - Please Verify',
+      message: `${donorDetails.donorName} has completed the blood donation at ${donorDetails.hospitalName}. Please verify the donation to complete the process.`,
+      data: {
+        acceptedRequestId,
+        donorId: donorDetails.donorId,
+        action: 'verify_donation',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('Donation completion notification sent to requester:', requesterId);
   } catch (error) {
@@ -189,17 +186,17 @@ export const notifyDonorOfVerification = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId: donorId,
-        type: 'donation_verified',
-        title: '🌟 Donation Verified!',
-        message: `${requesterDetails.requesterName} has verified your donation! You've earned ${requesterDetails.pointsEarned} points. Thank you for saving a life!`,
-        data: {
-            acceptedRequestId,
-            pointsEarned: requesterDetails.pointsEarned,
-            action: 'view_donation_history',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: donorId,
+      type: 'donation_verified',
+      title: '🌟 Donation Verified!',
+      message: `${requesterDetails.requesterName} has verified your donation! You've earned ${requesterDetails.pointsEarned} points. Thank you for saving a life!`,
+      data: {
+        acceptedRequestId,
+        pointsEarned: requesterDetails.pointsEarned,
+        action: 'view_donation_history',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('Verification notification sent to donor:', donorId);
   } catch (error) {
@@ -221,16 +218,16 @@ export const notifyDonorOfDispute = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId: donorId,
-        type: 'donation_disputed',
-        title: '⚠️ Donation Disputed',
-        message: `${requesterDetails.requesterName} has raised a concern about the donation. Reason: ${requesterDetails.disputeReason}. Please contact support.`,
-        data: {
-            acceptedRequestId,
-            action: 'contact_support',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: donorId,
+      type: 'donation_disputed',
+      title: '⚠️ Donation Disputed',
+      message: `${requesterDetails.requesterName} has raised a concern about the donation. Reason: ${requesterDetails.disputeReason}. Please contact support.`,
+      data: {
+        acceptedRequestId,
+        action: 'contact_support',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('Dispute notification sent to donor:', donorId);
   } catch (error) {
@@ -253,24 +250,23 @@ export const notifyUserOfNewMessage = async (
   }
 ): Promise<void> => {
   try {
-    // Truncate message preview if too long
     const preview = messageDetails.messagePreview.length > 50
       ? messageDetails.messagePreview.substring(0, 50) + '...'
       : messageDetails.messagePreview;
 
     await createNotification({
-        userId: receiverId,
-        type: 'new_message',
-        title: `💬 New message from ${messageDetails.senderName}`,
-        message: preview,
-        data: {
-            chatId,
-            senderId: messageDetails.senderId,
-            requestId: messageDetails.relatedRequestId,
-            action: 'open_chat',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: receiverId,
+      type: 'new_message',
+      title: `💬 New message from ${messageDetails.senderName}`,
+      message: preview,
+      data: {
+        chatId,
+        senderId: messageDetails.senderId,
+        requestId: messageDetails.relatedRequestId,
+        action: 'open_chat',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('New message notification sent to user:', receiverId);
   } catch (error) {
@@ -293,16 +289,16 @@ export const notifyRequesterOfExpiringRequest = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId: requesterId,
-        type: 'system_alert',
-        title: '⏰ Request Expiring Soon',
-        message: `Your ${requestDetails.bloodType} blood request at ${requestDetails.hospitalName} will expire in ${requestDetails.hoursRemaining} hour(s). Consider creating a new request if still needed.`,
-        data: {
-            requestId,
-            action: 'view_request',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: requesterId,
+      type: 'system_alert',
+      title: '⏰ Request Expiring Soon',
+      message: `Your ${requestDetails.bloodType} blood request at ${requestDetails.hospitalName} will expire in ${requestDetails.hoursRemaining} hour(s). Consider creating a new request if still needed.`,
+      data: {
+        requestId,
+        action: 'view_request',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('Expiring request notification sent to requester:', requesterId);
   } catch (error) {
@@ -326,17 +322,17 @@ export const notifyDonorOfNearbyUrgentRequest = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId: donorId,
-        type: 'donor_nearby',
-        title: '📍 Urgent Request Nearby',
-        message: `Critical ${requestDetails.bloodType} blood needed at ${requestDetails.hospitalName}, just ${requestDetails.distance.toFixed(1)}km away. Can you help?`,
-        data: {
-            requestId,
-            distance: requestDetails.distance,
-            action: 'view_request',
-        },
-        isRead: false,
-        timestamp: ''
+      userId: donorId,
+      type: 'donor_nearby',
+      title: '📍 Urgent Request Nearby',
+      message: `Critical ${requestDetails.bloodType} blood needed at ${requestDetails.hospitalName}, just ${requestDetails.distance.toFixed(1)}km away. Can you help?`,
+      data: {
+        requestId,
+        distance: requestDetails.distance,
+        action: 'view_request',
+      },
+      isRead: false,
+      timestamp: ''
     });
     console.log('Nearby urgent request notification sent to donor:', donorId);
   } catch (error) {
@@ -356,13 +352,13 @@ export const sendSystemNotification = async (
 ): Promise<void> => {
   try {
     await createNotification({
-        userId,
-        type: 'system_alert',
-        title,
-        message,
-        data,
-        isRead: false,
-        timestamp: ''
+      userId,
+      type: 'system_alert',
+      title,
+      message,
+      data,
+      isRead: false,
+      timestamp: ''
     });
     console.log('System notification sent to user:', userId);
   } catch (error) {
@@ -371,9 +367,8 @@ export const sendSystemNotification = async (
   }
 };
 
-// ============================================================================
+
 // BATCH NOTIFICATION HELPERS
-// ============================================================================
 
 /**
  * Send notifications to multiple users
@@ -388,13 +383,13 @@ export const sendBatchNotifications = async (
   try {
     const notificationPromises = userIds.map((userId) =>
       createNotification({
-          userId,
-          type: notificationType,
-          title,
-          message,
-          data,
-          isRead: false,
-          timestamp: ''
+        userId,
+        type: notificationType,
+        title,
+        message,
+        data,
+        isRead: false,
+        timestamp: ''
       })
     );
 

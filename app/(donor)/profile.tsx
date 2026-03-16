@@ -1,4 +1,5 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
+import { LogoutModal } from '@/src/components/LogoutModal';
 import { useUser } from '@/src/contexts/UserContext';
 import { getDonorHistory, updateUser } from '@/src/services/firebase/database';
 import { DonationRecord, Donor } from '@/src/types/types';
@@ -10,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -141,11 +143,58 @@ const StatCard: React.FC<StatCardProps> = ({ icon, value, label, color, bgColor 
   </View>
 );
 
+const DonationListItem = ({ donation, onPress }: { donation: DonationRecord; onPress: () => void }) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getLocationDisplay = () => {
+    if (donation.bloodBankName) return donation.bloodBankName;
+    if (donation.location?.address) return donation.location.address;
+    if (donation.location?.city) return donation.location.city;
+    return 'Medical Facility';
+  };
+
+  return (
+    <TouchableOpacity style={styles.donationItem} onPress={onPress}>
+      <View style={styles.donationLeft}>
+        <View style={styles.donationIconContainer}>
+          <LinearGradient
+            colors={[COLORS.accent500, COLORS.accent600]}
+            style={styles.donationIconGradient}
+          >
+            <Ionicons name="water" size={20} color="#FFFFFF" />
+          </LinearGradient>
+        </View>
+        <View style={styles.donationInfo}>
+          <Text style={styles.donationLocation} numberOfLines={1}>
+            {getLocationDisplay()}
+          </Text>
+          <View style={styles.donationMeta}>
+            <Ionicons name="calendar-outline" size={12} color={COLORS.neutral500} />
+            <Text style={styles.donationDate}>{formatDate(donation.donationDate)}</Text>
+          </View>
+        </View>
+      </View>
+      <View style={styles.donationPoints}>
+        <Ionicons name="star" size={14} color={COLORS.warning600} />
+        <Text style={styles.donationPointsText}>+{donation.pointsEarned}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={COLORS.neutral400} />
+    </TouchableOpacity>
+  );
+};
+
 interface DonationItemProps {
   donation: DonationRecord;
 }
 
-const DonationItem: React.FC<DonationItemProps> = ({ donation }) => {
+const DonationDetailView: React.FC<DonationItemProps> = ({ donation }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -204,6 +253,9 @@ const DonorProfileScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAvailable, setIsAvailable] = useState(user?.isAvailable || false);
+  const [viewDonation, setViewDonation] = useState<DonationRecord | null>(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const isDonor = (user: any): user is Donor => user?.userType === 'donor';
 
@@ -306,21 +358,19 @@ const DonorProfileScreen: React.FC = () => {
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logout();
-            router.replace('/(auth)/login' as any);
-          } catch (error) {
-            console.error('Logout error:', error);
-          }
-        },
-      },
-    ]);
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      router.replace('/(auth)/login' as any);
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+      setIsLoggingOut(false);
+    }
   };
 
   const handleEditProfile = () => {
@@ -354,7 +404,7 @@ const DonorProfileScreen: React.FC = () => {
           </View>
           <TouchableOpacity
             style={styles.headerButton}
-            onPress={() => Alert.alert('Settings', 'Settings coming soon')}
+            onPress={() => router.push('/(shared)/settings' as any)}
           >
             <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -570,7 +620,7 @@ const DonorProfileScreen: React.FC = () => {
           ) : donationHistory.length > 0 ? (
             <View style={styles.historyList}>
               {donationHistory.map((donation) => (
-                <DonationItem key={donation.id} donation={donation} />
+                <DonationListItem key={donation.id} donation={donation} onPress={() => setViewDonation(donation)} />
               ))}
             </View>
           ) : (
@@ -647,6 +697,31 @@ const DonorProfileScreen: React.FC = () => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Donation Detail Modal */}
+      <Modal visible={!!viewDonation} transparent animationType="slide" onRequestClose={() => setViewDonation(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.lg, borderTopRightRadius: RADIUS.lg, padding: SPACING.xl, paddingBottom: SPACING.xxxl, maxHeight: '85%' }}>
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: SPACING.xl }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+              <Text style={{ flex: 1, fontSize: TYPOGRAPHY.xl, fontWeight: '700', color: COLORS.neutral900 }}>Donation Details</Text>
+              <TouchableOpacity onPress={() => setViewDonation(null)} style={{ width: 32, height: 32, borderRadius: RADIUS.sm, backgroundColor: COLORS.neutral50, justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="close" size={22} color={COLORS.neutral500} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+              {viewDonation && <DonationDetailView donation={viewDonation} />}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <LogoutModal
+        visible={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onLogout={handleConfirmLogout}
+        isLoggingOut={isLoggingOut}
+      />
     </SafeAreaView>
   );
 };
@@ -1157,7 +1232,7 @@ const styles = StyleSheet.create({
   },
 
   bottomSpacer: {
-    height: SPACING.huge,
+    height: 120, // Increased for tab bar
   },
 });
 

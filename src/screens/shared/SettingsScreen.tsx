@@ -1,15 +1,8 @@
-import { useAppTheme } from '@/src/contexts/ThemeContext';
-import { useUser } from '@/src/contexts/UserContext';
-import { updateUser } from '@/src/services/firebase/database';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Linking,
   Platform,
   ScrollView,
   StatusBar,
@@ -19,23 +12,44 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { LogoutModal } from '@/src/components/LogoutModal';
+import { useAppTheme, type ThemeColors } from '@/src/contexts/ThemeContext';
+import { useUser } from '@/src/contexts/UserContext';
+import { updateUser } from '@/src/services/firebase/database';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ─── Brand Palette (static) ──────────────────────────────────────────────────
-const B_SKY = '#2563EB';
-const B_LIGHT = '#3B82F6';
-const B_SOFT = '#60A5FA';
-const B_PALE = '#DBEAFE';
-const O_DEEP = '#C2410C';
-const O_MID = '#EA580C';
-const O_LITE = '#FB923C';
-const O_PALE = '#FFF7ED';
 
-// ─── Shadow helper ───────────────────────────────────────────────────────────
-const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
-  Platform.select({
+const PALETTE = {
+  skyBlue: '#2563EB',
+  blue: '#3B82F6',
+  blueSoft: '#60A5FA',
+  bluePale: '#DBEAFE',
+  orangeDeep: '#C2410C',
+  orangeMid: '#EA580C',
+  orangeLite: '#FB923C',
+  orangePale: '#FFF7ED',
+} as const;
+
+
+/**
+ * Cross-platform shadow helper.
+ * On web it emits a CSS box-shadow; on native it uses the standard shadow props.
+ */
+function makeShadow(
+  color = '#000',
+  opacity = 0.08,
+  radius = 10,
+  elevation = 3,
+) {
+  return Platform.select({
     web: { boxShadow: `0 2px ${radius}px rgba(0,0,0,${opacity})` } as any,
     default: {
       shadowColor: color,
@@ -45,9 +59,10 @@ const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
       elevation,
     },
   });
+}
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-type SettingsItemProps = {
+
+interface SettingsItemProps {
   icon: keyof typeof Ionicons.glyphMap;
   iconBg: string;
   iconColor: string;
@@ -57,10 +72,20 @@ type SettingsItemProps = {
   onPress?: () => void;
   danger?: boolean;
   isLast?: boolean;
-  colors: any; // Theme colors passed down
-};
+  colors: ThemeColors;
+  styles: ReturnType<typeof buildStyles>;
+}
 
-// ─── Reusable Settings Row ───────────────────────────────────────────────────
+interface SectionHeadingProps {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  textColor: string;
+  styles: ReturnType<typeof buildStyles>;
+}
+
+
+/** A single row in a settings card. */
 const SettingsItem: React.FC<SettingsItemProps> = ({
   icon,
   iconBg,
@@ -72,6 +97,7 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
   danger,
   isLast,
   colors,
+  styles,
 }) => (
   <TouchableOpacity
     style={[
@@ -83,32 +109,43 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
     activeOpacity={onPress ? 0.65 : 1}
     disabled={!onPress && !rightElement}
   >
+    {/* Left icon */}
     <View style={[styles.settingsIconWrap, { backgroundColor: iconBg }]}>
       <Ionicons name={icon} size={18} color={iconColor} />
     </View>
+
+    {/* Label + optional subtitle */}
     <View style={styles.settingsTextWrap}>
-      <Text style={[styles.settingsLabel, { color: colors.text }, danger && { color: '#DC2626' }]}>
+      <Text
+        style={[
+          styles.settingsLabel,
+          { color: colors.text },
+          danger && { color: colors.danger },
+        ]}
+      >
         {label}
       </Text>
-      {subtitle && (
-        <Text style={[styles.settingsSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-      )}
+      {subtitle ? (
+        <Text style={[styles.settingsSubtitle, { color: colors.textSecondary }]}>
+          {subtitle}
+        </Text>
+      ) : null}
     </View>
-    {rightElement ?? (
-      onPress ? (
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      ) : null
-    )}
+
+    {/* Right element: custom node, or a chevron if the row is tappable */}
+    {rightElement ?? (onPress ? (
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    ) : null)}
   </TouchableOpacity>
 );
 
-// ─── Section heading ─────────────────────────────────────────────────────────
-const SectionHeading: React.FC<{
-  title: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  textColor: string;
-}> = ({ title, icon, color, textColor }) => (
+const SectionHeading: React.FC<SectionHeadingProps> = ({
+  title,
+  icon,
+  color,
+  textColor,
+  styles,
+}) => (
   <View style={styles.sectionHeading}>
     <View style={[styles.sectionBar, { backgroundColor: color }]} />
     <Ionicons name={icon} size={16} color={color} style={{ marginRight: 6 }} />
@@ -116,25 +153,241 @@ const SectionHeading: React.FC<{
   </View>
 );
 
-// ═════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═════════════════════════════════════════════════════════════════════════════
+
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+
+    container: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
+    loadingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+    },
+    loadingText: {
+      fontSize: 15,
+      marginTop: 8,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingTop: 20,
+      paddingBottom: 40,
+    },
+
+
+    header: {
+      paddingTop: 12,
+      paddingBottom: 20,
+      paddingHorizontal: 16,
+      overflow: 'hidden',
+    },
+
+    hCircle1: {
+      position: 'absolute',
+      width: 180,
+      height: 180,
+      borderRadius: 90,
+      backgroundColor: 'rgba(255,255,255,0.07)',
+      top: -60,
+      right: -40,
+    },
+    hCircle2: {
+      position: 'absolute',
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: 'rgba(255,255,255,0.05)',
+      bottom: -30,
+      left: 20,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    backBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerCenter: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    headerTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      letterSpacing: 0.3,
+    },
+    headerSub: {
+      fontSize: 13,
+      color: 'rgba(255,255,255,0.75)',
+      marginTop: 2,
+    },
+
+    profileBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      borderRadius: 16,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      gap: 12,
+    },
+    profileBadgeAvatar: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: 'rgba(255,255,255,0.3)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    profileBadgeInitial: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+    profileBadgeName: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    profileBadgeRole: {
+      fontSize: 12,
+      color: 'rgba(255,255,255,0.8)',
+      marginTop: 2,
+    },
+    editProfileBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#FFFFFF',
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      gap: 4,
+    },
+    editProfileBtnText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: PALETTE.skyBlue,
+    },
+
+    sectionHeading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 24,
+      marginBottom: 10,
+      paddingHorizontal: 2,
+    },
+    sectionBar: {
+      width: 3,
+      height: 16,
+      borderRadius: 2,
+      marginRight: 8,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+
+    card: {
+      borderRadius: 16,
+      borderWidth: 1,
+      overflow: 'hidden',
+      ...makeShadow('#000', 0.06, 8, 2),
+    },
+
+
+    settingsItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 13,
+      paddingHorizontal: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      gap: 12,
+    },
+    settingsIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    settingsTextWrap: {
+      flex: 1,
+    },
+    settingsLabel: {
+      fontSize: 15,
+      fontWeight: '500',
+    },
+    settingsSubtitle: {
+      fontSize: 12,
+      marginTop: 2,
+    },
+
+    switchStyle: {
+      transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }],
+    },
+
+
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 32,
+      gap: 8,
+    },
+    footerDot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.divider,
+    },
+    footerText: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+  });
+}
+
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, updateUserData, logout } = useUser();
-  const { isDark, colors, toggleDarkMode } = useAppTheme();
+  const { themeMode, isDark, colors, setThemeMode } = useAppTheme();
 
   const isDonor = user?.userType === 'donor';
 
-  // ── Toggle states ────────────────────────────────────────────────────────
+  //Local state 
   const [pushNotifs, setPushNotifs] = useState(true);
   const [requestAlerts, setRequestAlerts] = useState(true);
   const [messageNotifs, setMessageNotifs] = useState(true);
   const [profileVisible, setProfileVisible] = useState(user?.isAvailable ?? true);
   const [locationSharing, setLocationSharing] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // Build styles once per theme change (not on every render)
+  const styles = buildStyles(colors);
+
+  //Route helpers
+  const editProfileRoute = isDonor
+    ? '/(donor)/edit-profile'
+    : '/(requester)/edit-profile';
+
   const handleToggleProfileVisibility = async (value: boolean) => {
     if (!user?.id) return;
     try {
@@ -150,22 +403,18 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logout();
-            router.replace('/(auth)/login' as any);
-          } catch (e) {
-            console.error('Logout error:', e);
-          }
-        },
-      },
-    ]);
+  const handleLogout = () => setShowLogoutModal(true);
+
+  const handleConfirmLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      router.replace('/(auth)/login' as any);
+    } catch (e) {
+      console.log('Logout error:', e);
+      Alert.alert('Error', 'Failed to logout');
+      setIsLoggingOut(false);
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -177,55 +426,70 @@ export default function SettingsScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => Alert.alert('Coming Soon', 'Account deletion will be available in a future update.'),
+          onPress: () =>
+            Alert.alert('Coming Soon', 'Account deletion will be available in a future update.'),
         },
-      ]
+      ],
     );
   };
 
-  const openLink = (url: string) => {
-    Linking.openURL(url).catch(() => Alert.alert('Error', 'Unable to open the link.'));
-  };
 
   if (!user) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={B_SKY} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading settings…</Text>
+          <ActivityIndicator size="large" color={PALETTE.skyBlue} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Loading settings…
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={B_SKY} />
 
-      {/* ══ HEADER ══ */}
-      <LinearGradient colors={[B_SKY, B_LIGHT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={PALETTE.skyBlue} />
+
+      {/* Gradient header  */}
+      <LinearGradient
+        colors={[PALETTE.skyBlue, PALETTE.blue]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        {/* Decorative circles */}
         <View style={styles.hCircle1} />
         <View style={styles.hCircle2} />
 
+        {/* Back button + centred title */}
         <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
+
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Settings</Text>
             <Text style={styles.headerSub}>Manage your preferences</Text>
           </View>
+
+          {/* Invisible spacer keeps the title visually centred */}
           <View style={{ width: 42 }} />
         </View>
 
-        {/* mini profile badge */}
+        {/* Mini profile badge */}
         <View style={styles.profileBadge}>
           <View style={styles.profileBadgeAvatar}>
             <Text style={styles.profileBadgeInitial}>
               {user.firstName?.charAt(0).toUpperCase()}
             </Text>
           </View>
+
           <View style={{ flex: 1 }}>
             <Text style={styles.profileBadgeName} numberOfLines={1}>
               {user.firstName} {user.lastName}
@@ -234,112 +498,114 @@ export default function SettingsScreen() {
               {isDonor ? '💉 Donor' : '🔎 Requester'} · {user.bloodType}
             </Text>
           </View>
+
           <TouchableOpacity
             style={styles.editProfileBtn}
-            onPress={() =>
-              router.push(isDonor ? '/(donor)/edit-profile' as any : '/(requester)/edit-profile' as any)
-            }
+            onPress={() => router.push(editProfileRoute as any)}
             activeOpacity={0.75}
           >
-            <Ionicons name="create-outline" size={15} color={B_SKY} />
+            <Ionicons name="create-outline" size={15} color={PALETTE.skyBlue} />
             <Text style={styles.editProfileBtnText}>Edit</Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
+      {/* Scrollable settings body  */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ══════════════════════════════════════
-            ACCOUNT & PROFILE
-            ══════════════════════════════════════ */}
+
+        {/* Account & Profile  */}
         <SectionHeading
           title="Account & Profile"
           icon="person-circle-outline"
-          color={B_SKY}
+          color={PALETTE.skyBlue}
           textColor={colors.text}
+          styles={styles}
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
             icon="person-outline"
-            iconBg={isDark ? '#1e3a8a' : B_PALE}
-            iconColor={B_SKY}
+            iconBg={isDark ? 'rgba(37, 99, 235, 0.15)' : PALETTE.bluePale}
+            iconColor={PALETTE.skyBlue}
             label="Edit Profile"
             subtitle="Name, photo, contact info"
-            onPress={() =>
-              router.push(isDonor ? '/(donor)/edit-profile' as any : '/(requester)/edit-profile' as any)
-            }
+            onPress={() => router.push(editProfileRoute as any)}
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="lock-closed-outline"
-            iconBg={isDark ? '#78350f' : '#FEF3C7'}
+            iconBg={isDark ? 'rgba(217, 119, 6, 0.15)' : '#FEF3C7'}
             iconColor="#D97706"
             label="Change Password"
             subtitle="Update your account password"
             onPress={() => router.push('/(shared)/change-password' as any)}
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="water"
-            iconBg={isDark ? '#7c2d12' : O_PALE}
-            iconColor={O_MID}
+            iconBg={isDark ? 'rgba(234, 88, 12, 0.15)' : PALETTE.orangePale}
+            iconColor={PALETTE.orangeMid}
             label="Blood Type"
             subtitle={user.bloodType}
             isLast
             colors={colors}
+            styles={styles}
           />
         </View>
 
-        {/* ══════════════════════════════════════
-            NOTIFICATIONS
-            ══════════════════════════════════════ */}
+        {/* Notifications */}
         <SectionHeading
           title="Notifications"
           icon="notifications-outline"
-          color={O_MID}
+          color={PALETTE.orangeMid}
           textColor={colors.text}
+          styles={styles}
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
             icon="notifications"
-            iconBg={isDark ? '#7c2d12' : O_PALE}
-            iconColor={O_MID}
+            iconBg={isDark ? 'rgba(234, 88, 12, 0.15)' : PALETTE.orangePale}
+            iconColor={PALETTE.orangeMid}
             label="Push Notifications"
             subtitle="Receive alerts on your device"
             rightElement={
               <Switch
                 value={pushNotifs}
                 onValueChange={setPushNotifs}
-                trackColor={{ false: '#E2E8F0', true: '#10B981' }}
+                trackColor={{ false: colors.divider, true: colors.success }}
                 thumbColor="#FFFFFF"
                 style={styles.switchStyle}
               />
             }
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="alert-circle"
-            iconBg={isDark ? '#7f1d1d' : '#FEE2E2'}
-            iconColor="#DC2626"
+            iconBg={isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2'}
+            iconColor={colors.danger}
             label="Blood Request Alerts"
             subtitle={isDonor ? 'When someone needs your blood type' : 'Updates on your requests'}
             rightElement={
               <Switch
                 value={requestAlerts}
                 onValueChange={setRequestAlerts}
-                trackColor={{ false: '#E2E8F0', true: '#10B981' }}
+                trackColor={{ false: colors.divider, true: colors.success }}
                 thumbColor="#FFFFFF"
                 style={styles.switchStyle}
               />
             }
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="chatbubble"
-            iconBg={isDark ? '#0c4a6e' : '#E0F2FE'}
+            iconBg={isDark ? 'rgba(2, 132, 199, 0.15)' : '#E0F2FE'}
             iconColor="#0284C7"
             label="Message Notifications"
             subtitle="New message alerts"
@@ -347,50 +613,51 @@ export default function SettingsScreen() {
               <Switch
                 value={messageNotifs}
                 onValueChange={setMessageNotifs}
-                trackColor={{ false: '#E2E8F0', true: '#10B981' }}
+                trackColor={{ false: colors.divider, true: colors.success }}
                 thumbColor="#FFFFFF"
                 style={styles.switchStyle}
               />
             }
             isLast
             colors={colors}
+            styles={styles}
           />
         </View>
 
-        {/* ══════════════════════════════════════
-            PRIVACY & SECURITY
-            ══════════════════════════════════════ */}
+        {/* Privacy & Security */}
         <SectionHeading
           title="Privacy & Security"
           icon="shield-checkmark-outline"
           color="#8B5CF6"
           textColor={colors.text}
+          styles={styles}
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
             icon="eye-outline"
-            iconBg={isDark ? '#4c1d95' : '#F5F3FF'}
+            iconBg={isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF'}
             iconColor="#8B5CF6"
             label="Profile Visibility"
             subtitle={profileVisible ? 'Visible to others' : 'Hidden from searches'}
             rightElement={
-              saving ? (
-                <ActivityIndicator size="small" color={B_SKY} />
-              ) : (
-                <Switch
-                  value={profileVisible}
-                  onValueChange={handleToggleProfileVisibility}
-                  trackColor={{ false: '#E2E8F0', true: '#10B981' }}
-                  thumbColor="#FFFFFF"
-                  style={styles.switchStyle}
-                />
-              )
+              saving
+                ? <ActivityIndicator size="small" color={PALETTE.skyBlue} />
+                : (
+                  <Switch
+                    value={profileVisible}
+                    onValueChange={handleToggleProfileVisibility}
+                    trackColor={{ false: colors.divider, true: colors.success }}
+                    thumbColor="#FFFFFF"
+                    style={styles.switchStyle}
+                  />
+                )
             }
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="location-outline"
-            iconBg={isDark ? '#14532d' : '#F0FDF4'}
+            iconBg={isDark ? 'rgba(22, 163, 74, 0.15)' : '#F0FDF4'}
             iconColor="#16A34A"
             label="Location Sharing"
             subtitle="Allow nearby donor/requester discovery"
@@ -398,319 +665,208 @@ export default function SettingsScreen() {
               <Switch
                 value={locationSharing}
                 onValueChange={setLocationSharing}
-                trackColor={{ false: '#E2E8F0', true: '#10B981' }}
+                trackColor={{ false: colors.divider, true: colors.success }}
                 thumbColor="#FFFFFF"
                 style={styles.switchStyle}
               />
             }
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="document-text-outline"
-            iconBg={isDark ? '#4c1d95' : '#F5F3FF'}
+            iconBg={isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF'}
             iconColor="#8B5CF6"
             label="Data & Privacy"
             subtitle="Learn how we handle your data"
-            onPress={() => router.push('/(auth)/privacy-policy' as any)}
+            onPress={() => router.push('/(shared)/privacy-policy' as any)}
             isLast
             colors={colors}
+            styles={styles}
           />
         </View>
 
-        {/* ══════════════════════════════════════
-            APP PREFERENCES
-            ══════════════════════════════════════ */}
+        {/*App Preferences */}
         <SectionHeading
           title="App Preferences"
           icon="color-palette-outline"
           color="#0EA5E9"
           textColor={colors.text}
+          styles={styles}
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
-            icon={isDark ? 'moon' : 'moon-outline'}
-            iconBg={isDark ? '#0c4a6e' : '#F0F9FF'}
-            iconColor="#0EA5E9"
-            label="Dark Mode"
-            subtitle="Reduce eye strain in low light"
+            icon="sunny-outline"
+            iconBg={themeMode === 'light' ? 'rgba(37, 99, 235, 0.1)' : colors.surfaceAlt}
+            iconColor={PALETTE.skyBlue}
+            label="Light Mode"
+            onPress={() => setThemeMode('light')}
             rightElement={
-              <Switch
-                value={isDark}
-                onValueChange={toggleDarkMode}
-                trackColor={{ false: '#E2E8F0', true: '#10B981' }}
-                thumbColor="#FFFFFF"
-                style={styles.switchStyle}
-              />
+              themeMode === 'light'
+                ? <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                : undefined
             }
             colors={colors}
+            styles={styles}
+          />
+          <SettingsItem
+            icon="moon-outline"
+            iconBg={themeMode === 'dark' ? 'rgba(14, 165, 233, 0.1)' : colors.surfaceAlt}
+            iconColor="#0EA5E9"
+            label="Dark Mode"
+            onPress={() => setThemeMode('dark')}
+            rightElement={
+              themeMode === 'dark'
+                ? <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                : undefined
+            }
+            colors={colors}
+            styles={styles}
+          />
+          <SettingsItem
+            icon="settings-outline"
+            iconBg={themeMode === 'system' ? 'rgba(100, 116, 139, 0.1)' : colors.surfaceAlt}
+            iconColor="#64748B"
+            label="System Default"
+            subtitle="Sync with device settings"
+            onPress={() => setThemeMode('system')}
+            rightElement={
+              themeMode === 'system'
+                ? <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                : undefined
+            }
+            colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="language-outline"
-            iconBg={isDark ? '#0c4a6e' : '#E0F2FE'}
+            iconBg={isDark ? 'rgba(2, 132, 199, 0.15)' : '#E0F2FE'}
             iconColor="#0284C7"
             label="Language"
             subtitle="English"
             onPress={() => Alert.alert('Coming Soon', 'Multi-language support is on the roadmap.')}
             isLast
             colors={colors}
+            styles={styles}
           />
         </View>
 
-        {/* ══════════════════════════════════════
-            ABOUT & SUPPORT
-            ══════════════════════════════════════ */}
+        {/* About & Support  */}
         <SectionHeading
           title="About & Support"
           icon="information-circle-outline"
           color="#10B981"
           textColor={colors.text}
+          styles={styles}
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
             icon="star-outline"
-            iconBg={isDark ? '#78350f' : '#FEF3C7'}
+            iconBg={isDark ? 'rgba(217, 119, 6, 0.15)' : '#FEF3C7'}
             iconColor="#D97706"
             label="Rate BloodLink"
             subtitle="Love the app? Let us know!"
             onPress={() => router.push('/(shared)/rate-app' as any)}
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="document-outline"
-            iconBg={isDark ? '#14532d' : '#F0FDF4'}
+            iconBg={isDark ? 'rgba(22, 163, 74, 0.15)' : '#F0FDF4'}
             iconColor="#16A34A"
             label="Terms & Conditions"
-            onPress={() => router.push('/(auth)/terms-and-conditions' as any)}
+            onPress={() => router.push('/(shared)/terms-and-conditions' as any)}
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="shield-outline"
-            iconBg={isDark ? '#4c1d95' : '#F5F3FF'}
+            iconBg={isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF'}
             iconColor="#8B5CF6"
             label="Privacy Policy"
-            onPress={() => router.push('/(auth)/privacy-policy' as any)}
+            onPress={() => router.push('/(shared)/privacy-policy' as any)}
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="help-circle-outline"
-            iconBg={isDark ? '#0c4a6e' : '#E0F2FE'}
+            iconBg={isDark ? 'rgba(2, 132, 199, 0.15)' : '#E0F2FE'}
             iconColor="#0284C7"
             label="Help & Support"
             subtitle="Get assistance or report an issue"
             onPress={() => router.push('/(shared)/help-support' as any)}
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="logo-github"
-            iconBg={isDark ? '#1e293b' : '#F1F5F9'}
+            iconBg={isDark ? 'rgba(30, 41, 59, 0.15)' : '#F1F5F9'}
             iconColor={isDark ? '#94a3b8' : '#334155'}
             label="App Version"
             subtitle="BloodLink v2.1.0"
             isLast
             colors={colors}
+            styles={styles}
           />
         </View>
 
-        {/* ══════════════════════════════════════
-            DANGER ZONE
-            ══════════════════════════════════════ */}
+        {/*  Danger Zone  */}
         <SectionHeading
           title="Danger Zone"
           icon="warning-outline"
-          color="#DC2626"
+          color={colors.danger}
           textColor={colors.text}
+          styles={styles}
         />
         <View
           style={[
             styles.card,
-            { backgroundColor: colors.surface, borderColor: isDark ? colors.dangerBorder : '#FECACA' },
+            {
+              backgroundColor: colors.surface,
+              borderColor: isDark ? colors.dangerBorder : '#FECACA',
+            },
           ]}
         >
           <SettingsItem
             icon="trash-outline"
-            iconBg={isDark ? '#7f1d1d' : '#FEE2E2'}
-            iconColor="#DC2626"
+            iconBg={isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2'}
+            iconColor={colors.danger}
             label="Delete Account"
             subtitle="Permanently remove your data"
             onPress={handleDeleteAccount}
             danger
             colors={colors}
+            styles={styles}
           />
           <SettingsItem
             icon="log-out-outline"
-            iconBg={isDark ? '#7f1d1d' : '#FEE2E2'}
-            iconColor="#DC2626"
+            iconBg={isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2'}
+            iconColor={colors.danger}
             label="Logout"
             subtitle="Sign out of your account"
             onPress={handleLogout}
             danger
             isLast
             colors={colors}
+            styles={styles}
           />
         </View>
 
-        {/* Bottom spacer  */}
+        {/* Footer  */}
         <View style={styles.footer}>
           <View style={styles.footerDot} />
           <Text style={styles.footerText}>BloodLink · Made with ❤️ in Kenya 🇰🇪</Text>
           <View style={styles.footerDot} />
         </View>
       </ScrollView>
+
+      {/*  Logout confirmation modal  */}
+      <LogoutModal
+        visible={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onLogout={handleConfirmLogout}
+        isLoggingOut={isLoggingOut}
+      />
     </SafeAreaView>
   );
 }
-
-// ═════════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═════════════════════════════════════════════════════════════════════════════
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 12, fontSize: 16, fontWeight: '500' },
-  scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: 30 },
-
-  // HEADER
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  hCircle1: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    top: -50,
-    right: -40,
-  },
-  hCircle2: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    bottom: 10,
-    left: -25,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerCenter: { alignItems: 'center', flex: 1 },
-  headerTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF' },
-  headerSub: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-
-  // PROFILE BADGE
-  profileBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 16,
-    padding: 12,
-    gap: 12,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
-  profileBadgeAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  profileBadgeInitial: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
-  profileBadgeName: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
-  profileBadgeRole: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '600',
-    marginTop: 1,
-  },
-  editProfileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  editProfileBtnText: { fontSize: 12, fontWeight: '700', color: B_SKY },
-
-  // SECTIONS
-  sectionHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 22,
-    marginBottom: 10,
-    paddingHorizontal: 20,
-  },
-  sectionBar: { width: 4, height: 20, borderRadius: 2, marginRight: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '800' },
-
-  // CARD
-  card: {
-    marginHorizontal: 20,
-    borderRadius: 18,
-    borderWidth: 1,
-    overflow: 'hidden',
-    ...shadow(B_SKY, 0.07, 8, 2),
-  },
-
-  // SETTINGS ITEM
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderBottomWidth: 1,
-  },
-  settingsIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  settingsTextWrap: { flex: 1 },
-  settingsLabel: { fontSize: 14, fontWeight: '700' },
-  settingsSubtitle: { fontSize: 12, marginTop: 2, fontWeight: '500' },
-
-  switchStyle: { transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }] },
-
-  // FOOTER
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 20,
-  },
-  footerDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: O_MID },
-  footerText: { fontSize: 11, color: '#94A3B8', fontWeight: '500' },
-});

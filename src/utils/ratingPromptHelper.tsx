@@ -85,7 +85,7 @@ export const showRatingPrompt = async (
   onDismiss?: () => void
 ): Promise<void> => {
   const shouldPrompt = await shouldPromptForRating(userId);
-  
+
   if (!shouldPrompt) {
     return;
   }

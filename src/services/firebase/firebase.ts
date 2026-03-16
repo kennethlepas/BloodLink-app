@@ -1,11 +1,12 @@
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { initializeAuth } from 'firebase/auth';
-// @ts-ignore
+// @ts-ignore - The types might be missing in the wrapper but the function exists in the RN bundle
 import { getReactNativePersistence } from '@firebase/auth/dist/rn/index.js';
 import { getDatabase } from 'firebase/database';
 import { Firestore, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+
 const firebaseConfig = {
   apiKey: "AIzaSyBmbgEyTbdFFFwpxaLYdX3rRwvoWSL1wQ0",
   authDomain: "bloodlink-app-b9297.firebaseapp.com",
@@ -25,7 +26,7 @@ if (getApps().length === 0) {
   app = getApp();
 }
 
-// Initialize Auth with persistence
+// Initialize Auth with AsyncStorage persistence
 const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(ReactNativeAsyncStorage)
 });
@@ -36,11 +37,10 @@ try {
   db = initializeFirestore(app, {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager(),
-      cacheSizeBytes: 104857600, // 100 MB cache size
+      cacheSizeBytes: 104857600,
     }),
   });
 } catch (e) {
-  // Fallback if already initialized or error
   console.log('Using existing Firestore instance or fallback');
   db = getFirestore(app);
 }

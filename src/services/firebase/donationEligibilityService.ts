@@ -3,12 +3,9 @@ import { User } from '@/src/types/types';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { notifyDonorEligibleToDonate } from '../notification/notificationService';
 
-// ============================================================================
 // DONATION ELIGIBILITY CHECKER
-// Checks if donors are eligible to donate again and sends notifications
-// ============================================================================
 
-const DONATION_INTERVAL_DAYS = 56; // 8 weeks between donations (standard for whole blood)
+const DONATION_INTERVAL_DAYS = 56;
 
 /**
  * Calculate if donor is eligible to donate based on last donation date
@@ -145,7 +142,6 @@ export const getDonorEligibilityStatus = (lastDonationDate?: string) => {
 
 /**
  * Schedule donation eligibility check (to be called on app startup or in background)
- * In a production app, this would be handled by a backend cron job or cloud function
  */
 export const scheduleDonationEligibilityCheck = () => {
   // Check immediately on startup

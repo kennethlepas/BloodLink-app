@@ -1,4 +1,5 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
+import { LogoutModal } from '@/src/components/LogoutModal';
 import { useUser } from '@/src/contexts/UserContext';
 import { getUserBloodRequests, updateUser } from '@/src/services/firebase/database';
 import { BloodRequest } from '@/src/types/types';
@@ -10,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -154,7 +156,47 @@ interface RequestItemProps {
   onPress: () => void;
 }
 
-const RequestItem: React.FC<RequestItemProps> = ({ request, onPress }) => {
+const RequestListItem = ({ request, onPress }: RequestItemProps) => {
+  const getStatusConfig = (status: string) => {
+    const configs = {
+      pending: { color: COLORS.warning700, bg: COLORS.warning50, border: COLORS.warning200, icon: 'time-outline' as const, label: 'Pending' },
+      accepted: { color: COLORS.secondary700, bg: COLORS.secondary50, border: COLORS.secondary200, icon: 'checkmark-circle-outline' as const, label: 'Accepted' },
+      completed: { color: COLORS.success700, bg: COLORS.success50, border: COLORS.success200, icon: 'checkmark-done-circle-outline' as const, label: 'Completed' },
+      cancelled: { color: COLORS.accent700, bg: COLORS.accent50, border: COLORS.accent200, icon: 'close-circle-outline' as const, label: 'Cancelled' },
+    };
+    return configs[status as keyof typeof configs] || configs.pending;
+  };
+  const statusConfig = getStatusConfig(request.status);
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <TouchableOpacity style={styles.requestCard} onPress={onPress} activeOpacity={0.7}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="water" size={16} color={COLORS.accent600} />
+          <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.accent600 }}>{request.bloodType}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: statusConfig.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+          <Ionicons name={statusConfig.icon} size={12} color={statusConfig.color} />
+          <Text style={{ fontSize: 10, fontWeight: '700', color: statusConfig.color }}>{statusConfig.label}</Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.neutral900 }} numberOfLines={1}>
+            {request.hospitalName || 'Medical Facility'}
+          </Text>
+          <Text style={{ fontSize: 12, color: COLORS.neutral500, marginTop: 2 }}>{formatDate(request.createdAt)}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={COLORS.neutral400} />
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const RequestDetailView: React.FC<{ request: BloodRequest }> = ({ request }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -202,7 +244,7 @@ const RequestItem: React.FC<RequestItemProps> = ({ request, onPress }) => {
   const statusConfig = getStatusConfig(request.status);
 
   return (
-    <TouchableOpacity style={styles.requestCard} onPress={onPress} activeOpacity={0.7}>
+    <View style={styles.requestCard}>
       {/* Header */}
       <View style={styles.requestHeader}>
         <View style={styles.requestBloodType}>
@@ -261,9 +303,10 @@ const RequestItem: React.FC<RequestItemProps> = ({ request, onPress }) => {
           </Text>
         </View>
       )}
-    </TouchableOpacity>
+    </View>
   );
 };
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -277,6 +320,9 @@ const RequesterProfileScreen: React.FC = () => {
   const [requestHistory, setRequestHistory] = useState<BloodRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [viewRequest, setViewRequest] = useState<BloodRequest | null>(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     loadRequestHistory();
@@ -351,21 +397,19 @@ const RequesterProfileScreen: React.FC = () => {
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logout();
-            router.replace('/(auth)/login' as any);
-          } catch (error) {
-            console.error('Logout error:', error);
-          }
-        },
-      },
-    ]);
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      router.replace('/(auth)/login' as any);
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+      setIsLoggingOut(false);
+    }
   };
 
   const handleEditProfile = () => {
@@ -412,7 +456,7 @@ const RequesterProfileScreen: React.FC = () => {
           </View>
           <TouchableOpacity
             style={styles.headerButton}
-            onPress={() => Alert.alert('Settings', 'Settings coming soon')}
+            onPress={() => router.push('/(shared)/settings' as any)}
           >
             <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -507,7 +551,7 @@ const RequesterProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <TouchableOpacity style={styles.ctaCard} onPress={handleCreateRequest} activeOpacity={0.85}>
             <LinearGradient
-              colors={[COLORS.accent500, COLORS.accent600]}
+              colors={[COLORS.secondary500, COLORS.secondary600]}
               style={styles.ctaGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -578,10 +622,10 @@ const RequesterProfileScreen: React.FC = () => {
                   <Text style={styles.subsectionTitle}>ACTIVE REQUESTS</Text>
                   <View style={styles.requestsList}>
                     {activeRequests.slice(0, 3).map((request) => (
-                      <RequestItem
+                      <RequestListItem
                         key={request.id}
                         request={request}
-                        onPress={() => handleRequestPress(request)}
+                        onPress={() => setViewRequest(request)}
                       />
                     ))}
                   </View>
@@ -603,10 +647,10 @@ const RequesterProfileScreen: React.FC = () => {
                   <Text style={styles.subsectionTitle}>COMPLETED REQUESTS</Text>
                   <View style={styles.requestsList}>
                     {completedRequests.slice(0, 2).map((request) => (
-                      <RequestItem
+                      <RequestListItem
                         key={request.id}
                         request={request}
-                        onPress={() => handleRequestPress(request)}
+                        onPress={() => setViewRequest(request)}
                       />
                     ))}
                   </View>
@@ -702,6 +746,31 @@ const RequesterProfileScreen: React.FC = () => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Request Detail Modal */}
+      <Modal visible={!!viewRequest} transparent animationType="slide" onRequestClose={() => setViewRequest(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.lg, borderTopRightRadius: RADIUS.lg, padding: SPACING.xl, paddingBottom: SPACING.xxxl, maxHeight: '85%' }}>
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: SPACING.xl }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+              <Text style={{ flex: 1, fontSize: TYPOGRAPHY.xl, fontWeight: '700', color: COLORS.neutral900 }}>Request Details</Text>
+              <TouchableOpacity onPress={() => setViewRequest(null)} style={{ width: 32, height: 32, borderRadius: RADIUS.sm, backgroundColor: COLORS.neutral50, justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="close" size={22} color={COLORS.neutral500} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+              {viewRequest && <RequestDetailView request={viewRequest} />}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <LogoutModal
+        visible={showLogoutModal}
+        onCancel={() => setShowLogoutModal(false)}
+        onLogout={handleConfirmLogout}
+        isLoggingOut={isLoggingOut}
+      />
     </SafeAreaView>
   );
 };
@@ -1189,7 +1258,7 @@ const styles = StyleSheet.create({
   },
 
   bottomSpacer: {
-    height: SPACING.huge,
+    height: 120, // Increased for tab bar
   },
 });
 

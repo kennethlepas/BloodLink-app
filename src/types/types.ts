@@ -14,7 +14,7 @@ export interface InterestedDonor {
   requestId: string;
   interestedAt: string;
   status: 'pending' | 'selected' | 'declined';
-  message?: string; 
+  message?: string;
 }
 
 export interface Location {
@@ -25,6 +25,8 @@ export interface Location {
   region?: string;
 }
 
+export type VerificationStatus = 'unsubmitted' | 'pending' | 'approved' | 'rejected';
+
 export interface User {
   id: string;
   firstName: string;
@@ -33,12 +35,70 @@ export interface User {
   phoneNumber: string;
   bloodType: BloodType;
   userType: UserType;
+  //Location 
+  county?: string;
+  town?: string;
   location?: Location;
   profilePicture?: string;
   isActive: boolean;
-  isAvailable?: boolean; // For donors - whether they're available to donate
+  isAvailable?: boolean;
   lastDonationDate?: string; // ISO date string
   points?: number; // Reward points for donations
+  createdAt: string;
+  updatedAt: string;
+  // Verification
+  verificationStatus?: VerificationStatus;
+  isVerified?: boolean;
+  verificationRejectionReason?: string;
+  weight?: number;                         // Current weight in kg
+}
+
+// Donor Suitability Questionnaire (KNBTS standard) 
+export interface DonorQuestionnaire {
+  ageConfirmed: boolean;
+  weightValue?: number;         // Actual weight in kg
+  noFeverOrInfection: boolean;
+  noCurrentMedication: boolean;
+  noChronicDisease: boolean;    // No hypertension, diabetes, heart disease
+  noRecentTattoo: boolean;      // No tattoo/piercing in last 6 months
+  noRecentSurgery: boolean;     // No surgery in last 6 months
+  noRecentVaccination: boolean; // No vaccination in last 1 month
+  noHIVHepatitis: boolean;
+  noRecentMalaria: boolean;
+  hasInfectiousDiseases: boolean; // Explicit declaration
+  lastDonationDate?: string;    // Optional: when they last donated
+  consentText: string;          // Stored verbatim for audit trail
+}
+
+//Verification Request 
+export interface VerificationRequest {
+  id: string;
+  userId: string;
+  userType: UserType;
+  // Donor fields
+  nationalIdPhotoUrl?: string;
+  selfiePhotoUrl?: string;
+  donorCardPhotoUrl?: string;         // optional
+  bloodTestReportUrl?: string;         //optional
+  medicalDeclarationAccepted?: boolean;
+  donorQuestionnaire?: DonorQuestionnaire;
+  // Requester fields
+  hospitalRequisitionFormUrl?: string; // Cloudinary URL 
+  selectedHospitalMflCode?: string;
+  selectedHospitalName?: string;
+  patientName?: string;
+  patientMrnNumber?: string;
+  wardBedNumber?: string;
+  diagnosis?: string;
+  bloodComponentNeeded?: string;
+  bloodComponent?: string;
+  doctorName?: string;
+  informedConsentAccepted?: boolean;
+  // Status
+  status: 'pending' | 'approved' | 'rejected';
+  adminNotes?: string;
+  submittedAt: string;
+  reviewedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,6 +148,9 @@ export interface BloodRequest {
   description?: string;
   notes?: string;
   status: RequestStatus;
+  hospitalFormUrl?: string;
+  bloodComponent?: string;
+  selectedHospitalId?: string;
   interestedDonorIds?: string[];
   selectedDonorId?: string;
   acceptedDonorId?: string;
@@ -97,17 +160,15 @@ export interface BloodRequest {
   completedAt?: string;
 }
 
-// ============================================================================
-// NEW: Accepted Request (Donor Commitment) Type
-// ============================================================================
 
-export type AcceptedRequestStatus = 'pending' | 'in_progress' | 'pending_verification'   | 'verified'  | 'disputed'  | 'completed' | 'cancelled';
+// Accepted Request (Donor Commitment) Type
+export type AcceptedRequestStatus = 'pending' | 'in_progress' | 'pending_verification' | 'verified' | 'disputed' | 'completed' | 'cancelled';
 
 export interface AcceptedRequest {
   id: string;
   donorId: string;
   donorName: string;
-  requesterId: string; 
+  requesterId: string;
   requestId: string;
   bloodType: BloodType;
   urgencyLevel: UrgencyLevel;
@@ -118,25 +179,25 @@ export interface AcceptedRequest {
   patientName: string;
   location: Location;
   unitsNeeded: number;
+  bloodComponent?: string;
   notes?: string;
   status: AcceptedRequestStatus;
   acceptedDate: string;
   chatId: string;
   scheduledDate?: string;
   completedDate?: string;
-  donationRecordId?: string; // Link to DonationRecord when completed
+  donationRecordId?: string;
   cancellationReason?: string;
   donorCompletedAt?: string;
-  donorNotes?: string; 
+  donorNotes?: string;
   requesterVerifiedAt?: string;
-  requesterVerificationNotes?: string; 
+  requesterVerificationNotes?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-// ============================================================================
+
 // Donation Record
-// ============================================================================
 
 export interface DonationRecord {
   id: string;
@@ -148,16 +209,17 @@ export interface DonationRecord {
   location?: Location;
   bloodBankId?: string;
   bloodBankName?: string;
-  unitsCollected?: number; // Added field for units collected
+  unitsCollected?: number;
   certificateUrl?: string;
   pointsEarned: number;
+  bloodComponent?: string;
   notes?: string;
   createdAt: string;
 }
 
 // Blood Bank Types
 export interface BloodBankInventory {
-  [key: string]: { // blood type as key
+  [key: string]: {
     units: number;
     lastUpdated: string;
   };
@@ -171,55 +233,41 @@ export interface BloodBank {
   phoneNumber: string;
   email?: string;
   operatingHours: {
-    open: string; 
-    close: string; 
+    open: string;
+    close: string;
   };
   inventory: BloodBankInventory;
   isVerified: boolean;
   rating?: number;
-  distance?: number; // Optional computed field for searches
+  distance?: number;
   createdAt: string;
   updatedAt: string;
 }
 
 // Chat Types
-export interface ChatMessage {
-  id: string;
-  chatId: string;
-  senderId: string;
-  senderName: string;
-  receiverId: string;
-  message: string;
-  timestamp: string;
-  isRead: boolean;
-  type: 'text' | 'image' | 'location';
-  imageUrl?: string;
-  location?: Location;
-}
-
 export interface Chat {
   id: string;
-  participants: string[]; // array of user IDs
+  participants: string[];
   participantNames: { [userId: string]: string };
   lastMessage: string;
   lastMessageTime: string;
   unreadCount: { [userId: string]: number };
-  requestId?: string; // if chat is related to a blood request
+  requestId?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 // Notification Types
-export type NotificationType = 
-  | 'blood_request' 
-  | 'request_accepted' 
+export type NotificationType =
+  | 'blood_request'
+  | 'request_accepted'
   | 'request_completed'
-  | 'request_fulfilled'  
+  | 'request_fulfilled'
   | 'donor_interested'
-  | 'verify_donation' 
+  | 'verify_donation'
   | 'donation_verified'
   | 'donation_disputed'
-  | 'new_message' 
+  | 'new_message'
   | 'donor_nearby'
   | 'donation_reminder'
   | 'system_alert';
@@ -249,7 +297,7 @@ export interface Post {
   content: string;
   imageUrl?: string;
   type: 'general' | 'success_story' | 'urgent_request' | 'awareness';
-  likes: string[]; // array of user IDs who liked
+  likes: string[];
   comments: Comment[];
   createdAt: string;
   updatedAt: string;
@@ -274,7 +322,8 @@ export interface SignupFormData {
   confirmPassword: string;
   bloodType: BloodType;
   userType: UserType;
-  weight?: number;
+  county?: string;
+  town?: string;
   location?: Location;
 }
 
@@ -289,6 +338,7 @@ export interface BloodRequestFormData {
   unitsNeeded: number;
   hospitalName: string;
   hospitalAddress: string;
+  bloodComponent: string;
   description: string;
   location: Location;
 }
@@ -348,7 +398,6 @@ export interface AuthContextType {
   isLoading: boolean;
 }
 
-// Add to existing ChatMessage interface
 export interface ChatMessage {
   id: string;
   chatId: string;
@@ -361,8 +410,7 @@ export interface ChatMessage {
   type: 'text' | 'image' | 'location';
   imageUrl?: string;
   location?: Location;
-  // Add these new fields
-  replyTo?: string; // Message ID being replied to
+  replyTo?: string;
   isEdited?: boolean;
   editedAt?: string;
   deliveredAt?: string;

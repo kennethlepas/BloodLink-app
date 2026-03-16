@@ -80,14 +80,15 @@ const LoginScreen: React.FC = () => {
   const validateField = (field: keyof LoginFormData, value: string): string | undefined => {
     switch (field) {
       case 'email':
-        if (!value.trim()) {
+        const trimmedValue = value.trim();
+        if (!trimmedValue) {
           return 'Email is required';
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(value)) {
+        if (!emailRegex.test(trimmedValue)) {
           return 'Please enter a valid email address';
         }
-        if (value.length > 100) {
+        if (trimmedValue.length > 100) {
           return 'Email must be less than 100 characters';
         }
         break;
@@ -260,6 +261,11 @@ const LoginScreen: React.FC = () => {
 
       await login(userContextData);
 
+      if (!result.user.emailVerified) {
+        router.replace('/(auth)/verify-email' as any);
+        return;
+      }
+
       if (result.userData.userType === 'donor') {
         router.replace('/(donor)' as any);
       } else if (result.userData.userType === 'requester') {
@@ -267,7 +273,7 @@ const LoginScreen: React.FC = () => {
       }
 
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.log('Login error:', error);
 
       const errorMessage = error?.message || 'Invalid email or password. Please check your credentials and try again.';
 
@@ -361,7 +367,7 @@ const LoginScreen: React.FC = () => {
               {/* Logo */}
               <View style={styles.logoContainer}>
                 <View style={styles.logoCard}>
-                  <View style={styles.logoGlowEffect} />
+
                   <View style={styles.logoImageContainer}>
                     <Image
                       source={require('@/assets/images/logo.jpg')}
@@ -521,30 +527,12 @@ const styles = StyleSheet.create({
   },
   logoCard: {
     position: 'relative',
-    marginBottom: verticalScale(10),
-  },
-  logoGlowEffect: {
-    position: 'absolute',
-    width: moderateScale(110),
-    height: moderateScale(110),
-    borderRadius: 28,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    top: '50%',
-    left: '50%',
-    transform: [
-      { translateX: -moderateScale(55) },
-      { translateY: -moderateScale(55) },
-    ],
-    ...(Platform.OS === 'web'
-      ? {
-        filter: 'blur(20px)',
-      } as any
-      : {}),
+    marginBottom: verticalScale(12),
   },
   logoImageContainer: {
-    width: moderateScale(95),
-    height: moderateScale(95),
-    borderRadius: 24,
+    width: moderateScale(100),
+    height: moderateScale(120),
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -552,32 +540,30 @@ const styles = StyleSheet.create({
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 24,
+    borderRadius: 10,
+  },
+  logoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontSize: moderateScale(50),
   },
   logoBadge: {
     position: 'absolute',
-    bottom: -15,
-    right: -10,
+    bottom: -18,
+    right: -22,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#10B981',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 16,
     borderWidth: 3,
     borderColor: '#144272',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 4px 12px rgba(16, 185, 129, 0.4)',
-      } as any
-      : {
-        shadowColor: "#10B981",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-        elevation: 8,
-      }),
   },
   badgeDot: {
     width: 5,

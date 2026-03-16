@@ -70,7 +70,7 @@ const UserTypeSelectionScreen: React.FC = () => {
           {/* Logo Section */}
           <View style={styles.logoSection}>
             <View style={styles.logoCard}>
-              <View style={styles.logoGlowEffect} />
+
               <View style={styles.logoImageContainer}>
                 <Image
                   source={require('@/assets/images/logo.jpg')}
@@ -314,78 +314,43 @@ const styles = StyleSheet.create({
   },
   logoCard: {
     position: 'relative',
-    marginBottom: verticalScale(10),
-  },
-  logoGlowEffect: {
-    position: 'absolute',
-    width: moderateScale(110),
-    height: moderateScale(110),
-    borderRadius: 28,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    top: '50%',
-    left: '50%',
-    transform: [
-      { translateX: -moderateScale(55) },
-      { translateY: -moderateScale(55) },
-    ],
-    ...(Platform.OS === 'web'
-      ? {
-        filter: 'blur(20px)',
-      } as any
-      : {}),
+    marginBottom: verticalScale(12),
   },
   logoImageContainer: {
-    width: moderateScale(95),
-    height: moderateScale(95),
-    borderRadius: 24,
-    backgroundColor: '#f6ededd1',
+    width: moderateScale(100),
+    height: moderateScale(120),
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: scale(1),
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
     overflow: 'hidden',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.3)',
-      } as any
-      : {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 12,
-      }),
   },
   logoImage: {
-    width: '90%',
-    height: '90%',
-    borderRadius: 40,
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
+  logoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontSize: moderateScale(50),
   },
   logoBadge: {
     position: 'absolute',
-    bottom: -15,
-    right: -10,
+    bottom: -18,
+    right: -22,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#10B981',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 16,
     borderWidth: 3,
     borderColor: '#144272',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 4px 12px rgba(16, 185, 129, 0.4)',
-      } as any
-      : {
-        shadowColor: "#10B981",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-        elevation: 8,
-      }),
   },
   badgeDot: {
     width: 5,

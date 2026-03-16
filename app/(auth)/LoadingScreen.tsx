@@ -32,6 +32,8 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('Initializing...');
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  const [canProceed, setCanProceed] = useState(false);
 
   // Content for the carousel
   const LOADING_MESSAGES = [
@@ -148,7 +150,6 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
       { progress: 60, message: 'Checking connection...', delay: 900 },
       { progress: 75, message: 'Setting up your account...', delay: 900 },
       { progress: 90, message: 'Almost ready...', delay: 800 },
-      { progress: 100, message: 'Welcome to BloodLink!', delay: 1000 },
     ];
 
     for (const step of steps) {
@@ -163,14 +164,69 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
       }).start();
     }
 
+    // Wait for user to scroll to bottom
+    setStatusMessage('Scroll down to continue...');
+
+    // Auto-proceed after 6 seconds if user hasn't scrolled
     setTimeout(() => {
-      if (onLoadComplete) {
-        onLoadComplete();
-      } else {
-        router.replace('/(auth)/welcome' as any);
+      if (!hasScrolledToBottom) {
+        setHasScrolledToBottom(true);
+        setLoadingProgress(100);
+        setStatusMessage('Welcome to BloodLink!');
+
+        Animated.timing(progressAnim, {
+          toValue: 100,
+          duration: 400,
+          useNativeDriver: false,
+        }).start();
+
+        setTimeout(() => {
+          setCanProceed(true);
+        }, 1500);
       }
-    }, 1500);
+    }, 6000);
   };
+
+  // Handle scroll event to track user progress
+  const handleScroll = (event: any) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    const scrollPosition = contentOffset.y;
+    const scrollViewHeight = layoutMeasurement.height;
+    const contentHeight = contentSize.height;
+
+    // Check if user has scrolled near the bottom (within 100px)
+    const isNearBottom = scrollPosition + scrollViewHeight >= contentHeight - 100;
+
+    if (isNearBottom && !hasScrolledToBottom) {
+      setHasScrolledToBottom(true);
+      setLoadingProgress(100);
+      setStatusMessage('Welcome to BloodLink!');
+
+      Animated.timing(progressAnim, {
+        toValue: 100,
+        duration: 400,
+        useNativeDriver: false,
+      }).start();
+
+      // Allow proceeding after a short delay
+      setTimeout(() => {
+        setCanProceed(true);
+      }, 1500);
+    }
+  };
+
+  // Proceed to next screen when ready
+  useEffect(() => {
+    if (canProceed) {
+      setTimeout(() => {
+        if (onLoadComplete) {
+          onLoadComplete();
+        } else {
+          router.replace('/(auth)/welcome' as any);
+        }
+      }, 500);
+    }
+  }, [canProceed]);
 
   if (!imagesLoaded) {
     return <View style={[styles.container, { backgroundColor: '#0A2647' }]} />;
@@ -181,8 +237,8 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
       {/* First Background Image */}
       <ImageBackground
         source={require('@/assets/images/loading-bg1.jpg')}
-        style={styles.backgroundImage}
-        resizeMode="cover"
+        style={[styles.backgroundImage, { top: -30 }]}
+        resizeMode="contain"
       >
         <LinearGradient
           colors={['rgba(10, 38, 71, 0.2)', 'rgba(10, 38, 71, 0.8)', 'rgba(10, 38, 71, 0.95)']}
@@ -222,6 +278,8 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
           ]}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
           {/* HEADER SECTION - Logo and App Name */}
           <View style={styles.headerSection}>
@@ -235,7 +293,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
             >
               <Image
                 source={require('@/assets/images/logo.jpg')}
-                style={styles.logo}
+                style={styles.logoImage}
                 resizeMode="contain"
               />
             </Animated.View>
@@ -384,15 +442,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A2647',
   },
   backgroundImage: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
     width: '100%',
     height: '100%',
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   safeArea: {
     flex: 1,
+    zIndex: 2,
   },
   secondBackgroundContainer: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -414,16 +478,28 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: moderateScale(100),
     height: moderateScale(100),
-    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: verticalScale(12),
+    backgroundColor: 'rgba(128, 128, 128, 0.5)',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(160, 160, 160, 0.4)',
     overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? {
+        boxShadow: '0px 0px 40px rgba(128, 128, 128, 0.8), 0px 0px 20px rgba(160, 160, 160, 0.6)',
+      } as any
+      : {
+        shadowColor: '#A0A0A0',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 20,
+      }),
   },
-  logo: {
+  logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 24,
   },
   appName: {
     fontSize: moderateScale(32),

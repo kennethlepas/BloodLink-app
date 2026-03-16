@@ -38,7 +38,7 @@ const LogoutScreen: React.FC<LogoutScreenProps> = ({
       console.error('❌ Logout error:', error);
       setStatus('error');
       onError?.(error as Error);
-      
+
       // Navigate away on error after brief delay
       setTimeout(() => {
         console.log('Navigating away after error...');
@@ -54,7 +54,7 @@ const LogoutScreen: React.FC<LogoutScreenProps> = ({
   const handleCancel = () => {
     console.log('🚫 User cancelled logout');
     setShowModal(false);
-    
+
     // Navigate back immediately on cancel
     setTimeout(() => {
       if (router.canGoBack()) {
@@ -70,7 +70,6 @@ const LogoutScreen: React.FC<LogoutScreenProps> = ({
     if (!showConfirmation) {
       handleConfirm();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -84,7 +83,7 @@ const LogoutScreen: React.FC<LogoutScreenProps> = ({
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
-      
+
       {status !== 'idle' && (
         <View style={styles.container}>
           <ActivityIndicator size="large" color="#1b8882ff" />

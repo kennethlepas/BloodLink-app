@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import {
     Animated,
     Dimensions,
+    Image,
     Linking,
     Platform,
     ScrollView,
@@ -21,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ─── Brand Palette (static) ──────────────────────────────────────────────────
+
 const B_SKY = '#2563EB';
 const B_LIGHT = '#3B82F6';
 const B_SOFT = '#60A5FA';
@@ -31,7 +32,7 @@ const O_MID = '#EA580C';
 const O_LITE = '#FB923C';
 const O_PALE = '#FFF7ED';
 
-// ─── Shadow helper ───────────────────────────────────────────────────────────
+
 const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
     Platform.select({
         web: { boxShadow: `0 2px ${radius}px rgba(0,0,0,${opacity})` } as any,
@@ -44,7 +45,7 @@ const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
         },
     });
 
-// ─── FAQ Data ────────────────────────────────────────────────────────────────
+
 type FAQItem = { q: string; a: string; icon: keyof typeof Ionicons.glyphMap; category: string };
 
 const FAQ_DATA: FAQItem[] = [
@@ -98,12 +99,13 @@ const FAQ_DATA: FAQItem[] = [
     },
 ];
 
-// ─── Accordion FAQ Component ─────────────────────────────────────────────────
-const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: any; isDark: boolean }> = ({
+// Accordion FAQ Component 
+const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: any; isDark: boolean; styles: any }> = ({
     item,
     index,
     colors,
     isDark,
+    styles,
 }) => {
     const [expanded, setExpanded] = useState(false);
     const animValue = useState(new Animated.Value(0))[0];
@@ -123,15 +125,10 @@ const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: any; isDark
         outputRange: ['0deg', '180deg'],
     });
 
-    // Dynamic icon background for dark mode
     const iconBg =
         index % 2 === 0
-            ? isDark
-                ? '#1e3a8a'
-                : B_PALE
-            : isDark
-                ? '#7c2d12'
-                : O_PALE;
+            ? isDark ? 'rgba(37, 99, 235, 0.15)' : B_PALE
+            : isDark ? 'rgba(234, 88, 12, 0.15)' : O_PALE;
 
     return (
         <TouchableOpacity
@@ -165,14 +162,278 @@ const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: any; isDark
     );
 };
 
-// ═════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═════════════════════════════════════════════════════════════════════════════
 export default function HelpSupportScreen() {
     const router = useRouter();
     const { user } = useUser();
     const { colors, isDark } = useAppTheme();
     const [searchQuery, setSearchQuery] = useState('');
+
+    const styles = StyleSheet.create({
+        container: { flex: 1, backgroundColor: colors.bg },
+        scrollView: { flex: 1 },
+        scrollContent: { paddingBottom: 20 },
+
+        // HEADER
+        header: {
+            paddingHorizontal: 20,
+            paddingTop: 10,
+            paddingBottom: 22,
+            borderBottomLeftRadius: 28,
+            borderBottomRightRadius: 28,
+            overflow: 'hidden',
+            position: 'relative',
+        },
+        hCircle1: {
+            position: 'absolute',
+            width: 160,
+            height: 160,
+            borderRadius: 80,
+            backgroundColor: 'rgba(255,255,255,0.05)',
+            top: -50,
+            right: -40,
+        },
+        hCircle2: {
+            position: 'absolute',
+            width: 100,
+            height: 100,
+            borderRadius: 50,
+            backgroundColor: 'rgba(255,255,255,0.06)',
+            bottom: 10,
+            left: -25,
+        },
+        headerRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+        },
+        backBtn: {
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            backgroundColor: 'rgba(0,0,0,0.18)',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        headerCenter: { alignItems: 'center', flex: 1 },
+        headerTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF' },
+        headerSub: {
+            fontSize: 12,
+            color: 'rgba(255,255,255,0.8)',
+            marginTop: 2,
+            fontWeight: '600',
+        },
+
+        heroCard: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
+            backgroundColor: 'rgba(255,255,255,0.18)',
+            borderRadius: 16,
+            padding: 14,
+            borderWidth: 1.5,
+            borderColor: 'rgba(255,255,255,0.25)',
+        },
+        heroIconWrap: {
+            width: 52,
+            height: 52,
+            borderRadius: 16,
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        heroTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+        heroSub: {
+            fontSize: 12,
+            color: 'rgba(255,255,255,0.85)',
+            lineHeight: 18,
+            fontWeight: '500',
+        },
+
+        searchSection: { paddingHorizontal: 20, marginTop: 18, marginBottom: 4 },
+        searchBox: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            borderRadius: 14,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            borderWidth: 1.5,
+            ...shadow(B_SKY, 0.07, 8, 2),
+            backgroundColor: colors.surface, borderColor: colors.surfaceBorder
+        },
+        searchInput: {
+            flex: 1,
+            fontSize: 15,
+            fontWeight: '500',
+            paddingVertical: 0,
+            color: colors.text
+        },
+
+        section: { marginTop: 22, paddingHorizontal: 20 },
+        sectionHdr: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+        sectionBar: { width: 4, height: 20, borderRadius: 2, marginRight: 8 },
+        sectionTitle: { fontSize: 17, fontWeight: '800', flex: 1, color: colors.text },
+
+        contactGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+        contactCard: {
+            width: (SCREEN_WIDTH - 40 - 12) / 2,
+            borderRadius: 16,
+            padding: 16,
+            alignItems: 'center',
+            borderWidth: 1,
+            ...shadow(B_SKY, 0.07, 8, 2),
+            backgroundColor: colors.surface, borderColor: colors.surfaceBorder
+        },
+        contactIconGrad: {
+            width: 48,
+            height: 48,
+            borderRadius: 14,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: 10,
+        },
+        contactTitle: { fontSize: 13, fontWeight: '700', marginBottom: 3, color: colors.text },
+        contactSubtitle: { fontSize: 11, fontWeight: '500', textAlign: 'center', color: colors.textSecondary },
+
+        faqCard: {
+            borderRadius: 16,
+            marginBottom: 10,
+            borderWidth: 1,
+            overflow: 'hidden',
+            ...shadow('#000', 0.05, 6, 2),
+        },
+        faqHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            padding: 14,
+        },
+        faqIconWrap: {
+            width: 38,
+            height: 38,
+            borderRadius: 11,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        faqTextWrap: { flex: 1 },
+        faqCategory: {
+            fontSize: 10,
+            fontWeight: '700',
+            color: B_SKY,
+            letterSpacing: 0.5,
+            marginBottom: 3,
+        },
+        faqQuestion: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
+        faqAnswer: {
+            flexDirection: 'row',
+            gap: 12,
+            paddingHorizontal: 14,
+            paddingBottom: 16,
+            paddingTop: 4,
+        },
+        faqAnswerBar: {
+            width: 3,
+            borderRadius: 2,
+            backgroundColor: B_SOFT,
+            marginLeft: 18,
+            alignSelf: 'stretch',
+        },
+        faqAnswerText: { flex: 1, fontSize: 13, lineHeight: 21, fontWeight: '500' },
+
+        quickLinksCard: {
+            borderRadius: 18,
+            borderWidth: 1,
+            overflow: 'hidden',
+            ...shadow(B_SKY, 0.07, 8, 2),
+            backgroundColor: colors.surface, borderColor: colors.surfaceBorder
+        },
+        quickLinkItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            paddingVertical: 14,
+            paddingHorizontal: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.divider
+        },
+        quickLinkIcon: {
+            width: 38,
+            height: 38,
+            borderRadius: 11,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        quickLinkLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.text },
+
+        emergencyBanner: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            borderRadius: 18,
+            padding: 16,
+            ...shadow('#DC2626', 0.2, 10, 4),
+        },
+        emergencyIconWrap: {
+            width: 44,
+            height: 44,
+            borderRadius: 13,
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        emergencyTitle: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', marginBottom: 3 },
+        emergencySub: {
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.85)',
+            lineHeight: 16,
+            fontWeight: '500',
+        },
+        emergencyCallBtn: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 5,
+            backgroundColor: '#FFFFFF',
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 12,
+        },
+        emergencyCallText: { fontSize: 14, fontWeight: '800', color: '#DC2626' },
+
+        emptyState: { alignItems: 'center', padding: 30 },
+        emptyIconBox: {
+            width: 70,
+            height: 70,
+            borderRadius: 35,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: 14,
+        },
+        emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6, color: colors.text },
+        emptySub: { fontSize: 13, textAlign: 'center', color: colors.textSecondary },
+
+        appInfoCard: {
+            alignItems: 'center',
+            marginTop: 24,
+            paddingVertical: 20,
+        },
+        appInfoLogoWrap: {
+            width: 72,
+            height: 86,
+            borderRadius: 20,
+            overflow: 'hidden',
+            marginBottom: 12,
+            ...shadow('#000', 0.12, 10, 4),
+        },
+        appInfoLogoImage: {
+            width: '100%',
+            height: '100%',
+            borderRadius: 20,
+        },
+        appInfoName: { fontSize: 18, fontWeight: '900', marginBottom: 2, color: colors.text },
+        appInfoVersion: { fontSize: 12, fontWeight: '600', marginBottom: 4, color: colors.textSecondary },
+        appInfoTagline: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
+    });
 
     const filteredFaqs = searchQuery.trim()
         ? FAQ_DATA.filter(
@@ -192,8 +453,6 @@ export default function HelpSupportScreen() {
             icon: 'mail' as keyof typeof Ionicons.glyphMap,
             title: 'Email Us',
             subtitle: 'support@bloodlink.co.ke',
-            color: B_SKY,
-            bg: isDark ? '#1e3a8a' : B_PALE,
             gradient: [B_SKY, B_LIGHT] as [string, string],
             onPress: () => openLink('mailto:support@bloodlink.co.ke'),
         },
@@ -201,8 +460,6 @@ export default function HelpSupportScreen() {
             icon: 'logo-whatsapp' as keyof typeof Ionicons.glyphMap,
             title: 'WhatsApp',
             subtitle: '+254 700 000 000',
-            color: '#25D366',
-            bg: isDark ? '#14532d' : '#E8F5E9',
             gradient: ['#25D366', '#128C7E'] as [string, string],
             onPress: () => openLink('https://wa.me/254700000000'),
         },
@@ -210,8 +467,6 @@ export default function HelpSupportScreen() {
             icon: 'call' as keyof typeof Ionicons.glyphMap,
             title: 'Call Us',
             subtitle: '+254 700 000 000',
-            color: '#8B5CF6',
-            bg: isDark ? '#4c1d95' : '#F5F3FF',
             gradient: ['#8B5CF6', '#7C3AED'] as [string, string],
             onPress: () => openLink('tel:+254700000000'),
         },
@@ -219,8 +474,6 @@ export default function HelpSupportScreen() {
             icon: 'logo-twitter' as keyof typeof Ionicons.glyphMap,
             title: 'X / Twitter',
             subtitle: '@bloodlinkapp',
-            color: isDark ? '#e2e8f0' : '#0F1419',
-            bg: isDark ? '#334155' : '#E7E7E7',
             gradient: ['#1DA1F2', '#0D8BD9'] as [string, string],
             onPress: () => openLink('https://twitter.com/bloodlinkapp'),
         },
@@ -231,38 +484,42 @@ export default function HelpSupportScreen() {
             icon: 'document-text-outline' as keyof typeof Ionicons.glyphMap,
             label: 'Terms & Conditions',
             color: B_SKY,
-            bg: isDark ? '#1e3a8a' : B_PALE,
+            bg: isDark ? 'rgba(37, 99, 235, 0.15)' : B_PALE,
             onPress: () => router.push('/(auth)/terms-and-conditions' as any),
         },
         {
             icon: 'shield-outline' as keyof typeof Ionicons.glyphMap,
             label: 'Privacy Policy',
             color: '#8B5CF6',
-            bg: isDark ? '#4c1d95' : '#F5F3FF',
+            bg: isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF',
             onPress: () => router.push('/(auth)/privacy-policy' as any),
         },
         {
             icon: 'star-outline' as keyof typeof Ionicons.glyphMap,
             label: 'Rate the App',
             color: '#D97706',
-            bg: isDark ? '#78350f' : '#FEF3C7',
+            bg: isDark ? 'rgba(217, 119, 6, 0.15)' : '#FEF3C7',
             onPress: () => router.push('/(shared)/rate-app' as any),
         },
         {
             icon: 'settings-outline' as keyof typeof Ionicons.glyphMap,
             label: 'Settings',
             color: '#0EA5E9',
-            bg: isDark ? '#0c4a6e' : '#E0F2FE',
+            bg: isDark ? 'rgba(14, 165, 233, 0.15)' : '#E0F2FE',
             onPress: () => router.push('/(shared)/settings' as any),
         },
     ];
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <StatusBar barStyle="light-content" backgroundColor={B_SKY} />
 
-            {/* ══ HEADER ══ */}
-            <LinearGradient colors={[B_SKY, B_LIGHT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+            <LinearGradient
+                colors={[B_SKY, B_LIGHT]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.header}
+            >
                 <View style={styles.hCircle1} />
                 <View style={styles.hCircle2} />
 
@@ -277,11 +534,10 @@ export default function HelpSupportScreen() {
                     <View style={{ width: 42 }} />
                 </View>
 
-                {/* Hero card */}
                 <View style={styles.heroCard}>
-                    <LinearGradient colors={[O_MID, O_DEEP]} style={styles.heroIconWrap}>
+                    <View style={[styles.heroIconWrap, { backgroundColor: 'rgba(234,88,12,0.85)' }]}>
                         <Ionicons name="headset" size={28} color="#FFFFFF" />
-                    </LinearGradient>
+                    </View>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.heroTitle}>Need Assistance?</Text>
                         <Text style={styles.heroSub}>
@@ -296,17 +552,11 @@ export default function HelpSupportScreen() {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* ══ SEARCH ══ */}
                 <View style={styles.searchSection}>
-                    <View
-                        style={[
-                            styles.searchBox,
-                            { backgroundColor: colors.surface, borderColor: colors.surfaceBorder },
-                        ]}
-                    >
+                    <View style={styles.searchBox}>
                         <Ionicons name="search" size={20} color={colors.textMuted} />
                         <TextInput
-                            style={[styles.searchInput, { color: colors.text }]}
+                            style={styles.searchInput}
                             placeholder="Search FAQs..."
                             placeholderTextColor={colors.textMuted}
                             value={searchQuery}
@@ -321,29 +571,25 @@ export default function HelpSupportScreen() {
                     </View>
                 </View>
 
-                {/* ══ CONTACT METHODS ══ */}
                 <View style={styles.section}>
                     <View style={styles.sectionHdr}>
                         <View style={[styles.sectionBar, { backgroundColor: O_MID }]} />
                         <Ionicons name="chatbubbles-outline" size={16} color={O_MID} style={{ marginRight: 6 }} />
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Contact Us</Text>
+                        <Text style={styles.sectionTitle}>Contact Us</Text>
                     </View>
                     <View style={styles.contactGrid}>
                         {contactMethods.map((method, i) => (
                             <TouchableOpacity
                                 key={i}
-                                style={[
-                                    styles.contactCard,
-                                    { backgroundColor: colors.surface, borderColor: colors.surfaceBorder },
-                                ]}
+                                style={styles.contactCard}
                                 onPress={method.onPress}
                                 activeOpacity={0.75}
                             >
                                 <LinearGradient colors={method.gradient} style={styles.contactIconGrad}>
                                     <Ionicons name={method.icon} size={22} color="#FFFFFF" />
                                 </LinearGradient>
-                                <Text style={[styles.contactTitle, { color: colors.text }]}>{method.title}</Text>
-                                <Text style={[styles.contactSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                                <Text style={styles.contactTitle}>{method.title}</Text>
+                                <Text style={styles.contactSubtitle} numberOfLines={1}>
                                     {method.subtitle}
                                 </Text>
                             </TouchableOpacity>
@@ -351,50 +597,42 @@ export default function HelpSupportScreen() {
                     </View>
                 </View>
 
-                {/* ══ FAQS ══ */}
                 <View style={styles.section}>
                     <View style={styles.sectionHdr}>
                         <View style={[styles.sectionBar, { backgroundColor: B_SKY }]} />
                         <Ionicons name="help-circle-outline" size={16} color={B_SKY} style={{ marginRight: 6 }} />
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Frequently Asked Questions</Text>
+                        <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
                     </View>
 
                     {filteredFaqs.length > 0 ? (
                         filteredFaqs.map((faq, i) => (
-                            <FAQAccordion key={i} item={faq} index={i} colors={colors} isDark={isDark} />
+                            <FAQAccordion key={i} item={faq} index={i} colors={colors} isDark={isDark} styles={styles} />
                         ))
                     ) : (
                         <View style={styles.emptyState}>
                             <LinearGradient colors={[B_PALE, '#BFDBFE']} style={styles.emptyIconBox}>
                                 <Ionicons name="search-outline" size={36} color={B_SKY} />
                             </LinearGradient>
-                            <Text style={[styles.emptyTitle, { color: colors.text }]}>No results found</Text>
-                            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+                            <Text style={styles.emptyTitle}>No results found</Text>
+                            <Text style={styles.emptySub}>
                                 Try different keywords or contact us directly
                             </Text>
                         </View>
                     )}
                 </View>
 
-                {/* ══ QUICK LINKS ══ */}
                 <View style={styles.section}>
                     <View style={styles.sectionHdr}>
                         <View style={[styles.sectionBar, { backgroundColor: '#10B981' }]} />
                         <Ionicons name="link-outline" size={16} color="#10B981" style={{ marginRight: 6 }} />
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Links</Text>
+                        <Text style={styles.sectionTitle}>Quick Links</Text>
                     </View>
-                    <View
-                        style={[
-                            styles.quickLinksCard,
-                            { backgroundColor: colors.surface, borderColor: colors.surfaceBorder },
-                        ]}
-                    >
+                    <View style={styles.quickLinksCard}>
                         {quickLinks.map((link, i) => (
                             <TouchableOpacity
                                 key={i}
                                 style={[
                                     styles.quickLinkItem,
-                                    { borderBottomColor: colors.divider },
                                     i === quickLinks.length - 1 && { borderBottomWidth: 0 },
                                 ]}
                                 onPress={link.onPress}
@@ -403,14 +641,13 @@ export default function HelpSupportScreen() {
                                 <View style={[styles.quickLinkIcon, { backgroundColor: link.bg }]}>
                                     <Ionicons name={link.icon} size={18} color={link.color} />
                                 </View>
-                                <Text style={[styles.quickLinkLabel, { color: colors.text }]}>{link.label}</Text>
+                                <Text style={styles.quickLinkLabel}>{link.label}</Text>
                                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                             </TouchableOpacity>
                         ))}
                     </View>
                 </View>
 
-                {/* ══ EMERGENCY BANNER ══ */}
                 <View style={styles.section}>
                     <LinearGradient colors={['#DC2626', '#B91C1C']} style={styles.emergencyBanner}>
                         <View style={styles.emergencyIconWrap}>
@@ -433,14 +670,17 @@ export default function HelpSupportScreen() {
                     </LinearGradient>
                 </View>
 
-                {/* ══ APP INFO ══ */}
                 <View style={styles.appInfoCard}>
-                    <LinearGradient colors={[B_SKY, B_LIGHT]} style={styles.appInfoIcon}>
-                        <Ionicons name="water" size={22} color="#FFFFFF" />
-                    </LinearGradient>
-                    <Text style={[styles.appInfoName, { color: colors.text }]}>BloodLink</Text>
-                    <Text style={[styles.appInfoVersion, { color: colors.textSecondary }]}>Version 2.1.0</Text>
-                    <Text style={[styles.appInfoTagline, { color: colors.textMuted }]}>We Save Lives 🇰🇪</Text>
+                    <View style={styles.appInfoLogoWrap}>
+                        <Image
+                            source={require('@/assets/images/logo.jpg')}
+                            style={styles.appInfoLogoImage}
+                            resizeMode="contain"
+                        />
+                    </View>
+                    <Text style={styles.appInfoName}>BloodLink</Text>
+                    <Text style={styles.appInfoVersion}>Version 2.1.0</Text>
+                    <Text style={styles.appInfoTagline}>We Save Lives 🇰🇪</Text>
                 </View>
 
                 <View style={{ height: 30 }} />
@@ -448,272 +688,3 @@ export default function HelpSupportScreen() {
         </SafeAreaView>
     );
 }
-
-// ═════════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═════════════════════════════════════════════════════════════════════════════
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    scrollView: { flex: 1 },
-    scrollContent: { paddingBottom: 20 },
-
-    // HEADER
-    header: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
-        paddingBottom: 22,
-        borderBottomLeftRadius: 28,
-        borderBottomRightRadius: 28,
-        overflow: 'hidden',
-        position: 'relative',
-    },
-    hCircle1: {
-        position: 'absolute',
-        width: 160,
-        height: 160,
-        borderRadius: 80,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        top: -50,
-        right: -40,
-    },
-    hCircle2: {
-        position: 'absolute',
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        bottom: 10,
-        left: -25,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 16,
-    },
-    backBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 12,
-        backgroundColor: 'rgba(0,0,0,0.18)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerCenter: { alignItems: 'center', flex: 1 },
-    headerTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF' },
-    headerSub: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.8)',
-        marginTop: 2,
-        fontWeight: '600',
-    },
-
-    // HERO
-    heroCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        borderRadius: 16,
-        padding: 14,
-        borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.25)',
-    },
-    heroIconWrap: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...shadow(O_MID, 0.3, 8, 4),
-    },
-    heroTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-    heroSub: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.85)',
-        lineHeight: 18,
-        fontWeight: '500',
-    },
-
-    // SEARCH
-    searchSection: { paddingHorizontal: 20, marginTop: 18, marginBottom: 4 },
-    searchBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        borderRadius: 14,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderWidth: 1.5,
-        ...shadow(B_SKY, 0.07, 8, 2),
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 15,
-        fontWeight: '500',
-        paddingVertical: 0,
-    },
-
-    // SECTIONS
-    section: { marginTop: 22, paddingHorizontal: 20 },
-    sectionHdr: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    sectionBar: { width: 4, height: 20, borderRadius: 2, marginRight: 8 },
-    sectionTitle: { fontSize: 17, fontWeight: '800', flex: 1 },
-
-    // CONTACT GRID
-    contactGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    contactCard: {
-        width: (SCREEN_WIDTH - 40 - 12) / 2,
-        borderRadius: 16,
-        padding: 16,
-        alignItems: 'center',
-        borderWidth: 1,
-        ...shadow(B_SKY, 0.07, 8, 2),
-    },
-    contactIconGrad: {
-        width: 48,
-        height: 48,
-        borderRadius: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    contactTitle: { fontSize: 13, fontWeight: '700', marginBottom: 3 },
-    contactSubtitle: { fontSize: 11, fontWeight: '500', textAlign: 'center' },
-
-    // FAQ
-    faqCard: {
-        borderRadius: 16,
-        marginBottom: 10,
-        borderWidth: 1,
-        overflow: 'hidden',
-        ...shadow('#000', 0.05, 6, 2),
-    },
-    faqHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        padding: 14,
-    },
-    faqIconWrap: {
-        width: 38,
-        height: 38,
-        borderRadius: 11,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    faqTextWrap: { flex: 1 },
-    faqCategory: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: B_SKY,
-        letterSpacing: 0.5,
-        marginBottom: 3,
-    },
-    faqQuestion: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
-    faqAnswer: {
-        flexDirection: 'row',
-        gap: 12,
-        paddingHorizontal: 14,
-        paddingBottom: 16,
-        paddingTop: 4,
-    },
-    faqAnswerBar: {
-        width: 3,
-        borderRadius: 2,
-        backgroundColor: B_SOFT,
-        marginLeft: 18,
-        alignSelf: 'stretch',
-    },
-    faqAnswerText: { flex: 1, fontSize: 13, lineHeight: 21, fontWeight: '500' },
-
-    // QUICK LINKS
-    quickLinksCard: {
-        borderRadius: 18,
-        borderWidth: 1,
-        overflow: 'hidden',
-        ...shadow(B_SKY, 0.07, 8, 2),
-    },
-    quickLinkItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        borderBottomWidth: 1,
-    },
-    quickLinkIcon: {
-        width: 38,
-        height: 38,
-        borderRadius: 11,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    quickLinkLabel: { flex: 1, fontSize: 14, fontWeight: '700' },
-
-    // EMERGENCY
-    emergencyBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        borderRadius: 18,
-        padding: 16,
-        ...shadow('#DC2626', 0.2, 10, 4),
-    },
-    emergencyIconWrap: {
-        width: 44,
-        height: 44,
-        borderRadius: 13,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    emergencyTitle: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', marginBottom: 3 },
-    emergencySub: {
-        fontSize: 11,
-        color: 'rgba(255,255,255,0.85)',
-        lineHeight: 16,
-        fontWeight: '500',
-    },
-    emergencyCallBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 12,
-    },
-    emergencyCallText: { fontSize: 14, fontWeight: '800', color: '#DC2626' },
-
-    // EMPTY
-    emptyState: { alignItems: 'center', padding: 30 },
-    emptyIconBox: {
-        width: 70,
-        height: 70,
-        borderRadius: 35,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 14,
-    },
-    emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
-    emptySub: { fontSize: 13, textAlign: 'center' },
-
-    // APP INFO
-    appInfoCard: {
-        alignItems: 'center',
-        marginTop: 24,
-        paddingVertical: 20,
-    },
-    appInfoIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    appInfoName: { fontSize: 18, fontWeight: '900', marginBottom: 2 },
-    appInfoVersion: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
-    appInfoTagline: { fontSize: 12, fontWeight: '500' },
-});

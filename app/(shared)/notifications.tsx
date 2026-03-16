@@ -47,7 +47,7 @@ const NotificationsScreen: React.FC = () => {
           ...doc.data(),
           id: doc.id,
         })) as Notification[];
-        
+
         setNotifications(notifs);
         setUnreadCount(notifs.filter((n) => !n.isRead).length);
         setLoading(false);
@@ -76,35 +76,30 @@ const NotificationsScreen: React.FC = () => {
         await markNotificationAsRead(notification.id);
       }
 
-      // Navigate based on notification type
-      switch (notification.data?.action) {
-        case 'view_request':
-          if (notification.data.requestId) {
-            router.push('/(donor)/requests' as any);
-          }
-          break;
+      // Navigate based on notification data or type
+      const action = notification.data?.action;
+      const type = notification.type;
 
-        case 'open_chat':
-          if (notification.data.chatId) {
-            router.push(`/(shared)/chat/${notification.data.chatId}` as any);
-          }
-          break;
-
-        case 'verify_donation':
+      if (action === 'view_request' || type === 'blood_request' || type === 'donor_nearby') {
+        if (user?.userType === 'donor') {
+          router.push('/(donor)/requests' as any);
+        } else {
           router.push('/(requester)/my-requests' as any);
-          break;
-
-        case 'view_donation_history':
-          router.push('/(donor)/donation-history' as any);
-          break;
-
-        case 'open_donor_home':
-          router.push('/(donor)/index' as any);
-          break;
-
-        default:
-          // Do nothing or stay on notifications screen
-          break;
+        }
+      } else if (action === 'open_chat' || type === 'new_message' || type === 'request_accepted') {
+        if (notification.data?.chatId) {
+          router.push(`/(shared)/chat/${notification.data.chatId}` as any);
+        } else {
+          router.push('/(shared)/chat-list' as any);
+        }
+      } else if (action === 'verify_donation' || type === 'verify_donation') {
+        router.push('/(requester)/my-requests' as any);
+      } else if (action === 'view_donation_history' || type === 'donation_verified') {
+        router.push('/(donor)/donation-history' as any);
+      } else if (action === 'open_donor_home' || type === 'donation_reminder') {
+        router.push('/(donor)/index' as any);
+      } else if (type === 'system_alert') {
+        // Maybe show an alert or navigate to settings/info
       }
     } catch (error) {
       console.error('Error handling notification press:', error);
@@ -196,27 +191,33 @@ const NotificationsScreen: React.FC = () => {
 
       <View style={styles.textContainer}>
         <View style={styles.notificationHeader}>
-          <Text 
+          <Text
             style={[
-              styles.notificationTitle, 
+              styles.notificationTitle,
               !item.isRead ? styles.unreadText : styles.readText
-            ]} 
+            ]}
             numberOfLines={1}
           >
             {item.title}
           </Text>
           {!item.isRead && <View style={styles.unreadDot} />}
         </View>
-        <Text 
+        <Text
           style={[
             styles.notificationMessage,
             !item.isRead ? styles.unreadMessage : styles.readMessage
-          ]} 
+          ]}
           numberOfLines={2}
         >
           {item.message}
         </Text>
-        <Text style={styles.notificationTime}>{formatTimestamp(item.timestamp)}</Text>
+        <View style={styles.notificationFooter}>
+          <Text style={styles.notificationTime}>{formatTimestamp(item.timestamp)}</Text>
+          <View style={styles.viewDetailsContainer}>
+            <Text style={styles.viewDetailsText}>View Details</Text>
+            <Ionicons name="chevron-forward" size={14} color="#3B82F6" />
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -409,9 +410,25 @@ const styles = StyleSheet.create({
   readMessage: {
     color: '#9CA3AF', // Light grey for read messages
   },
+  notificationFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
   notificationTime: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  viewDetailsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  viewDetailsText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3B82F6',
   },
   emptyContainer: {
     flex: 1,

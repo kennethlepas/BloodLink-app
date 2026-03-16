@@ -1,40 +1,28 @@
-/**
- * NOTIFICATION INTEGRATION GUIDE
- * 
- * This file demonstrates how to integrate notifications into your existing workflow.
- * Copy the relevant code snippets into your existing files.
- */
-
 import {
-    notifyDonorOfDispute,
-    notifyDonorOfVerification,
-    notifyEligibleDonorsOfNewRequest,
-    notifyRequesterOfAcceptance,
-    notifyRequesterOfDonationCompletion,
-    notifyUserOfNewMessage
+  notifyDonorOfDispute,
+  notifyDonorOfVerification,
+  notifyEligibleDonorsOfNewRequest,
+  notifyRequesterOfAcceptance,
+  notifyRequesterOfDonationCompletion,
+  notifyUserOfNewMessage
 } from './notificationService';
 
 import {
-    completeDonationAfterVerification,
-    createAcceptedRequest,
-    createBloodRequest,
-    createChat,
-    createRejectedRequest,
-    disputeDonationByRequester,
-    getUsersByBloodType,
-    markDonationPendingVerification,
-    sendMessage,
-    verifyDonationByRequester,
+  completeDonationAfterVerification,
+  createAcceptedRequest,
+  createBloodRequest,
+  createChat,
+  createRejectedRequest,
+  disputeDonationByRequester,
+  getUsersByBloodType,
+  markDonationPendingVerification,
+  sendMessage,
+  verifyDonationByRequester,
 } from '@/src/services/firebase/database';
 
-// ============================================================================
-// 1. WHEN CREATING A BLOOD REQUEST (REQUESTER SIDE)
-// ============================================================================
 
-/**
- * Example: Modified createBloodRequest workflow
- * Add this to your request creation screen/component
- */
+// 1. WHEN CREATING A BLOOD REQUEST (REQUESTER SIDE)
+
 export const handleCreateBloodRequest = async (requestData: any) => {
   try {
     // Create the blood request
@@ -66,14 +54,9 @@ export const handleCreateBloodRequest = async (requestData: any) => {
   }
 };
 
-// ============================================================================
 // 2. WHEN DONOR ACCEPTS A REQUEST
-// ============================================================================
 
-/**
- * Example: Modified accept request workflow
- * Add this to your donor's accept request handler
- */
+
 export const handleAcceptRequest = async (
   request: any,
   donorId: string,
@@ -112,14 +95,8 @@ export const handleAcceptRequest = async (
   }
 };
 
-// ============================================================================
 // 3. WHEN DONOR DECLINES A REQUEST
-// ============================================================================
 
-/**
- * Example: Modified decline request workflow
- * Add this to your donor's decline request handler
- */
 export const handleDeclineRequest = async (
   request: any,
   donorId: string,
@@ -129,14 +106,6 @@ export const handleDeclineRequest = async (
     // Mark as rejected for this donor
     await createRejectedRequest(donorId, request.id, reason);
 
-    // Optionally notify the requester (you may choose not to)
-    // Uncomment the following if you want to notify requester of declines
-    /*
-    await notifyRequesterOfDecline(request.requesterId, request.id, {
-      donorName: 'A donor',
-      bloodType: request.bloodType,
-    });
-    */
 
     console.log('✅ Request declined');
   } catch (error) {
@@ -145,14 +114,9 @@ export const handleDeclineRequest = async (
   }
 };
 
-// ============================================================================
-// 4. WHEN DONOR MARKS DONATION AS COMPLETE
-// ============================================================================
 
-/**
- * Example: Modified mark complete workflow (DONOR SIDE)
- * Add this to your donor's complete donation handler
- */
+// 4. WHEN DONOR MARKS DONATION AS COMPLETE
+
 export const handleDonorMarkComplete = async (
   acceptedRequest: any,
   donorNotes?: string
@@ -180,14 +144,9 @@ export const handleDonorMarkComplete = async (
   }
 };
 
-// ============================================================================
-// 5. WHEN REQUESTER VERIFIES DONATION (REQUESTER SIDE)
-// ============================================================================
 
-/**
- * Example: Modified verify donation workflow
- * Add this to your requester's verify donation handler
- */
+// 5. WHEN REQUESTER VERIFIES DONATION (REQUESTER SIDE)
+
 export const handleRequesterVerifyDonation = async (
   acceptedRequest: any,
   verificationNotes?: string
@@ -218,14 +177,8 @@ export const handleRequesterVerifyDonation = async (
   }
 };
 
-// ============================================================================
 // 6. WHEN REQUESTER DISPUTES DONATION (REQUESTER SIDE)
-// ============================================================================
 
-/**
- * Example: Modified dispute donation workflow
- * Add this to your requester's dispute donation handler
- */
 export const handleRequesterDisputeDonation = async (
   acceptedRequest: any,
   disputeReason: string
@@ -247,14 +200,9 @@ export const handleRequesterDisputeDonation = async (
   }
 };
 
-// ============================================================================
-// 7. WHEN SENDING A CHAT MESSAGE
-// ============================================================================
 
-/**
- * Example: Modified send message workflow
- * Add this to your chat message handler
- */
+// 7. WHEN SENDING A CHAT MESSAGE
+
 export const handleSendMessage = async (
   chatId: string,
   senderId: string,
@@ -281,47 +229,3 @@ export const handleSendMessage = async (
     throw error;
   }
 };
-
-// ============================================================================
-// EXAMPLE: How to use in a React component
-// ============================================================================
-
-/*
-import React from 'react';
-import { View, Button } from 'react-native';
-import { useUser } from '@/src/contexts/UserContext';
-
-const ExampleComponent = () => {
-  const { user } = useUser();
-
-  const handleCreateRequest = async () => {
-    const requestData = {
-      requesterId: user.id,
-      requesterName: `${user.firstName} ${user.lastName}`,
-      requesterPhone: user.phoneNumber,
-      bloodType: 'A+',
-      urgencyLevel: 'urgent',
-      unitsNeeded: 2,
-      hospitalName: 'City Hospital',
-      hospitalAddress: '123 Main St',
-      patientName: 'John Doe',
-      description: 'Urgent need for surgery',
-      location: user.location,
-    };
-
-    try {
-      const requestId = await handleCreateBloodRequest(requestData);
-      // Show success message
-      Alert.alert('Success', 'Your blood request has been created and donors have been notified!');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create request');
-    }
-  };
-
-  return (
-    <View>
-      <Button title="Create Request" onPress={handleCreateRequest} />
-    </View>
-  );
-};
-*/

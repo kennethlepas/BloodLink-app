@@ -24,14 +24,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ─── Brand Palette (static) ──────────────────────────────────────────────────
+
 const B_SKY = '#2563EB';
 const B_LIGHT = '#3B82F6';
 const B_PALE = '#DBEAFE';
 const B_BG = '#EFF6FF';
 const O_MID = '#EA580C';
 
-// ─── Shadow helper ───────────────────────────────────────────────────────────
 const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
     Platform.select({
         web: { boxShadow: `0 2px ${radius}px rgba(0,0,0,${opacity})` } as any,
@@ -44,7 +43,6 @@ const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
         },
     });
 
-// ─── Strength meter logic ────────────────────────────────────────────────────
 type Strength = { level: number; label: string; color: string };
 
 function getPasswordStrength(pw: string): Strength {
@@ -61,7 +59,7 @@ function getPasswordStrength(pw: string): Strength {
     return { level: 4, label: 'Strong', color: '#10B981' };
 }
 
-// ─── Requirement check item ─────────────────────────────────────────────────
+// Requirement check item 
 const ReqItem: React.FC<{ met: boolean; text: string; colors: any }> = ({
     met,
     text,
@@ -79,9 +77,7 @@ const ReqItem: React.FC<{ met: boolean; text: string; colors: any }> = ({
     </View>
 );
 
-// ═════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═════════════════════════════════════════════════════════════════════════════
+
 export default function ChangePasswordScreen() {
     const router = useRouter();
     const user = auth.currentUser;
@@ -104,7 +100,7 @@ export default function ChangePasswordScreen() {
         special: /[^A-Za-z0-9]/.test(newPassword),
     };
 
-    // ── Validation ───────────────────────────────────────────────────────────
+    //Validation 
     const validate = (): boolean => {
         const e: Record<string, string> = {};
 
@@ -126,7 +122,7 @@ export default function ChangePasswordScreen() {
         return Object.keys(e).length === 0;
     };
 
-    // ── Submit ───────────────────────────────────────────────────────────────
+    // Submit 
     const handleChangePassword = async () => {
         if (!validate()) return;
         if (!user || !user.email) {
@@ -136,11 +132,11 @@ export default function ChangePasswordScreen() {
 
         setLoading(true);
         try {
-            // Step 1 — Re-authenticate
+
             const credential = EmailAuthProvider.credential(user.email, currentPassword);
             await reauthenticateWithCredential(user, credential);
 
-            // Step 2 — Update password
+
             await updatePassword(user, newPassword);
 
             Alert.alert(
@@ -149,7 +145,7 @@ export default function ChangePasswordScreen() {
                 [{ text: 'OK', onPress: () => router.back() }]
             );
         } catch (error: any) {
-            console.error('Change password error:', error);
+            console.log('Change password error:', error);
             let msg = 'Failed to change password. Please try again.';
 
             switch (error?.code) {
@@ -177,7 +173,7 @@ export default function ChangePasswordScreen() {
         }
     };
 
-    // ── Render ───────────────────────────────────────────────────────────────
+    // Render 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
             <StatusBar barStyle="light-content" backgroundColor={B_SKY} />
@@ -217,7 +213,7 @@ export default function ChangePasswordScreen() {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* ══ CURRENT PASSWORD ══ */}
+                    {/* CURRENT PASSWORD */}
                     <View style={styles.sectionHdr}>
                         <View style={[styles.sectionBar, { backgroundColor: '#D97706' }]} />
                         <Ionicons name="key-outline" size={16} color="#D97706" style={{ marginRight: 6 }} />
@@ -261,7 +257,7 @@ export default function ChangePasswordScreen() {
                         {!!errors.current && <Text style={styles.errorText}>{errors.current}</Text>}
                     </View>
 
-                    {/* ══ NEW PASSWORD ══ */}
+                    {/* NEW PASSWORD */}
                     <View style={styles.sectionHdr}>
                         <View style={[styles.sectionBar, { backgroundColor: B_SKY }]} />
                         <Ionicons name="lock-open-outline" size={16} color={B_SKY} style={{ marginRight: 6 }} />
@@ -341,7 +337,7 @@ export default function ChangePasswordScreen() {
                         )}
                     </View>
 
-                    {/* ══ CONFIRM PASSWORD ══ */}
+                    {/* CONFIRM PASSWORD */}
                     <View style={styles.sectionHdr}>
                         <View style={[styles.sectionBar, { backgroundColor: '#10B981' }]} />
                         <Ionicons
@@ -400,7 +396,7 @@ export default function ChangePasswordScreen() {
                         )}
                     </View>
 
-                    {/* ══ SUBMIT BUTTON ══ */}
+                    {/* SUBMIT BUTTON */}
                     <TouchableOpacity
                         style={[styles.submitBtn, loading && { opacity: 0.6 }]}
                         onPress={handleChangePassword}
@@ -453,15 +449,12 @@ export default function ChangePasswordScreen() {
     );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═════════════════════════════════════════════════════════════════════════════
+
 const styles = StyleSheet.create({
     container: { flex: 1 },
     scrollView: { flex: 1 },
     scrollContent: { paddingBottom: 20 },
 
-    // HEADER
     header: {
         paddingHorizontal: 20,
         paddingTop: 10,
@@ -512,7 +505,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
 
-    // INFO BANNER
     infoBanner: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -530,7 +522,6 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
 
-    // SECTION
     sectionHdr: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -541,7 +532,6 @@ const styles = StyleSheet.create({
     sectionBar: { width: 4, height: 20, borderRadius: 2, marginRight: 8 },
     sectionTitle: { fontSize: 16, fontWeight: '800' },
 
-    // CARD
     card: {
         marginHorizontal: 20,
         borderRadius: 18,
@@ -550,7 +540,6 @@ const styles = StyleSheet.create({
         ...shadow(B_SKY, 0.07, 8, 2),
     },
 
-    // INPUT
     inputLabel: { fontSize: 13, fontWeight: '600', marginBottom: 10 },
     inputWrap: {
         flexDirection: 'row',
@@ -563,8 +552,6 @@ const styles = StyleSheet.create({
     input: { flex: 1, fontSize: 15, fontWeight: '500', paddingVertical: 0 },
 
     errorText: { color: '#EF4444', fontSize: 12, marginTop: 8, marginLeft: 4, fontWeight: '600' },
-
-    // STRENGTH METER
     strengthSection: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -575,12 +562,10 @@ const styles = StyleSheet.create({
     strengthBarSegment: { flex: 1, height: 5, borderRadius: 3 },
     strengthLabel: { fontSize: 12, fontWeight: '700', width: 50, textAlign: 'right' },
 
-    // REQUIREMENTS
     reqsBox: { marginTop: 14, gap: 6 },
     reqItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     reqText: { fontSize: 12, fontWeight: '600' },
 
-    // MATCH BADGE
     matchBadge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -593,7 +578,6 @@ const styles = StyleSheet.create({
     },
     matchText: { fontSize: 12, fontWeight: '700', color: '#10B981' },
 
-    // SUBMIT
     submitBtn: {
         marginHorizontal: 20,
         marginTop: 28,
@@ -609,7 +593,6 @@ const styles = StyleSheet.create({
     },
     submitText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 },
 
-    // TIP
     tipCard: {
         flexDirection: 'row',
         alignItems: 'flex-start',

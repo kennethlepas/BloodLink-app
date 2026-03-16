@@ -19,6 +19,7 @@ import {
   ViewStyle
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -86,6 +87,60 @@ export default function WelcomeScreen() {
         style={styles.gradientContainer}
         locations={[0, 0.5, 1]}
       >
+        {/* Background Blood Component Decorations */}
+        <View style={styles.bloodComponentsContainer}>
+          {/* Red Blood Cell - Top Left */}
+          <Svg style={styles.bloodComponent1} width="80" height="80" viewBox="0 0 80 80">
+            <Circle cx="40" cy="40" r="35" fill="rgba(220, 38, 38, 0.15)" stroke="rgba(220, 38, 38, 0.3)" strokeWidth="2" />
+            <Circle cx="40" cy="40" r="25" fill="rgba(220, 38, 38, 0.1)" />
+          </Svg>
+
+          {/* Platelet - Top Right */}
+          <Svg style={styles.bloodComponent2} width="60" height="60" viewBox="0 0 60 60">
+            <Ellipse cx="30" cy="30" rx="25" ry="20" fill="rgba(251, 191, 36, 0.15)" stroke="rgba(251, 191, 36, 0.3)" strokeWidth="2" />
+            <Circle cx="30" cy="30" r="12" fill="rgba(251, 191, 36, 0.1)" />
+          </Svg>
+
+          {/* White Blood Cell - Middle Left */}
+          <Svg style={styles.bloodComponent3} width="70" height="70" viewBox="0 0 70 70">
+            <Circle cx="35" cy="35" r="30" fill="rgba(148, 163, 184, 0.15)" stroke="rgba(148, 163, 184, 0.3)" strokeWidth="2" />
+            <Circle cx="35" cy="35" r="20" fill="rgba(148, 163, 184, 0.1)" />
+            <Circle cx="25" cy="25" r="8" fill="rgba(148, 163, 184, 0.12)" />
+            <Circle cx="45" cy="25" r="8" fill="rgba(148, 163, 184, 0.12)" />
+          </Svg>
+
+          {/* Plasma - Middle Right */}
+          <Svg style={styles.bloodComponent4} width="90" height="90" viewBox="0 0 90 90">
+            <Path d="M45 10 Q70 30 70 50 Q70 70 45 80 Q20 70 20 50 Q20 30 45 10" fill="rgba(59, 130, 246, 0.12)" stroke="rgba(59, 130, 246, 0.25)" strokeWidth="2" />
+          </Svg>
+
+          {/* Red Blood Cell - Bottom Left */}
+          <Svg style={styles.bloodComponent5} width="65" height="65" viewBox="0 0 65 65">
+            <Circle cx="32.5" cy="32.5" r="28" fill="rgba(220, 38, 38, 0.14)" stroke="rgba(220, 38, 38, 0.28)" strokeWidth="2" />
+            <Circle cx="32.5" cy="32.5" r="18" fill="rgba(220, 38, 38, 0.08)" />
+          </Svg>
+
+          {/* Platelet - Bottom Right */}
+          <Svg style={styles.bloodComponent6} width="55" height="55" viewBox="0 0 55 55">
+            <Ellipse cx="27.5" cy="27.5" rx="22" ry="18" fill="rgba(251, 191, 36, 0.14)" stroke="rgba(251, 191, 36, 0.28)" strokeWidth="2" />
+          </Svg>
+        </View>
+
+        {/* Top Navigation Toggle */}
+        <View style={styles.topNavigation}>
+          <Link href={"/(auth)/user-type-selection" as Href} asChild>
+            <TouchableOpacity style={styles.navButton} activeOpacity={0.7}>
+              <Text style={styles.navButtonText}>Sign Up</Text>
+            </TouchableOpacity>
+          </Link>
+          <View style={styles.navDivider} />
+          <Link href={"/(auth)/login" as Href} asChild>
+            <TouchableOpacity style={styles.navButton} activeOpacity={0.7}>
+              <Text style={styles.navButtonText}>Login</Text>
+            </TouchableOpacity>
+          </Link>
+        </View>
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -93,23 +148,17 @@ export default function WelcomeScreen() {
         >
           {/* Modern Header Section */}
           <View style={styles.headerSection}>
-            {/* Logo Container - Modern Card Style */}
+            {/* Logo Container */}
             <View style={styles.logoCard}>
-              <View style={styles.logoGlowEffect} />
               <View style={styles.logoImageContainer}>
-                {/* Replace the source with your actual logo path */}
                 <Image
-                  source={require('@/assets/images/logo.jpg')} // Update this path
+                  source={require('@/assets/images/logo.jpg')}
                   style={styles.logoImage}
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
-                {/* Fallback if image not available */}
-                {/* <View style={styles.logoPlaceholder}>
-                  <Text style={styles.logoText}>🩸</Text>
-                </View> */}
               </View>
 
-              {/* Verified Badge - Bottom-right outside logo container */}
+              {/* Verified Badge - Hanging at logo margin */}
               <View style={styles.logoBadge}>
                 <View style={styles.badgeDot} />
                 <Text style={styles.badgeText}>Verified</Text>
@@ -327,9 +376,19 @@ interface Styles {
   gradientContainer: ViewStyle;
   scrollContent: ViewStyle;
   loadingContainer: ViewStyle;
+  bloodComponentsContainer: ViewStyle;
+  bloodComponent1: ViewStyle;
+  bloodComponent2: ViewStyle;
+  bloodComponent3: ViewStyle;
+  bloodComponent4: ViewStyle;
+  bloodComponent5: ViewStyle;
+  bloodComponent6: ViewStyle;
+  topNavigation: ViewStyle;
+  navButton: ViewStyle;
+  navButtonText: TextStyle;
+  navDivider: ViewStyle;
   headerSection: ViewStyle;
   logoCard: ViewStyle;
-  logoGlowEffect: ViewStyle;
   logoImageContainer: ViewStyle;
   logoImage: ImageStyle;
   logoPlaceholder: ViewStyle;
@@ -400,6 +459,85 @@ const styles = StyleSheet.create<Styles>({
     justifyContent: "center",
   },
 
+  // Blood Component Decorations
+  bloodComponentsContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  bloodComponent1: {
+    position: 'absolute',
+    top: verticalScale(100),
+    left: scale(20),
+    opacity: 1,
+  },
+  bloodComponent2: {
+    position: 'absolute',
+    top: verticalScale(120),
+    right: scale(30),
+    opacity: 1,
+  },
+  bloodComponent3: {
+    position: 'absolute',
+    top: verticalScale(350),
+    left: scale(10),
+    opacity: 1,
+  },
+  bloodComponent4: {
+    position: 'absolute',
+    top: verticalScale(400),
+    right: scale(15),
+    opacity: 1,
+  },
+  bloodComponent5: {
+    position: 'absolute',
+    bottom: verticalScale(200),
+    left: scale(25),
+    opacity: 1,
+  },
+  bloodComponent6: {
+    position: 'absolute',
+    bottom: verticalScale(150),
+    right: scale(20),
+    opacity: 1,
+  },
+
+  // Top Navigation
+  topNavigation: {
+    position: 'absolute',
+    top: verticalScale(1),
+    right: scale(5),
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    zIndex: 10,
+    ...(Platform.OS === 'web'
+      ? {
+        backdropFilter: 'blur(10px)',
+      } as any
+      : {}),
+  },
+  navButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  navButtonText: {
+    color: '#10B981',
+    fontSize: moderateScale(13),
+    fontWeight: '600',
+  },
+  navDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+
   // Header Section
   headerSection: {
     paddingTop: verticalScale(20),
@@ -411,28 +549,10 @@ const styles = StyleSheet.create<Styles>({
     position: 'relative',
     marginBottom: verticalScale(12),
   },
-  logoGlowEffect: {
-    position: 'absolute',
-    width: moderateScale(140),
-    height: moderateScale(140),
-    borderRadius: 35,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    top: '50%',
-    left: '50%',
-    transform: [
-      { translateX: -moderateScale(70) },
-      { translateY: -moderateScale(70) },
-    ],
-    ...(Platform.OS === 'web'
-      ? {
-        filter: 'blur(20px)',
-      } as any
-      : {}),
-  },
   logoImageContainer: {
-    width: moderateScale(120),
-    height: moderateScale(120),
-    borderRadius: 30,
+    width: moderateScale(100),
+    height: moderateScale(135),
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -440,7 +560,7 @@ const styles = StyleSheet.create<Styles>({
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 30,
+    borderRadius: 10,
   },
   logoPlaceholder: {
     width: '100%',
@@ -453,28 +573,17 @@ const styles = StyleSheet.create<Styles>({
   },
   logoBadge: {
     position: 'absolute',
-    bottom: -15,
-    right: -10,
+    bottom: -22,
+    right: -22,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#10B981',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 2,
     borderRadius: 16,
     borderWidth: 3,
     borderColor: '#144272',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 4px 12px rgba(16, 185, 129, 0.4)',
-      } as any
-      : {
-        shadowColor: "#10B981",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-        elevation: 8,
-      }),
   },
   badgeDot: {
     width: 5,
@@ -551,17 +660,6 @@ const styles = StyleSheet.create<Styles>({
     borderRadius: 16,
     padding: scale(16),
     alignItems: 'center',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-      } as any
-      : {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
-      }),
   },
   statIconContainer: {
     width: moderateScale(48),
@@ -625,17 +723,6 @@ const styles = StyleSheet.create<Styles>({
     padding: scale(16),
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 4px 16px rgba(0, 0, 0, 0.08)',
-      } as any
-      : {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 5,
-      }),
   },
   featureIconWrapper: {
     marginRight: scale(14),
@@ -704,17 +791,6 @@ const styles = StyleSheet.create<Styles>({
     borderRadius: 14,
     overflow: 'hidden',
     marginBottom: verticalScale(16),
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 6px 20px rgba(59, 130, 246, 0.4)',
-      } as any
-      : {
-        shadowColor: "#3B82F6",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 15,
-        elevation: 8,
-      }),
   },
   primaryButtonGradient: {
     flexDirection: 'row',

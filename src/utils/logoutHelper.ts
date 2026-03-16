@@ -1,7 +1,7 @@
 import { Router } from 'expo-router';
 import { Alert } from 'react-native';
 
-interface LogoutOptions {
+export interface LogoutOptions {
   logout: () => Promise<void>;
   router: Router;
   showConfirmation?: boolean;

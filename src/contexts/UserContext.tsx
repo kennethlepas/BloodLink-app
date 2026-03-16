@@ -11,6 +11,8 @@ interface UserContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
+  isEmailVerified: boolean;
+  checkEmailVerification: () => Promise<boolean>;
   login: (userData: User) => Promise<void>;
   logout: () => Promise<void>;
   updateUserData: (updates: Partial<User>) => Promise<void>;
@@ -20,11 +22,13 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 const USER_CACHE_KEY = '@bloodlink_user_cache';
 const AUTH_STATE_KEY = '@bloodlink_auth_state';
+const EMAIL_VERIFIED_KEY = '@bloodlink_email_verified';
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   // Load cached user data immediately on mount
   useEffect(() => {
@@ -33,9 +37,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadCachedUser = async () => {
     try {
-      const [cachedUser, authState] = await Promise.all([
+      const [cachedUser, authState, emailVerified] = await Promise.all([
         AsyncStorage.getItem(USER_CACHE_KEY),
         AsyncStorage.getItem(AUTH_STATE_KEY),
+        AsyncStorage.getItem(EMAIL_VERIFIED_KEY),
       ]);
 
       if (cachedUser && authState === 'true') {
@@ -44,11 +49,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isValidUser(userData)) {
           setUser(userData);
           setIsAuthenticated(true);
+          setIsEmailVerified(emailVerified === 'true');
           setLoading(false);
         } else {
           await Promise.all([
             AsyncStorage.removeItem(USER_CACHE_KEY),
             AsyncStorage.removeItem(AUTH_STATE_KEY),
+            AsyncStorage.removeItem(EMAIL_VERIFIED_KEY),
           ]);
         }
       }
@@ -110,16 +117,19 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             setUser(userData);
             setIsAuthenticated(true);
+            setIsEmailVerified(firebaseUser.emailVerified);
 
             await Promise.all([
               AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(userData)),
               AsyncStorage.setItem(AUTH_STATE_KEY, 'true'),
+              AsyncStorage.setItem(EMAIL_VERIFIED_KEY, String(firebaseUser.emailVerified)),
             ]);
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
           if (isMounted) {
             setIsAuthenticated(false);
+            setIsEmailVerified(false);
             setUser(null);
           }
         }
@@ -127,9 +137,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isMounted) {
           setUser(null);
           setIsAuthenticated(false);
+          setIsEmailVerified(false);
           await Promise.all([
             AsyncStorage.removeItem(USER_CACHE_KEY),
             AsyncStorage.removeItem(AUTH_STATE_KEY),
+            AsyncStorage.removeItem(EMAIL_VERIFIED_KEY),
           ]);
         }
       }
@@ -149,10 +161,21 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (userData: User) => {
     setUser(userData);
     setIsAuthenticated(true);
+    // When manual login happens, we assume the auth listener will pick up the emailVerified status
+    // Or we should update it if we have the auth user. 
+    // Since login() is usually called AFTER auth is done, check auth.currentUser
+    if (auth.currentUser) {
+      setIsEmailVerified(auth.currentUser.emailVerified);
+    }
+
+    if (auth.currentUser) {
+      setIsEmailVerified(auth.currentUser.emailVerified);
+    }
 
     await Promise.all([
       AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(userData)),
       AsyncStorage.setItem(AUTH_STATE_KEY, 'true'),
+      AsyncStorage.setItem(EMAIL_VERIFIED_KEY, String(auth.currentUser?.emailVerified ?? false)),
     ]);
   }, []);
 
@@ -167,11 +190,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. Clear user state
       setUser(null);
       setIsAuthenticated(false);
+      setIsEmailVerified(false);
 
       // 3. Clear AsyncStorage cache
       await Promise.all([
         AsyncStorage.removeItem(USER_CACHE_KEY),
         AsyncStorage.removeItem(AUTH_STATE_KEY),
+        AsyncStorage.removeItem(EMAIL_VERIFIED_KEY),
       ]);
       console.log('Cleared cached data');
 
@@ -189,10 +214,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Even if Firebase signout fails, clear local state
       setUser(null);
       setIsAuthenticated(false);
+      setIsEmailVerified(false);
 
       await Promise.all([
         AsyncStorage.removeItem(USER_CACHE_KEY),
         AsyncStorage.removeItem(AUTH_STATE_KEY),
+        AsyncStorage.removeItem(EMAIL_VERIFIED_KEY),
       ]);
 
       // Show error message
@@ -215,10 +242,26 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(updatedUser));
   }, [user]);
 
+  const checkEmailVerification = useCallback(async () => {
+    try {
+      if (auth.currentUser) {
+        await auth.currentUser.reload();
+        const verified = auth.currentUser.emailVerified;
+        setIsEmailVerified(verified);
+        return verified;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }, []);
+
   const value: UserContextType = {
     user,
     loading,
     isAuthenticated,
+    isEmailVerified,
+    checkEmailVerification,
     login,
     logout,
     updateUserData,

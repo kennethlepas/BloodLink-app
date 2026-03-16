@@ -13,13 +13,15 @@ import {
   NewDocument,
   Notification,
   Post,
-  User
+  User,
+  VerificationRequest
 } from '@/src/types/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { get, ref } from 'firebase/database';
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   GeoPoint,
   getDoc,
@@ -36,10 +38,14 @@ import {
 import { db, realtimeDb } from './firebase';
 
 const CACHE_KEY_BLOOD_BANKS = 'bloodlink_blood_banks_cache';
+const CACHE_KEY_ACTIVE_REQUESTS = 'bloodlink_active_requests_cache';
+const CACHE_KEY_USER_REQUESTS = 'bloodlink_user_requests_cache';
+const CACHE_KEY_DONORS_BY_TYPE = 'bloodlink_donors_by_type_cache';
+const CACHE_KEY_DONOR_HISTORY = 'bloodlink_donor_history_cache';
+const CACHE_KEY_APPROVED_REVIEWS = 'bloodlink_approved_reviews_cache';
 
-// ============================================================================
+
 // HELPER FUNCTIONS
-// ============================================================================
 
 const getCurrentTimestamp = (): string => {
   return new Date().toISOString();
@@ -93,9 +99,61 @@ export const calculateDistance = (
   return R * c; // Distance in kilometers
 };
 
-// ============================================================================
+/**
+ * Get compatible donor blood types for a recipient
+ * Returns array of blood types that can donate to the given recipient blood type
+ */
+export const getCompatibleDonorBloodTypes = (recipientBloodType: BloodType): BloodType[] => {
+  const compatibility: { [key: string]: BloodType[] } = {
+    'O-': ['O-'],
+    'O+': ['O-', 'O+'],
+    'A-': ['O-', 'A-'],
+    'A+': ['O-', 'O+', 'A-', 'A+'],
+    'B-': ['O-', 'B-'],
+    'B+': ['O-', 'O+', 'B-', 'B+'],
+    'AB-': ['O-', 'A-', 'B-', 'AB-'],
+    'AB+': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'], // Universal recipient
+  };
+
+  return compatibility[recipientBloodType] || [];
+};
+
+/**
+ * Count available compatible donors for a blood request
+ * Returns the number of donors who are available, active, and have compatible blood type
+ */
+export const countAvailableCompatibleDonors = async (
+  recipientBloodType: BloodType,
+  location?: Location
+): Promise<number> => {
+  try {
+    const compatibleBloodTypes = getCompatibleDonorBloodTypes(recipientBloodType);
+
+    // Query for available donors with compatible blood types
+    const q = query(
+      collection(db, 'users'),
+      where('userType', '==', 'donor'),
+      where('isAvailable', '==', true),
+      where('isActive', '==', true),
+      where('bloodType', 'in', compatibleBloodTypes.length > 0 ? compatibleBloodTypes : ['O-'])
+    );
+
+    const snapshot = await getDocs(q);
+    let count = snapshot.size;
+
+    console.log(`Found ${count} available compatible donors for ${recipientBloodType}`);
+
+    return count;
+  } catch (error) {
+    console.error('Error counting available compatible donors:', error);
+    // Return 0 instead of throwing to prevent blocking request creation
+    return 0;
+  }
+};
+
+
+
 // USER OPERATIONS
-// ============================================================================
 
 export const createUser = async (userId: string, userData: NewDocument<User>): Promise<void> => {
   try {
@@ -166,6 +224,7 @@ export const updateDonorAvailability = async (
 };
 
 export const getUsersByBloodType = async (bloodType: BloodType): Promise<Donor[]> => {
+  const cacheKey = `${CACHE_KEY_DONORS_BY_TYPE}_${bloodType}`;
   try {
     const q = query(
       collection(db, 'users'),
@@ -175,16 +234,21 @@ export const getUsersByBloodType = async (bloodType: BloodType): Promise<Donor[]
       where('isActive', '==', true)
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => doc.data() as Donor);
+    const donors = snapshot.docs.map((doc) => doc.data() as Donor);
+
+    await AsyncStorage.setItem(cacheKey, JSON.stringify(donors));
+    return donors;
   } catch (error) {
-    console.error('Error getting users by blood type:', error);
+    console.warn('Error getting users by blood type (trying cache):', error);
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (e) { console.error('Cache retrieval failed:', e); }
     throw error;
   }
 };
 
-// ============================================================================
 // BLOOD REQUEST OPERATIONS
-// ============================================================================
 
 export const createBloodRequest = async (
   requestData: NewDocument<BloodRequest>
@@ -279,6 +343,7 @@ export const completeBloodRequest = async (requestId: string): Promise<void> => 
 };
 
 export const getActiveBloodRequests = async (bloodType?: BloodType): Promise<BloodRequest[]> => {
+  const cacheKey = `${CACHE_KEY_ACTIVE_REQUESTS}_${bloodType || 'ALL'}`;
   try {
     const constraints: QueryConstraint[] = [
       where('status', '==', 'pending'),
@@ -291,14 +356,29 @@ export const getActiveBloodRequests = async (bloodType?: BloodType): Promise<Blo
 
     const q = query(collection(db, 'bloodRequests'), ...constraints);
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => doc.data() as BloodRequest);
+    const requests = snapshot.docs.map((doc) => doc.data() as BloodRequest);
+
+    // Update cache
+    await AsyncStorage.setItem(cacheKey, JSON.stringify(requests));
+
+    return requests;
   } catch (error) {
-    console.error('Error getting active blood requests:', error);
+    console.warn('Error getting active blood requests (trying cache):', error);
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        console.log('✅ Returning cached active requests');
+        return JSON.parse(cached);
+      }
+    } catch (e) {
+      console.error('Cache retrieval failed:', e);
+    }
     throw error;
   }
 };
 
 export const getUserBloodRequests = async (userId: string): Promise<BloodRequest[]> => {
+  const cacheKey = `${CACHE_KEY_USER_REQUESTS}_${userId}`;
   try {
     const q = query(
       collection(db, 'bloodRequests'),
@@ -306,16 +386,21 @@ export const getUserBloodRequests = async (userId: string): Promise<BloodRequest
       orderBy('createdAt', 'desc')
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => doc.data() as BloodRequest);
+    const requests = snapshot.docs.map((doc) => doc.data() as BloodRequest);
+
+    await AsyncStorage.setItem(cacheKey, JSON.stringify(requests));
+    return requests;
   } catch (error) {
-    console.error('Error getting user blood requests:', error);
+    console.warn('Error getting user blood requests (trying cache):', error);
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (e) { console.error('Cache retrieval failed:', e); }
     throw error;
   }
 };
 
-// ============================================================================
 // ACCEPTED REQUEST OPERATIONS (NEW)
-// ============================================================================
 
 /**
  * Create an accepted request record when donor accepts a blood request
@@ -343,6 +428,7 @@ export const createAcceptedRequest = async (
       patientName: request.patientName,
       location: request.location,
       unitsNeeded: request.unitsNeeded,
+      bloodComponent: request.bloodComponent || 'Whole Blood',
       notes: request.notes,
       status: 'pending' as AcceptedRequestStatus,
       acceptedDate: timestamp,
@@ -519,9 +605,7 @@ export const getAcceptedRequest = async (
   }
 };
 
-// ============================================================================
-// BLOOD REQUEST REJECTION OPERATIONS (NEW)
-// ============================================================================
+// BLOOD REQUEST REJECTION OPERATIONS 
 
 /**
  * Reject a blood request (just marks it as seen/declined for this donor)
@@ -591,12 +675,22 @@ export const hasRejectedRequest = async (
 
 /**
  * Get active blood requests excluding rejected ones for a specific donor
+ * Only returns requests if the donor is available
  */
 export const getActiveBloodRequestsForDonor = async (
   donorId: string,
   bloodType?: string
 ): Promise<BloodRequest[]> => {
   try {
+    // check if donor is available
+    const donor = await getUser(donorId);
+
+    // If donor doesn't exist or is unavailable, return empty array
+    if (!donor || !donor.isAvailable) {
+      console.log(`Donor ${donorId} is not available. No requests will be shown.`);
+      return [];
+    }
+
     // Get all active requests
     const constraints: any[] = [
       where('status', '==', 'pending'),
@@ -622,9 +716,8 @@ export const getActiveBloodRequestsForDonor = async (
   }
 };
 
-// ============================================================================
+
 // BLOOD BANK OPERATIONS - REALTIME DATABASE
-// ============================================================================
 
 export const getBloodBanks = async (): Promise<BloodBank[]> => {
   try {
@@ -658,7 +751,7 @@ export const getBloodBanks = async (): Promise<BloodBank[]> => {
           },
           phoneNumber: bank.phoneNumber || '',
           email: bank.email || '',
-          operatingHours: bank.operatingHours || { open: '08:00', close: '17:00' },
+          operatingHours: bank.operatingHours || { open: '00:00', close: '23:59' },
           inventory: bank.inventory || {},
           isVerified: bank.isVerified || false,
           rating: bank.rating,
@@ -812,9 +905,8 @@ export const searchBloodBanksByType = async (
   }
 };
 
-// ============================================================================
+
 // CHAT OPERATIONS
-// ============================================================================
 
 export const createChat = async (
   participant1Id: string,
@@ -922,6 +1014,29 @@ export const getUserChats = async (userId: string): Promise<Chat[]> => {
   }
 };
 
+/**
+ * Delete a chat and all its messages
+ */
+export const deleteChat = async (chatId: string): Promise<void> => {
+  try {
+    // Delete all messages in the chat
+    const messagesQuery = query(
+      collection(db, 'messages'),
+      where('chatId', '==', chatId)
+    );
+    const messagesSnapshot = await getDocs(messagesQuery);
+    const deleteMessagePromises = messagesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deleteMessagePromises);
+
+    // Delete the chat document
+    await deleteDoc(doc(db, 'chats', chatId));
+    console.log('Chat deleted:', chatId);
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    throw error;
+  }
+};
+
 export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> => {
   try {
     const q = query(
@@ -937,9 +1052,8 @@ export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> =>
   }
 };
 
-// ============================================================================
+
 // NOTIFICATION OPERATIONS
-// ============================================================================
 
 export const createNotification = async (
   notificationData: NewDocument<Notification>
@@ -992,9 +1106,8 @@ export const markNotificationAsRead = async (notificationId: string): Promise<vo
   }
 };
 
-// ============================================================================
+
 // DONATION RECORD OPERATIONS
-// ============================================================================
 
 export const createDonationRecord = async (
   donationData: NewDocument<DonationRecord>
@@ -1029,6 +1142,7 @@ export const createDonationRecord = async (
 };
 
 export const getDonorHistory = async (donorId: string): Promise<DonationRecord[]> => {
+  const cacheKey = `${CACHE_KEY_DONOR_HISTORY}_${donorId}`;
   try {
     const q = query(
       collection(db, 'donations'),
@@ -1036,16 +1150,22 @@ export const getDonorHistory = async (donorId: string): Promise<DonationRecord[]
       orderBy('donationDate', 'desc')
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => doc.data() as DonationRecord);
+    const history = snapshot.docs.map((doc) => doc.data() as DonationRecord);
+
+    await AsyncStorage.setItem(cacheKey, JSON.stringify(history));
+    return history;
   } catch (error) {
-    console.error('Error getting donor history:', error);
+    console.warn('Error getting donor history (trying cache):', error);
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (e) { console.error('Cache retrieval failed:', e); }
     throw error;
   }
 };
 
-// ============================================================================
+
 // POST/FEED OPERATIONS
-// ============================================================================
 
 export const createPost = async (postData: NewDocument<Post>): Promise<string> => {
   try {
@@ -1086,9 +1206,8 @@ export const getPosts = async (limitCount: number = 20): Promise<Post[]> => {
   }
 };
 
-// ============================================================================
 // REAL-TIME LISTENERS
-// ============================================================================
+
 
 export const subscribeToBloodRequests = (
   bloodType: BloodType,
@@ -1123,10 +1242,8 @@ export const subscribeToChatMessages = (
   });
 };
 
-// ============================================================================
-// TWO-PARTY VERIFICATION OPERATIONS (NEW)
-// ============================================================================
 
+// TWO-PARTY VERIFICATION OPERATIONS 
 /**
  * Donor marks donation as complete (pending requester verification)
  */
@@ -1231,7 +1348,7 @@ export const completeDonationAfterVerification = async (
       location: acceptedRequest.location,
       bloodBankName: acceptedRequest.hospitalName,
       unitsCollected: acceptedRequest.unitsNeeded,
-      pointsEarned: 50, // Adjust based on your points system
+      pointsEarned: 50,
       notes: acceptedRequest.donorNotes,
     });
 
@@ -1248,8 +1365,6 @@ export const completeDonationAfterVerification = async (
     throw error;
   }
 };
-
-// Add these functions to your existing database file
 
 /**
  * Mark messages as read
@@ -1354,9 +1469,8 @@ export const getChatByRequestId = async (
   }
 };
 
-// ============================================================================
-// INTERESTED DONORS OPERATIONS (NEW)
-// ============================================================================
+
+// INTERESTED DONORS OPERATIONS 
 
 /**
  * Donor expresses interest in a blood request
@@ -1554,9 +1668,8 @@ export const hasExpressedInterest = async (
   }
 };
 
-// ============================================================================
-// REVIEW OPERATIONS - Add these functions to your database.ts file
-// ============================================================================
+
+// REVIEW OPERATIONS 
 
 /**
  * Add a new review
@@ -1603,12 +1716,19 @@ export const getApprovedReviews = async (limitCount: number = 20): Promise<any[]
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({
+    const reviews = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
+
+    await AsyncStorage.setItem(CACHE_KEY_APPROVED_REVIEWS, JSON.stringify(reviews));
+    return reviews;
   } catch (error) {
-    console.error('Error getting approved reviews:', error);
+    console.warn('Error getting approved reviews (trying cache):', error);
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY_APPROVED_REVIEWS);
+      if (cached) return JSON.parse(cached);
+    } catch (e) { console.error('Cache retrieval failed:', e); }
     throw error;
   }
 };
@@ -1699,7 +1819,7 @@ export const getAverageRating = async (): Promise<{ average: number; count: numb
     const average = totalRating / reviews.length;
 
     return {
-      average: Math.round(average * 10) / 10, // Round to 1 decimal
+      average: Math.round(average * 10) / 10,
       count: reviews.length,
     };
   } catch (error) {
@@ -1729,4 +1849,83 @@ export const subscribeToApprovedReviews = (
     }));
     callback(reviews);
   });
+};
+
+
+// VERIFICATION OPERATIONS
+
+export const submitVerificationRequest = async (
+  userId: string,
+  data: Omit<VerificationRequest, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<void> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    const docData = removeUndefinedFields({
+      ...data,
+      id: userId,
+      status: 'pending',
+      submittedAt: timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    await setDoc(doc(db, 'verification_requests', userId), docData);
+    // Mirror verification status on the user record so guards can read it cheaply
+    await updateDoc(doc(db, 'users', userId), {
+      verificationStatus: 'pending',
+      isVerified: false,
+      updatedAt: timestamp,
+    });
+    console.log('[Verification] Request submitted for user:', userId);
+  } catch (error) {
+    console.log('[Verification] Error submitting request:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch the verification request for a user (returns null if not yet submitted).
+ */
+export const getVerificationRequest = async (
+  userId: string
+): Promise<VerificationRequest | null> => {
+  try {
+    const docSnap = await getDoc(doc(db, 'verification_requests', userId));
+    if (docSnap.exists()) return docSnap.data() as VerificationRequest;
+    return null;
+  } catch (error) {
+    console.log('[Verification] Error fetching request:', error);
+    return null;
+  }
+};
+
+/**
+ * Admin: approve or reject a verification request.
+ * Updates both `verification_requests` and the `users` doc.
+ */
+export const updateVerificationStatus = async (
+  userId: string,
+  status: 'approved' | 'rejected',
+  adminNotes?: string
+): Promise<void> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    // Update the verification request document
+    await updateDoc(doc(db, 'verification_requests', userId), removeUndefinedFields({
+      status,
+      adminNotes,
+      reviewedAt: timestamp,
+      updatedAt: timestamp,
+    }));
+    // Mirror on user doc
+    await updateDoc(doc(db, 'users', userId), removeUndefinedFields({
+      verificationStatus: status,
+      isVerified: status === 'approved',
+      verificationRejectionReason: status === 'rejected' ? (adminNotes || 'No reason provided') : null,
+      updatedAt: timestamp,
+    }));
+    console.log(`[Verification] User ${userId} marked as ${status}`);
+  } catch (error) {
+    console.log('[Verification] Error updating status:', error);
+    throw error;
+  }
 };

@@ -17,12 +17,15 @@ export const transformFirebaseUser = (firebaseUserData: any): User => {
     updatedAt: firebaseUserData.updatedAt || new Date().toISOString(),
     lastDonationDate: firebaseUserData.lastDonationDate,
     points: firebaseUserData.points ?? 0,
+    weight: firebaseUserData.weight,
+    county: firebaseUserData.county,
+    town: firebaseUserData.town,
   };
 };
 
 
-  // Validate that user data has all required fields
- 
+// Validate that user data has all required fields
+
 export const isValidUser = (user: any): user is User => {
   return (
     user &&

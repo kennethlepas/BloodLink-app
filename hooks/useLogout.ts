@@ -15,7 +15,7 @@ export const useLogout = () => {
   const performLogout = useCallback(
     async (options?: Partial<Omit<LogoutOptions, 'logout' | 'router'>>) => {
       await handleLogoutWithConfirmation({
-        logout,
+        logout: logout as () => Promise<void>,
         router,
         showConfirmation: true,
         ...options,

@@ -3,22 +3,23 @@ import { useUser } from '@/src/contexts/UserContext';
 import { updateUser } from '@/src/services/firebase/database';
 import { BloodType, Donor } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,6 +31,7 @@ const DonorEditProfileScreen: React.FC = () => {
   const { pickAndUploadImage, takeAndUploadPhoto, uploading: imageUploading } = useImagePicker();
 
   const [loading, setLoading] = useState(false);
+  const [showBloodTypeModal, setShowBloodTypeModal] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // Type guard to check if user is a donor
@@ -186,7 +188,7 @@ const DonorEditProfileScreen: React.FC = () => {
           allergies: '',
           weight: 0,
         };
-        
+
         updates.medicalHistory = {
           ...currentMedicalHistory,
           weight: Number(weight),
@@ -243,6 +245,53 @@ const DonorEditProfileScreen: React.FC = () => {
           <View style={styles.placeholder} />
         </View>
       </LinearGradient>
+      <StatusBar barStyle="light-content" backgroundColor="#0A2647" />
+
+      {/* Blood Type Selection Modal */}
+      <Modal
+        visible={showBloodTypeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBloodTypeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.selectionModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Blood Type</Text>
+              <TouchableOpacity onPress={() => setShowBloodTypeModal(false)}>
+                <Ionicons name="close" size={24} color="#1E293B" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.selectionGrid}>
+              {BLOOD_TYPES.map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.selectionItem,
+                    bloodType === type && { backgroundColor: '#3B82F620', borderColor: '#3B82F6' }
+                  ]}
+                  onPress={() => {
+                    setBloodType(type as BloodType);
+                    setShowBloodTypeModal(false);
+                  }}
+                >
+                  <Ionicons
+                    name="water"
+                    size={24}
+                    color={bloodType === type ? '#3B82F6' : '#64748B'}
+                  />
+                  <Text style={[
+                    styles.selectionText,
+                    bloodType === type && { color: '#3B82F6', fontWeight: '700' }
+                  ]}>
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
@@ -367,18 +416,16 @@ const DonorEditProfileScreen: React.FC = () => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Blood Type *</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={bloodType}
-                    onValueChange={(value) => setBloodType(value as BloodType)}
-                    style={styles.picker}
-                    enabled={!loading}
-                  >
-                    {BLOOD_TYPES.map((type) => (
-                      <Picker.Item key={type} label={type} value={type} />
-                    ))}
-                  </Picker>
-                </View>
+                <TouchableOpacity
+                  style={styles.pickerTrigger}
+                  onPress={() => setShowBloodTypeModal(true)}
+                  disabled={loading}
+                >
+                  <Text style={styles.pickerTriggerText}>
+                    {bloodType}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color="#64748B" />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.inputGroup}>
@@ -491,12 +538,12 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' } as any
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 12,
-          elevation: 5,
-        }),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
+      }),
   },
   profileSection: {
     alignItems: 'center',
@@ -592,16 +639,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
   },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-    overflow: 'hidden',
-  },
-  picker: {
-    height: 50,
-  },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -641,9 +678,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  selectionModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    width: '100%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  selectionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingTop: 8,
+  },
+  selectionItem: {
+    width: '22%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  selectionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginTop: 4,
+  },
+  pickerTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 50,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  pickerTriggerText: {
+    fontSize: 15,
+    color: '#1E293B',
   },
   buttonDisabled: {
     opacity: 0.6,
