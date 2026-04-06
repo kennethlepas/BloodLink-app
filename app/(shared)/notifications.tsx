@@ -80,7 +80,7 @@ const NotificationsScreen: React.FC = () => {
       const action = notification.data?.action;
       const type = notification.type;
 
-      if (action === 'view_request' || type === 'blood_request' || type === 'donor_nearby') {
+      if (action === 'view_request' || type === 'blood_request' || type === 'donor_nearby' || type === 'hospital_broadcast') {
         if (user?.userType === 'donor') {
           router.push('/(donor)/requests' as any);
         } else {
@@ -98,6 +98,12 @@ const NotificationsScreen: React.FC = () => {
         router.push('/(donor)/donation-history' as any);
       } else if (action === 'open_donor_home' || type === 'donation_reminder') {
         router.push('/(donor)/index' as any);
+      } else if (type === 'booking_confirmed' || type === 'booking_rejected' || type === 'booking_completed' || type === 'booking_fulfilled') {
+        if (user?.userType === 'donor') {
+          router.push('/(donor)/booking-status' as any);
+        } else {
+          router.push('/(requester)/my-requests' as any);
+        }
       } else if (type === 'system_alert') {
         // Maybe show an alert or navigate to settings/info
       }
@@ -110,8 +116,17 @@ const NotificationsScreen: React.FC = () => {
     switch (type) {
       case 'blood_request':
         return 'water';
+      case 'hospital_broadcast':
+        return 'radio';
       case 'request_accepted':
         return 'checkmark-circle';
+      case 'booking_confirmed':
+        return 'calendar';
+      case 'booking_rejected':
+        return 'close-circle';
+      case 'booking_completed':
+      case 'booking_fulfilled':
+        return 'trophy';
       case 'request_completed':
         return 'checkmark-done-circle';
       case 'verify_donation':
@@ -137,8 +152,17 @@ const NotificationsScreen: React.FC = () => {
     switch (type) {
       case 'blood_request':
         return '#DC2626';
+      case 'hospital_broadcast':
+        return '#EA580C';
       case 'request_accepted':
         return '#16A34A';
+      case 'booking_confirmed':
+        return '#312E81';
+      case 'booking_rejected':
+        return '#DC2626';
+      case 'booking_completed':
+      case 'booking_fulfilled':
+        return '#059669';
       case 'verify_donation':
         return '#2563EB';
       case 'donation_verified':
@@ -296,8 +320,8 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   backButton: {
     width: 40,
@@ -310,8 +334,8 @@ const styles = StyleSheet.create({
   headerTitleContainer: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     gap: 8,
   },
   headerTitle: {
@@ -320,13 +344,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   headerBadge: {
-    backgroundColor: '#F59E0B',
-    borderRadius: 12,
     minWidth: 24,
     height: 24,
-    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: '#F59E0B',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   headerBadgeText: {
     fontSize: 12,
@@ -338,9 +362,9 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
+    paddingVertical: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
   },
   loadingText: {
     marginTop: 12,
@@ -352,13 +376,13 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   notificationItem: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
   },
   unreadNotification: {
     backgroundColor: '#EFF6FF',
@@ -367,17 +391,17 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
+    flexShrink: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    flexShrink: 0,
   },
   textContainer: {
     flex: 1,
   },
   notificationHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
   notificationTitle: {
@@ -395,9 +419,9 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+    flexShrink: 0,
     backgroundColor: '#3B82F6',
     marginLeft: 8,
-    flexShrink: 0,
   },
   notificationMessage: {
     fontSize: 14,

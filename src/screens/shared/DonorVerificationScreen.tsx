@@ -3,6 +3,7 @@ import { useUser } from '@/src/contexts/UserContext';
 import { uploadImageToCloudinary } from '@/src/services/cloudinary/upload.service';
 import { submitVerificationRequest } from '@/src/services/firebase/database';
 import { DonorQuestionnaire } from '@/src/types/types';
+import { mapErrorMessage } from '@/src/utils/errorMapper';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -53,17 +54,71 @@ const pickImage = async (): Promise<string | null> => {
     const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.5,
     });
     if (result.canceled || !result.assets?.length) return null;
     return result.assets[0].uri;
 };
 
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bg },
+    header: { paddingHorizontal: 16, paddingBottom: 20 },
+    hTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    hTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+    hSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+
+    progressRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 24, marginTop: 4 },
+    progressStep: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+    progressLine: { flex: 1, height: 2, marginHorizontal: 4 },
+    progressLabel: { fontSize: 10, fontWeight: '700', marginTop: 4, textAlign: 'center' },
+
+    scroll: { flex: 1 },
+    section: { borderRadius: 16, borderWidth: 1, borderColor: colors.surfaceBorder, backgroundColor: colors.surface, marginHorizontal: 16, marginBottom: 20, padding: 16 },
+    sTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 4 },
+    sSub: { fontSize: 12, color: colors.textSecondary, marginBottom: 16, lineHeight: 18 },
+
+    uploadCard: { borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', padding: 20, marginBottom: 12 },
+    uploadLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 8 },
+    uploadSub: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+    uploadImg: { width: '100%', height: 140, borderRadius: 10, resizeMode: 'cover', marginTop: 8 },
+    optBadge: { borderRadius: 8, backgroundColor: colors.surfaceBorder, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 6 },
+    optText: { fontSize: 10, fontWeight: '700', color: colors.textSecondary },
+
+    qRow: { borderBottomWidth: 1, borderBottomColor: colors.surfaceBorder, flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+    qText: { flex: 1, fontSize: 13, color: colors.text, lineHeight: 18, marginRight: 12 },
+
+    consentBox: { borderRadius: 12, backgroundColor: colors.surfaceBorder, padding: 16, marginBottom: 16 },
+    consentText: { fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
+    consentRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
+    consentLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text, marginLeft: 10 },
+
+    btnRow: { flexDirection: 'row', gap: 12, margin: 16, marginTop: 4 },
+    btn: { flex: 1, borderRadius: 14, overflow: 'hidden' },
+    btnGrad: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingVertical: 14 },
+    btnText: { fontSize: 15, fontWeight: '800', color: '#FFF' },
+    btnSecondary: { flex: 1, borderRadius: 14, borderWidth: 1.5, borderColor: colors.primary, justifyContent: 'center', alignItems: 'center', paddingVertical: 14 },
+    btnSecText: { fontSize: 15, fontWeight: '700', color: colors.primary },
+
+    inputGroup: { marginBottom: 16 },
+    inputLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 8 },
+    input: {
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.surfaceBorder,
+        backgroundColor: colors.bg,
+        fontSize: 15,
+        color: colors.text,
+        padding: 14
+    },
+});
+
 // Component
 export default function DonorVerificationScreen() {
     const router = useRouter();
     const { user, updateUserData } = useUser();
-    const { colors } = useAppTheme();
+    const { colors, isDark } = useAppTheme();
+    const s = getStyles(colors, isDark);
 
     const [step, setStep] = useState(1);
     const [uploading, setUploading] = useState(false);
@@ -97,7 +152,6 @@ export default function DonorVerificationScreen() {
     // Step 3 — consent
     const [consentAccepted, setConsentAccepted] = useState(false);
 
-
     const pickAndSet = async (setter: (uri: string) => void) => {
         const uri = await pickImage();
         if (uri) setter(uri);
@@ -126,14 +180,14 @@ export default function DonorVerificationScreen() {
 
             setUploading(true);
             const [natIdRes, selfieRes] = await Promise.all([
-                uploadImageToCloudinary(nationalIdUri!, folder),
-                uploadImageToCloudinary(selfieUri!, folder),
+                uploadImageToCloudinary(nationalIdUri!, folder, 'verification'),
+                uploadImageToCloudinary(selfieUri!, folder, 'verification'),
             ]);
             const donorCardRes = donorCardUri
-                ? await uploadImageToCloudinary(donorCardUri, folder)
+                ? await uploadImageToCloudinary(donorCardUri, folder, 'verification')
                 : null;
             const bloodTestRes = bloodTestUri
-                ? await uploadImageToCloudinary(bloodTestUri, folder)
+                ? await uploadImageToCloudinary(bloodTestUri, folder, 'verification')
                 : null;
             setUploading(false);
 
@@ -168,84 +222,28 @@ export default function DonorVerificationScreen() {
             );
         } catch (err) {
             console.log('[DonorVerification] submit error:', err);
-            Alert.alert('Error', 'Failed to submit. Please check your connection and try again.');
+            const errorMessage = mapErrorMessage(err);
+            Alert.alert('Error', errorMessage);
         } finally {
             setSubmitting(false);
             setUploading(false);
         }
     };
 
-
-    const s = StyleSheet.create({
-        container: { flex: 1, backgroundColor: colors.bg },
-        header: { paddingHorizontal: 16, paddingBottom: 20 },
-        hTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-        backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-        hTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
-        hSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-
-        progressRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 24, marginTop: 4 },
-        progressStep: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-        progressLine: { flex: 1, height: 2, marginHorizontal: 4 },
-        progressLabel: { fontSize: 10, fontWeight: '700', marginTop: 4, textAlign: 'center' },
-
-        scroll: { flex: 1 },
-        section: { marginHorizontal: 16, marginBottom: 20, backgroundColor: colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.surfaceBorder },
-        sTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 4 },
-        sSub: { fontSize: 12, color: colors.textSecondary, marginBottom: 16, lineHeight: 18 },
-
-        uploadCard: { borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', padding: 20, marginBottom: 12 },
-        uploadLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 8 },
-        uploadSub: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
-        uploadImg: { width: '100%', height: 140, borderRadius: 10, marginTop: 8, resizeMode: 'cover' },
-        optBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: '#F59E0B20', marginLeft: 6 },
-        optText: { fontSize: 10, fontWeight: '700', color: '#D97706' },
-
-        qRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.surfaceBorder },
-        qText: { flex: 1, fontSize: 13, color: colors.text, lineHeight: 18, marginRight: 12 },
-
-        consentBox: { backgroundColor: colors.surfaceBorder, borderRadius: 12, padding: 16, marginBottom: 16 },
-        consentText: { fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
-        consentRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
-        consentLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text, marginLeft: 10 },
-
-        btnRow: { flexDirection: 'row', gap: 12, margin: 16, marginTop: 4 },
-        btn: { flex: 1, borderRadius: 14, overflow: 'hidden' },
-        btnGrad: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-        btnText: { fontSize: 15, fontWeight: '800', color: '#FFF' },
-        btnSecondary: { flex: 1, borderRadius: 14, borderWidth: 1.5, borderColor: colors.primary, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
-        btnSecText: { fontSize: 15, fontWeight: '700', color: colors.primary },
-
-        inputGroup: { marginBottom: 16 },
-        inputLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 8 },
-        input: {
-            backgroundColor: colors.surfaceBorder,
-            borderRadius: 12,
-            padding: 14,
-            fontSize: 15,
-            color: colors.text,
-            borderWidth: 1,
-            borderColor: 'rgba(0,0,0,0.1)',
-        },
-    });
-
     const stepLabels = ['Identity', 'Health Check', 'Consent'];
-    const BLUE = '#2563EB';
-    const BLUE2 = '#3B82F6';
-
 
     const renderStep1 = () => (
-        <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 100 }}>
             <View style={s.section}>
                 <Text style={s.sTitle}>Identity Documents</Text>
                 <Text style={s.sSub}>Upload clear photos of your identification. These are stored securely and viewed only by our verification team.</Text>
 
                 {/* National ID */}
                 <TouchableOpacity
-                    style={[s.uploadCard, { borderColor: nationalIdUri ? '#10B981' : BLUE }]}
+                    style={[s.uploadCard, { borderColor: nationalIdUri ? '#10B981' : colors.primary }]}
                     onPress={() => pickAndSet(setNationalIdUri)}
                 >
-                    <Ionicons name={nationalIdUri ? 'checkmark-circle' : 'id-card-outline'} size={32} color={nationalIdUri ? '#10B981' : BLUE} />
+                    <Ionicons name={nationalIdUri ? 'checkmark-circle' : 'id-card-outline'} size={32} color={nationalIdUri ? '#10B981' : colors.primary} />
                     <Text style={[s.uploadLabel, { color: nationalIdUri ? '#10B981' : colors.text }]}>National ID / Passport</Text>
                     <Text style={s.uploadSub}>{nationalIdUri ? 'Tap to change' : 'Required — tap to upload'}</Text>
                     {nationalIdUri && <Image source={{ uri: nationalIdUri }} style={s.uploadImg} />}
@@ -253,10 +251,10 @@ export default function DonorVerificationScreen() {
 
                 {/* Selfie */}
                 <TouchableOpacity
-                    style={[s.uploadCard, { borderColor: selfieUri ? '#10B981' : BLUE }]}
+                    style={[s.uploadCard, { borderColor: selfieUri ? '#10B981' : colors.primary }]}
                     onPress={() => pickAndSet(setSelfieUri)}
                 >
-                    <Ionicons name={selfieUri ? 'checkmark-circle' : 'camera-outline'} size={32} color={selfieUri ? '#10B981' : BLUE} />
+                    <Ionicons name={selfieUri ? 'checkmark-circle' : 'camera-outline'} size={32} color={selfieUri ? '#10B981' : colors.primary} />
                     <Text style={[s.uploadLabel, { color: selfieUri ? '#10B981' : colors.text }]}>Selfie Photo</Text>
                     <Text style={s.uploadSub}>{selfieUri ? 'Tap to change' : 'Required — must match your ID'}</Text>
                     {selfieUri && <Image source={{ uri: selfieUri }} style={s.uploadImg} />}
@@ -264,11 +262,11 @@ export default function DonorVerificationScreen() {
 
                 {/* Donor Card — optional */}
                 <TouchableOpacity
-                    style={[s.uploadCard, { borderColor: donorCardUri ? '#10B981' : '#D1D5DB' }]}
+                    style={[s.uploadCard, { borderColor: donorCardUri ? '#10B981' : colors.surfaceBorder }]}
                     onPress={() => pickAndSet(setDonorCardUri)}
                 >
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Ionicons name={donorCardUri ? 'checkmark-circle' : 'card-outline'} size={32} color={donorCardUri ? '#10B981' : '#9CA3AF'} />
+                        <Ionicons name={donorCardUri ? 'checkmark-circle' : 'card-outline'} size={32} color={donorCardUri ? '#10B981' : colors.textMuted} />
                         <View style={s.optBadge}><Text style={s.optText}>OPTIONAL</Text></View>
                     </View>
                     <Text style={[s.uploadLabel, { color: donorCardUri ? '#10B981' : colors.textSecondary }]}>Previous Donor Card</Text>
@@ -278,11 +276,11 @@ export default function DonorVerificationScreen() {
 
                 {/* Blood Test Report — optional */}
                 <TouchableOpacity
-                    style={[s.uploadCard, { borderColor: bloodTestUri ? '#10B981' : '#D1D5DB' }]}
+                    style={[s.uploadCard, { borderColor: bloodTestUri ? '#10B981' : colors.surfaceBorder }]}
                     onPress={() => pickAndSet(setBloodTestUri)}
                 >
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Ionicons name={bloodTestUri ? 'checkmark-circle' : 'document-text-outline'} size={32} color={bloodTestUri ? '#10B981' : '#9CA3AF'} />
+                        <Ionicons name={bloodTestUri ? 'checkmark-circle' : 'document-text-outline'} size={32} color={bloodTestUri ? '#10B981' : colors.textMuted} />
                         <View style={s.optBadge}><Text style={s.optText}>OPTIONAL</Text></View>
                     </View>
                     <Text style={[s.uploadLabel, { color: bloodTestUri ? '#10B981' : colors.textSecondary }]}>Blood Test Report</Text>
@@ -300,7 +298,7 @@ export default function DonorVerificationScreen() {
                     onPress={() => { if (nationalIdUri && selfieUri) setStep(2); }}
                     disabled={!nationalIdUri || !selfieUri}
                 >
-                    <LinearGradient colors={[BLUE, BLUE2]} style={s.btnGrad}>
+                    <LinearGradient colors={[colors.primary, '#60A5FA']} style={s.btnGrad}>
                         <Text style={s.btnText}>Next</Text>
                         <Ionicons name="arrow-forward" size={18} color="#FFF" />
                     </LinearGradient>
@@ -311,7 +309,7 @@ export default function DonorVerificationScreen() {
 
     // Step 2: Health Questionnaire 
     const renderStep2 = () => (
-        <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 100 }}>
             <View style={s.section}>
                 <Text style={s.sTitle}>Health Suitability Check</Text>
                 <Text style={s.sSub}>
@@ -349,7 +347,7 @@ export default function DonorVerificationScreen() {
                         <Switch
                             value={questionnaire[item.key] as boolean}
                             onValueChange={() => toggleQuestion(item.key)}
-                            trackColor={{ false: '#D1D5DB', true: '#10B981' }}
+                            trackColor={{ false: colors.surfaceBorder, true: '#10B981' }}
                             thumbColor="#FFF"
                         />
                     </View>
@@ -365,7 +363,7 @@ export default function DonorVerificationScreen() {
                     onPress={() => { if (allQuestionsAnswered) setStep(3); }}
                     disabled={!allQuestionsAnswered}
                 >
-                    <LinearGradient colors={[BLUE, BLUE2]} style={s.btnGrad}>
+                    <LinearGradient colors={[colors.primary, '#60A5FA']} style={s.btnGrad}>
                         <Text style={s.btnText}>Next</Text>
                         <Ionicons name="arrow-forward" size={18} color="#FFF" />
                     </LinearGradient>
@@ -376,7 +374,7 @@ export default function DonorVerificationScreen() {
 
     // Step 3: Consent & Submit
     const renderStep3 = () => (
-        <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView style={s.scroll} contentContainerStyle={{ paddingBottom: 100 }}>
             <View style={s.section}>
                 <Text style={s.sTitle}>Data Protection Consent</Text>
                 <Text style={s.sSub}>Kenya Data Protection Act (2019) — please read carefully before accepting.</Text>
@@ -387,7 +385,7 @@ export default function DonorVerificationScreen() {
                     <Ionicons
                         name={consentAccepted ? 'checkbox' : 'square-outline'}
                         size={26}
-                        color={consentAccepted ? BLUE : '#9CA3AF'}
+                        color={consentAccepted ? colors.primary : colors.textMuted}
                     />
                     <Text style={s.consentLabel}>I have read and accept the consent statement above</Text>
                 </TouchableOpacity>
@@ -414,7 +412,7 @@ export default function DonorVerificationScreen() {
 
     return (
         <SafeAreaView style={s.container} edges={['top']}>
-            <LinearGradient colors={[BLUE, BLUE2]} style={s.header}>
+            <LinearGradient colors={[colors.primary, '#60A5FA']} style={s.header}>
                 <View style={s.hTop}>
                     <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
                         <Ionicons name="arrow-back" size={20} color="#FFF" />
@@ -438,7 +436,7 @@ export default function DonorVerificationScreen() {
                                     <View style={[s.progressStep, { backgroundColor: done ? '#10B981' : active ? '#FFF' : 'rgba(255,255,255,0.3)' }]}>
                                         {done
                                             ? <Ionicons name="checkmark" size={16} color="#FFF" />
-                                            : <Text style={{ fontSize: 13, fontWeight: '800', color: active ? BLUE : 'rgba(255,255,255,0.7)' }}>{num}</Text>}
+                                            : <Text style={{ fontSize: 13, fontWeight: '800', color: active ? colors.primary : 'rgba(255,255,255,0.7)' }}>{num}</Text>}
                                     </View>
                                     {idx < 2 && <View style={{ flex: 1, height: 2, backgroundColor: done ? '#FFF' : 'rgba(255,255,255,0.3)' }} />}
                                 </View>

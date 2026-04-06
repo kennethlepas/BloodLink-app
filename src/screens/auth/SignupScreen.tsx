@@ -1,12 +1,15 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
-import { KENYA_COUNTIES, getTownsByCounty } from '@/src/constants/kenyaLocations';
+import { KENYA_COUNTIES, getSubCountiesByCounty } from '@/src/constants/kenyaLocations';
 import { useUser } from '@/src/contexts/UserContext';
 import { createUser } from '@/src/services/firebase/database';
 import { auth, db } from '@/src/services/firebase/firebase';
+import { getCurrentLocation } from '@/src/services/location/locationService';
 import { BloodType, SignupFormData, UserType } from '@/src/types/types';
 import { transformFirebaseUser } from '@/src/types/userTransform';
+import { mapErrorMessage } from '@/src/utils/errorMapper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ExpoLocation from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
@@ -50,7 +53,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
   const [loading, setLoading] = useState(false);
   const [isBloodTypeExpanded, setIsBloodTypeExpanded] = useState(false);
   const [isCountyExpanded, setIsCountyExpanded] = useState(false);
-  const [isTownExpanded, setIsTownExpanded] = useState(false);
+  const [isSubCountyExpanded, setIsSubCountyExpanded] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -68,8 +71,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
     bloodType: 'O+',
     userType: selectedUserType,
     county: '',
-    town: '',
     profilePicture: undefined,
+    location: undefined,
   });
 
   const handleImagePicker = () => {
@@ -169,8 +172,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
       case 'county':
         if (!value) return 'County is required';
         break;
-      case 'town':
-        if (!value) return 'Town/City is required';
+      case 'subCounty':
+        if (!value) return 'Sub-County is required';
         break;
     }
     return undefined;
@@ -188,7 +191,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
       'password',
       'confirmPassword',
       'county',
-      'town',
+      'subCounty',
     ];
 
     fields.forEach((field) => {
@@ -248,6 +251,34 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
     }
   };
 
+  const [loadingLocation, setLoadingLocation] = useState(false);
+
+  const getCurrentLocationHandler = async () => {
+    try {
+      setLoadingLocation(true);
+
+      const loc = await getCurrentLocation(ExpoLocation.Accuracy.Balanced);
+      if (loc) {
+        const { latitude, longitude } = loc;
+        handleInputChange('location', {
+          latitude,
+          longitude,
+          address: `${formData.subCounty}, ${formData.county}`,
+          city: formData.subCounty,
+          region: formData.county
+        });
+        Alert.alert('Success', 'Current location captured successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to capture precise location. Please ensure location services are enabled.');
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert('Error', 'Failed to capture precise location. Please try again.');
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
+
   const handleSignup = async () => {
     if (!validateForm()) return;
 
@@ -271,12 +302,15 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
         bloodType: formData.bloodType,
         userType: selectedUserType,
         county: formData.county,
-        town: formData.town,
+        subCounty: formData.subCounty,
         isActive: true,
         points: 0,
         acceptedTermsAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        verificationStatus: 'unsubmitted',
+        isVerified: false,
+        location: formData.location || null,
       };
 
       if (selectedUserType === 'donor') {
@@ -297,46 +331,23 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
       await setDoc(doc(db, specificCollection, firebaseUser.uid), baseUserData);
 
       const userForContext = transformFirebaseUser(baseUserData);
-      await login(userForContext);
 
       Alert.alert(
         'Account Created',
-        'Please check your email to verify your account.',
+        'Please check your email to verify your account. We have sent a verification link to ' + normalizedEmail,
         [
           {
             text: 'OK',
-            onPress: () => {
+            onPress: async () => {
+              // Update context and redirect
+              await login(userForContext);
               router.replace('/(auth)/verify-email' as any);
             },
           },
         ]
       );
     } catch (error: any) {
-      console.log('Signup error:', error);
-
-      let errorMessage = 'Failed to create account. Please try again.';
-
-      if (error.code) {
-        switch (error.code) {
-          case 'auth/email-already-in-use':
-            errorMessage = 'This email is already registered. Please login or use a different email.';
-            break;
-          case 'auth/invalid-email':
-            errorMessage = 'Invalid email address format.';
-            break;
-          case 'auth/weak-password':
-            errorMessage = 'Password is too weak. Please use a stronger password.';
-            break;
-          case 'auth/network-request-failed':
-            errorMessage = 'Network error. Please check your internet connection.';
-            break;
-          default:
-            if (error.message && !error.message.includes('Firebase')) {
-              errorMessage = error.message;
-            }
-        }
-      }
-
+      const errorMessage = mapErrorMessage(error);
       Alert.alert('Signup Failed', errorMessage);
     } finally {
       setLoading(false);
@@ -356,25 +367,31 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
           style={styles.keyboardAvoid}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>
-              Create {selectedUserType === 'donor' ? 'Donor' : 'Requester'} Account
-            </Text>
-          </View>
-
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Simplified Header Branding - Moved inside ScrollView as requested */}
+            <View style={styles.headerBranding}>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={styles.backButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+
+              <View style={styles.topBadgeContainer}>
+                <View style={styles.introBadge}>
+                  <Text style={styles.introBadgeText}>🇰🇪 Join the Movement</Text>
+                </View>
+                <Text style={styles.headerPageTitle}>
+                  Create {selectedUserType === 'donor' ? 'Donor' : 'Requester'} Account
+                </Text>
+              </View>
+            </View>
             <View style={styles.formCard}>
 
               {/* Profile Picture Section */}
@@ -413,34 +430,36 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Personal Information</Text>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>First Name *</Text>
-                  <TextInput
-                    style={[styles.input, errors.firstName && styles.inputError]}
-                    value={formData.firstName}
-                    onChangeText={(value) => handleInputChange('firstName', value)}
-                    onBlur={() => handleBlur('firstName')}
-                    placeholder="Enter your first name"
-                    placeholderTextColor="#94A3B8"
-                    autoCapitalize="words"
-                    editable={!loading}
-                  />
-                  {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
-                </View>
+                <View style={styles.row}>
+                  <View style={styles.halfInputGroup}>
+                    <Text style={styles.inputLabel}>First Name *</Text>
+                    <TextInput
+                      style={[styles.input, errors.firstName && styles.inputError]}
+                      value={formData.firstName}
+                      onChangeText={(value) => handleInputChange('firstName', value)}
+                      onBlur={() => handleBlur('firstName')}
+                      placeholder="e.g. John"
+                      placeholderTextColor="#94A3B8"
+                      autoCapitalize="words"
+                      editable={!loading}
+                    />
+                    {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
+                  </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Last Name *</Text>
-                  <TextInput
-                    style={[styles.input, errors.lastName && styles.inputError]}
-                    value={formData.lastName}
-                    onChangeText={(value) => handleInputChange('lastName', value)}
-                    onBlur={() => handleBlur('lastName')}
-                    placeholder="Enter your last name"
-                    placeholderTextColor="#94A3B8"
-                    autoCapitalize="words"
-                    editable={!loading}
-                  />
-                  {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+                  <View style={styles.halfInputGroup}>
+                    <Text style={styles.inputLabel}>Last Name *</Text>
+                    <TextInput
+                      style={[styles.input, errors.lastName && styles.inputError]}
+                      value={formData.lastName}
+                      onChangeText={(value) => handleInputChange('lastName', value)}
+                      onBlur={() => handleBlur('lastName')}
+                      placeholder="e.g. Doe"
+                      placeholderTextColor="#94A3B8"
+                      autoCapitalize="words"
+                      editable={!loading}
+                    />
+                    {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+                  </View>
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -450,7 +469,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                     value={formData.email}
                     onChangeText={(value) => handleInputChange('email', value)}
                     onBlur={() => handleBlur('email')}
-                    placeholder="Enter your email"
+                    placeholder="e.g. john@example.com"
                     placeholderTextColor="#94A3B8"
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -460,186 +479,204 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                   {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Phone Number *</Text>
-                  <TextInput
-                    style={[styles.input, errors.phoneNumber && styles.inputError]}
-                    value={formData.phoneNumber}
-                    onChangeText={(value) => handleInputChange('phoneNumber', value)}
-                    onBlur={() => handleBlur('phoneNumber')}
-                    placeholder="Enter your phone number"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="phone-pad"
-                    autoComplete="tel"
-                    editable={!loading}
-                  />
-                  {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+                <View style={styles.row}>
+                  <View style={styles.halfInputGroup}>
+                    <Text style={styles.inputLabel}>Phone *</Text>
+                    <TextInput
+                      style={[styles.input, errors.phoneNumber && styles.inputError]}
+                      value={formData.phoneNumber}
+                      onChangeText={(value) => handleInputChange('phoneNumber', value)}
+                      onBlur={() => handleBlur('phoneNumber')}
+                      placeholder="e.g. 07..."
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="phone-pad"
+                      autoComplete="tel"
+                      editable={!loading}
+                    />
+                    {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+                  </View>
+
+                  <View style={styles.halfInputGroup}>
+                    <Text style={styles.inputLabel}>Blood Type *</Text>
+                    <TouchableOpacity
+                      style={[styles.pickerTrigger, isBloodTypeExpanded && styles.pickerTriggerExpanded]}
+                      onPress={() => {
+                        setIsBloodTypeExpanded(!isBloodTypeExpanded);
+                        setIsCountyExpanded(false);
+                        setIsSubCountyExpanded(false);
+                      }}
+                      disabled={loading}
+                    >
+                      <Text style={[styles.pickerTriggerText, !formData.bloodType && { color: '#94A3B8' }]}>
+                        {formData.bloodType || 'Type'}
+                      </Text>
+                      <Ionicons name={isBloodTypeExpanded ? "chevron-up" : "chevron-down"} size={18} color="#64748B" />
+                    </TouchableOpacity>
+                    {errors.bloodType && <Text style={styles.errorText}>{errors.bloodType}</Text>}
+                  </View>
                 </View>
-              </View>
 
-              {/* Medical Information Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Medical Information</Text>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Blood Type *</Text>
-                  <TouchableOpacity
-                    style={[styles.pickerTrigger, isBloodTypeExpanded && styles.pickerTriggerExpanded]}
-                    onPress={() => {
-                      setIsBloodTypeExpanded(!isBloodTypeExpanded);
-                      setIsCountyExpanded(false);
-                      setIsTownExpanded(false);
-                    }}
-                    disabled={loading}
-                  >
-                    <Text style={[styles.pickerTriggerText, !formData.bloodType && { color: '#94A3B8' }]}>
-                      {formData.bloodType || 'Select blood type'}
-                    </Text>
-                    <Ionicons name={isBloodTypeExpanded ? "chevron-up" : "chevron-down"} size={20} color="#64748B" />
-                  </TouchableOpacity>
-
-                  {isBloodTypeExpanded && (
-                    <View style={styles.inlineSelectionContainer}>
-                      {BLOOD_TYPES.map((type) => (
-                        <TouchableOpacity
-                          key={type}
-                          style={[
-                            styles.selectionItem,
-                            formData.bloodType === type && { backgroundColor: '#3B82F620', borderColor: '#3B82F6' }
-                          ]}
-                          onPress={() => {
-                            handleInputChange('bloodType', type);
-                            setIsBloodTypeExpanded(false);
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Ionicons
-                              name="water"
-                              size={20}
-                              color={formData.bloodType === type ? '#3B82F6' : '#64748B'}
-                            />
-                            <Text style={[
-                              styles.selectionText,
-                              { marginLeft: 10, marginTop: 0, fontSize: moderateScale(14) },
-                              formData.bloodType === type && { color: '#3B82F6', fontWeight: '700' }
-                            ]}>
-                              {type}
-                            </Text>
-                          </View>
-                          {formData.bloodType === type && (
-                            <Ionicons name="checkmark-circle" size={18} color="#3B82F6" />
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
+                {isBloodTypeExpanded && (
+                  <View style={[styles.robustSelectionContainer, { marginTop: verticalScale(-8) }]}>
+                    {BLOOD_TYPES.map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={[
+                          styles.selectionItem,
+                          formData.bloodType === type && { backgroundColor: '#3B82F615', borderColor: '#3B82F6' }
+                        ]}
+                        onPress={() => {
+                          handleInputChange('bloodType', type);
+                          setIsBloodTypeExpanded(false);
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Ionicons
+                            name="water"
+                            size={18}
+                            color={formData.bloodType === type ? '#3B82F6' : '#64748B'}
+                          />
+                          <Text style={[
+                            styles.selectionText,
+                            { marginLeft: 8, marginTop: 0, fontSize: moderateScale(13) },
+                            formData.bloodType === type && { color: '#3B82F6', fontWeight: '700' }
+                          ]}>
+                            {type}
+                          </Text>
+                        </View>
+                        {formData.bloodType === type && (
+                          <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
                 {errors.bloodType && <Text style={styles.errorText}>{errors.bloodType}</Text>}
 
                 {/* Location Section - Moved here as requested */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>County *</Text>
-                  <TouchableOpacity
-                    style={[styles.pickerTrigger, isCountyExpanded && styles.pickerTriggerExpanded]}
-                    onPress={() => {
-                      setIsCountyExpanded(!isCountyExpanded);
-                      setIsBloodTypeExpanded(false);
-                      setIsTownExpanded(false);
-                    }}
-                    disabled={loading}
-                  >
-                    <Text style={[styles.pickerTriggerText, !formData.county && { color: '#94A3B8' }]}>
-                      {formData.county || 'Select your county'}
-                    </Text>
-                    <Ionicons name={isCountyExpanded ? "chevron-up" : "chevron-down"} size={20} color="#64748B" />
-                  </TouchableOpacity>
+                <View style={styles.row}>
+                  <View style={styles.halfInputGroup}>
+                    <Text style={styles.inputLabel}>County *</Text>
+                    <TouchableOpacity
+                      style={[styles.pickerTrigger, isCountyExpanded && styles.pickerTriggerExpanded]}
+                      onPress={() => {
+                        setIsCountyExpanded(!isCountyExpanded);
+                        setIsBloodTypeExpanded(false);
+                        setIsSubCountyExpanded(false);
+                      }}
+                      disabled={loading}
+                    >
+                      <Text style={[styles.pickerTriggerText, !formData.county && { color: '#94A3B8' }]}>
+                        {formData.county || 'County'}
+                      </Text>
+                      <Ionicons name={isCountyExpanded ? "chevron-up" : "chevron-down"} size={18} color="#64748B" />
+                    </TouchableOpacity>
+                    {errors.county && <Text style={styles.errorText}>{errors.county}</Text>}
+                  </View>
 
-                  {isCountyExpanded && (
-                    <View style={[styles.inlineSelectionContainer, { maxHeight: verticalScale(250) }]}>
-                      <ScrollView nestedScrollEnabled={true}>
-                        {KENYA_COUNTIES.map((county) => (
-                          <TouchableOpacity
-                            key={county}
-                            style={[
-                              styles.selectionItem,
-                              formData.county === county && { backgroundColor: '#3B82F620', borderColor: '#3B82F6' }
-                            ]}
-                            onPress={() => {
-                              handleInputChange('county', county);
-                              handleInputChange('town', '');
-                              setIsCountyExpanded(false);
-                            }}
-                          >
-                            <Text style={[
-                              styles.selectionText,
-                              { marginTop: 0, fontSize: moderateScale(14) },
-                              formData.county === county && { color: '#3B82F6', fontWeight: '700' }
-                            ]}>
-                              {county}
-                            </Text>
-                            {formData.county === county && (
-                              <Ionicons name="checkmark-circle" size={18} color="#3B82F6" />
-                            )}
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
-                  {errors.county && <Text style={styles.errorText}>{errors.county}</Text>}
+                  <View style={styles.halfInputGroup}>
+                    <Text style={styles.inputLabel}>Sub-County *</Text>
+                    <TouchableOpacity
+                      style={[styles.pickerTrigger, isSubCountyExpanded && styles.pickerTriggerExpanded]}
+                      onPress={() => {
+                        if (!formData.county) {
+                          Alert.alert('Selection Required', 'Please select a county first');
+                          return;
+                        }
+                        setIsSubCountyExpanded(!isSubCountyExpanded);
+                        setIsBloodTypeExpanded(false);
+                        setIsCountyExpanded(false);
+                      }}
+                      disabled={loading}
+                    >
+                      <Text style={[styles.pickerTriggerText, !formData.subCounty && { color: '#94A3B8' }]}>
+                        {formData.subCounty || 'Sub-County'}
+                      </Text>
+                      <Ionicons name={isSubCountyExpanded ? "chevron-up" : "chevron-down"} size={18} color="#64748B" />
+                    </TouchableOpacity>
+                    {errors.subCounty && <Text style={styles.errorText}>{errors.subCounty}</Text>}
+                  </View>
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Town/City *</Text>
-                  <TouchableOpacity
-                    style={[styles.pickerTrigger, isTownExpanded && styles.pickerTriggerExpanded]}
-                    onPress={() => {
-                      if (!formData.county) {
-                        Alert.alert('Selection Required', 'Please select a county first');
-                        return;
-                      }
-                      setIsTownExpanded(!isTownExpanded);
-                      setIsBloodTypeExpanded(false);
-                      setIsCountyExpanded(false);
-                    }}
-                    disabled={loading}
-                  >
-                    <Text style={[styles.pickerTriggerText, !formData.town && { color: '#94A3B8' }]}>
-                      {formData.town || 'Select your town'}
-                    </Text>
-                    <Ionicons name={isTownExpanded ? "chevron-up" : "chevron-down"} size={20} color="#64748B" />
-                  </TouchableOpacity>
+                {isCountyExpanded && (
+                  <View style={[styles.robustSelectionContainer, { marginTop: verticalScale(-8) }]}>
+                    <ScrollView nestedScrollEnabled={true} persistentScrollbar={true} style={{ maxHeight: verticalScale(200) }}>
+                      {KENYA_COUNTIES.map((county) => (
+                        <TouchableOpacity
+                          key={county}
+                          style={[
+                            styles.selectionItem,
+                            formData.county === county && { backgroundColor: '#3B82F615', borderColor: '#3B82F6' }
+                          ]}
+                          onPress={() => {
+                            handleInputChange('county', county);
+                            handleInputChange('subCounty', '');
+                            setIsCountyExpanded(false);
+                          }}
+                        >
+                          <Text style={[
+                            styles.selectionText,
+                            { marginTop: 0, fontSize: moderateScale(13) },
+                            formData.county === county && { color: '#3B82F6', fontWeight: '700' }
+                          ]}>
+                            {county}
+                          </Text>
+                          {formData.county === county && (
+                            <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
 
-                  {isTownExpanded && (
-                    <View style={[styles.inlineSelectionContainer, { maxHeight: verticalScale(250) }]}>
-                      <ScrollView nestedScrollEnabled={true}>
-                        {getTownsByCounty(formData.county || '').map((town) => (
-                          <TouchableOpacity
-                            key={town}
-                            style={[
-                              styles.selectionItem,
-                              formData.town === town && { backgroundColor: '#3B82F620', borderColor: '#3B82F6' }
-                            ]}
-                            onPress={() => {
-                              handleInputChange('town', town);
-                              setIsTownExpanded(false);
-                            }}
-                          >
-                            <Text style={[
-                              styles.selectionText,
-                              { marginTop: 0, fontSize: moderateScale(14) },
-                              formData.town === town && { color: '#3B82F6', fontWeight: '700' }
-                            ]}>
-                              {town}
-                            </Text>
-                            {formData.town === town && (
-                              <Ionicons name="checkmark-circle" size={18} color="#3B82F6" />
-                            )}
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
-                  {errors.town && <Text style={styles.errorText}>{errors.town}</Text>}
+                {isSubCountyExpanded && (
+                  <View style={[styles.robustSelectionContainer, { marginTop: verticalScale(-8) }]}>
+                    <ScrollView nestedScrollEnabled={true} persistentScrollbar={true} style={{ maxHeight: verticalScale(200) }}>
+                      {getSubCountiesByCounty(formData.county || '').map((subCounty) => (
+                        <TouchableOpacity
+                          key={subCounty}
+                          style={[
+                            styles.selectionItem,
+                            formData.subCounty === subCounty && { backgroundColor: '#3B82F615', borderColor: '#3B82F6' }
+                          ]}
+                          onPress={() => {
+                            handleInputChange('subCounty', subCounty);
+                            setIsSubCountyExpanded(false);
+                          }}
+                        >
+                          <Text style={[
+                            styles.selectionText,
+                            { marginTop: 0, fontSize: moderateScale(13) },
+                            formData.subCounty === subCounty && { color: '#3B82F6', fontWeight: '700' }
+                          ]}>
+                            {subCounty}
+                          </Text>
+                          {formData.subCounty === subCounty && (
+                            <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* New Location Capture Button */}
+                <View style={styles.inputGroup}>
+                  <TouchableOpacity
+                    style={[styles.locationButton, loadingLocation && styles.buttonDisabled]}
+                    onPress={getCurrentLocationHandler}
+                    disabled={loading || loadingLocation}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="location" size={20} color={formData.location ? "#10B981" : "#3B82F6"} />
+                    <Text style={[styles.locationButtonText, formData.location && { color: "#10B981" }]}>
+                      {loadingLocation ? 'Capturing...' : formData.location ? '✓ Location Captured' : 'Capture Precise Location'}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.locationHelpText}>
+                    Optional but recommended for better matching and distance calculation.
+                  </Text>
                 </View>
 
                 <View style={styles.infoBox}>
@@ -654,56 +691,58 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Security</Text>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Password *</Text>
-                  <View style={styles.passwordContainer}>
-                    <TextInput
-                      style={[styles.passwordInput, errors.password && styles.inputError]}
-                      value={formData.password}
-                      onChangeText={(value) => handleInputChange('password', value)}
-                      onBlur={() => handleBlur('password')}
-                      placeholder="Create a password"
-                      placeholderTextColor="#94A3B8"
-                      secureTextEntry={!showPassword}
-                      autoComplete="password-new"
-                      editable={!loading}
-                      maxLength={10}
-                    />
-                    <TouchableOpacity
-                      style={styles.eyeIcon}
-                      onPress={() => setShowPassword(!showPassword)}
-                      disabled={loading}
-                    >
-                      <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#64748B" />
-                    </TouchableOpacity>
+                <View style={styles.row}>
+                  <View style={styles.halfInputGroup}>
+                    <Text style={styles.inputLabel}>Password *</Text>
+                    <View style={styles.passwordContainer}>
+                      <TextInput
+                        style={[styles.passwordInput, errors.password && styles.inputError]}
+                        value={formData.password}
+                        onChangeText={(value) => handleInputChange('password', value)}
+                        onBlur={() => handleBlur('password')}
+                        placeholder="••••••••"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showPassword}
+                        autoComplete="password-new"
+                        editable={!loading}
+                        maxLength={10}
+                      />
+                      <TouchableOpacity
+                        style={styles.eyeIcon}
+                        onPress={() => setShowPassword(!showPassword)}
+                        disabled={loading}
+                      >
+                        <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="#64748B" />
+                      </TouchableOpacity>
+                    </View>
+                    {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
                   </View>
-                  {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-                </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Confirm Password *</Text>
-                  <View style={styles.passwordContainer}>
-                    <TextInput
-                      style={[styles.passwordInput, errors.confirmPassword && styles.inputError]}
-                      value={formData.confirmPassword}
-                      onChangeText={(value) => handleInputChange('confirmPassword', value)}
-                      onBlur={() => handleBlur('confirmPassword')}
-                      placeholder="Confirm your password"
-                      placeholderTextColor="#94A3B8"
-                      secureTextEntry={!showConfirmPassword}
-                      autoComplete="password-new"
-                      editable={!loading}
-                      maxLength={10}
-                    />
-                    <TouchableOpacity
-                      style={styles.eyeIcon}
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                      disabled={loading}
-                    >
-                      <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={22} color="#64748B" />
-                    </TouchableOpacity>
+                  <View style={styles.halfInputGroup}>
+                    <Text style={styles.inputLabel}>Confirm *</Text>
+                    <View style={styles.passwordContainer}>
+                      <TextInput
+                        style={[styles.passwordInput, errors.confirmPassword && styles.inputError]}
+                        value={formData.confirmPassword}
+                        onChangeText={(value) => handleInputChange('confirmPassword', value)}
+                        onBlur={() => handleBlur('confirmPassword')}
+                        placeholder="••••••••"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry={!showConfirmPassword}
+                        autoComplete="password-new"
+                        editable={!loading}
+                        maxLength={10}
+                      />
+                      <TouchableOpacity
+                        style={styles.eyeIcon}
+                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                        disabled={loading}
+                      >
+                        <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={20} color="#64748B" />
+                      </TouchableOpacity>
+                    </View>
+                    {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
                   </View>
-                  {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
                 </View>
 
                 <View style={styles.passwordRequirements}>
@@ -824,122 +863,154 @@ const styles = StyleSheet.create({
   keyboardAvoid: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
+  headerBranding: {
+    paddingTop: verticalScale(10),
+    marginBottom: verticalScale(15),
     alignItems: 'center',
-    paddingHorizontal: scale(20),
-    paddingTop: verticalScale(16),
-    paddingBottom: verticalScale(12),
+    width: '100%',
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: scale(12),
+    alignSelf: 'flex-start',
+    marginBottom: verticalScale(10),
   },
-  headerTitle: {
-    fontSize: moderateScale(18),
-    fontWeight: '700',
+  topBadgeContainer: {
+    marginBottom: verticalScale(10),
+    alignItems: 'center',
+  },
+  headerPageTitle: {
+    fontSize: moderateScale(20),
+    fontWeight: '800',
     color: '#FFFFFF',
-    flex: 1,
-    letterSpacing: 0.3,
+    marginTop: verticalScale(12),
+    textAlign: 'center',
+  },
+  introBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(6),
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  introBadgeText: {
+    fontSize: moderateScale(10),
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
   },
   scrollView: {
     flex: 1,
   },
+  row: {
+    flexDirection: 'row',
+    gap: scale(10),
+    marginBottom: verticalScale(12),
+  },
+  halfInputGroup: {
+    flex: 1,
+  },
   scrollContent: {
-    paddingHorizontal: scale(20),
+    paddingHorizontal: scale(16),
     paddingBottom: verticalScale(30),
   },
   formCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: scale(20),
+    borderRadius: 24,
+    backgroundColor: '#F8FAFC', // Standard gray as requested
+    padding: scale(18),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' } as any
+      ? { boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' } as any
       : {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 5,
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 3,
       }),
   },
   profileSection: {
     alignItems: 'center',
-    marginBottom: verticalScale(20),
+    marginBottom: verticalScale(15),
   },
   profilePictureContainer: {
     alignSelf: 'center',
-    marginBottom: verticalScale(10),
+    marginBottom: verticalScale(8),
   },
   profilePicture: {
-    width: moderateScale(100),
-    height: moderateScale(100),
-    borderRadius: moderateScale(50),
+    width: moderateScale(90),
+    height: moderateScale(90),
+    borderRadius: moderateScale(45),
   },
   profilePlaceholder: {
-    width: moderateScale(100),
-    height: moderateScale(100),
-    borderRadius: moderateScale(50),
-    backgroundColor: '#F1F5F9',
+    width: moderateScale(90),
+    height: moderateScale(90),
+    borderRadius: moderateScale(45),
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    borderStyle: 'dashed',
   },
   addPhotoText: {
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(11),
     color: '#64748B',
-    marginTop: 4,
+    marginTop: 2,
     textAlign: 'center',
   },
   uploadingText: {
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(11),
     color: '#3B82F6',
-    marginTop: 4,
+    marginTop: 2,
     textAlign: 'center',
   },
   imageErrorText: {
     color: '#EF4444',
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(11),
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
   section: {
-    marginBottom: verticalScale(20),
+    marginBottom: verticalScale(15),
   },
   sectionTitle: {
-    fontSize: moderateScale(16),
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: verticalScale(12),
-    paddingBottom: verticalScale(6),
-    borderBottomWidth: 2,
+    borderBottomWidth: 1.5,
     borderBottomColor: '#3B82F6',
+    fontSize: moderateScale(15),
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: verticalScale(12),
+    paddingBottom: verticalScale(4),
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   inputGroup: {
-    marginBottom: verticalScale(14),
+    marginBottom: verticalScale(12),
   },
   inputLabel: {
-    fontSize: moderateScale(14),
-    fontWeight: '600',
-    color: '#1E293B',
+    fontSize: moderateScale(13),
+    fontWeight: '700',
+    color: '#334155',
     marginBottom: 6,
+    marginLeft: 4,
   },
   input: {
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: scale(14),
-    paddingVertical: verticalScale(12),
-    fontSize: moderateScale(15),
+    paddingVertical: verticalScale(10),
+    fontSize: moderateScale(14),
     color: '#1E293B',
-    backgroundColor: '#F8FAFC',
   },
   inputError: {
     borderColor: '#EF4444',
@@ -949,97 +1020,86 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   passwordInput: {
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: scale(14),
-    paddingVertical: verticalScale(12),
+    paddingVertical: verticalScale(10),
     paddingRight: scale(48),
-    fontSize: moderateScale(15),
+    fontSize: moderateScale(14),
     color: '#1E293B',
-    backgroundColor: '#F8FAFC',
   },
   eyeIcon: {
+    padding: 4,
     position: 'absolute',
     right: scale(14),
-    top: verticalScale(12),
-    padding: 4,
+    top: verticalScale(8),
   },
   errorText: {
     color: '#EF4444',
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(11),
     marginTop: 4,
     marginLeft: 4,
-  },
-  helpText: {
-    fontSize: moderateScale(12),
-    color: '#64748B',
-    marginTop: 4,
-    marginLeft: 4,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-    overflow: 'hidden',
-  },
-  picker: {
-    height: 50,
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#EFF6FF',
-    padding: scale(12),
-    borderRadius: 8,
-    marginTop: verticalScale(8),
+    padding: scale(10),
+    borderRadius: 12,
+    marginTop: verticalScale(5),
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
   },
   infoText: {
-    fontSize: moderateScale(13),
+    fontSize: moderateScale(12),
     color: '#1E40AF',
-    marginLeft: scale(10),
+    marginLeft: scale(8),
     flex: 1,
-    lineHeight: moderateScale(18),
+    lineHeight: moderateScale(16),
   },
   passwordRequirements: {
     backgroundColor: '#F0FDF4',
-    padding: scale(12),
-    borderRadius: 8,
-    marginTop: verticalScale(8),
+    padding: scale(10),
+    borderRadius: 12,
+    marginTop: verticalScale(5),
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
   },
   requirementsTitle: {
-    fontSize: moderateScale(13),
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 6,
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+    color: '#166534',
+    marginBottom: 4,
   },
   requirementItem: {
-    fontSize: moderateScale(12),
-    color: '#64748B',
-    marginBottom: 3,
+    fontSize: moderateScale(11),
+    color: '#166534',
+    marginBottom: 2,
+    opacity: 0.8,
   },
   termsSection: {
-    marginBottom: verticalScale(20),
-    paddingTop: verticalScale(8),
+    marginBottom: verticalScale(15),
+    paddingTop: verticalScale(10),
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
   },
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: verticalScale(8),
+    paddingVertical: verticalScale(4),
   },
   checkbox: {
-    width: 24,
-    height: 24,
+    width: 22,
+    height: 22,
     borderRadius: 6,
     borderWidth: 2,
     borderColor: '#CBD5E1',
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: scale(12),
+    marginRight: scale(10),
     marginTop: 2,
   },
   checkboxChecked: {
@@ -1050,58 +1110,49 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   termsText: {
-    fontSize: moderateScale(13),
-    color: '#334155',
-    lineHeight: moderateScale(20),
+    fontSize: moderateScale(12),
+    color: '#475569',
+    lineHeight: moderateScale(18),
   },
   termsLink: {
     color: '#3B82F6',
-    fontWeight: '600',
+    fontWeight: '700',
     textDecorationLine: 'underline',
   },
   signupButton: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
-    marginTop: verticalScale(12),
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 6px 20px rgba(59, 130, 246, 0.4)',
-      } as any
-      : {
-        shadowColor: '#3B82F6',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.4,
-        shadowRadius: 15,
-        elevation: 8,
-      }),
+    marginTop: verticalScale(10),
   },
   buttonGradient: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingVertical: verticalScale(14),
-    paddingHorizontal: scale(24),
   },
   signupButtonText: {
-    fontSize: moderateScale(17),
-    fontWeight: '700',
+    fontSize: moderateScale(16),
+    fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   buttonIconContainer: {
-    marginLeft: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
   },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   loadingButtonText: {
-    fontSize: moderateScale(16),
-    fontWeight: '600',
+    fontSize: moderateScale(15),
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   buttonDisabled: {
@@ -1111,86 +1162,93 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: verticalScale(16),
+    marginTop: verticalScale(12),
   },
   loginText: {
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(13),
     color: '#64748B',
   },
   loginLink: {
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(13),
     color: '#3B82F6',
-    fontWeight: '700',
+    fontWeight: '800',
     textDecorationLine: 'underline',
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  selectionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingTop: 8,
-  },
-  selectionItem: {
-    width: '100%',
-    paddingVertical: verticalScale(14),
-    paddingHorizontal: scale(16),
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    marginBottom: 8,
-  },
-  selectionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginTop: 4,
-  },
   pickerTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: verticalScale(50),
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    height: verticalScale(48),
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
   },
   pickerTriggerText: {
-    fontSize: moderateScale(15),
+    fontSize: moderateScale(14),
     color: '#1E293B',
-  },
-  modalList: {
-    marginTop: verticalScale(10),
   },
   pickerTriggerExpanded: {
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     borderColor: '#3B82F6',
+    borderBottomWidth: 0,
   },
-  inlineSelectionContainer: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderTopWidth: 0,
-    borderColor: '#3B82F6',
+  robustSelectionContainer: {
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
-    padding: 8,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+    backgroundColor: '#FFFFFF',
+    padding: 4,
+    marginBottom: 8,
+    // Add shadow specifically to the expanded box for robustness
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  selectionItem: {
+    width: '100%',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: scale(14),
     marginBottom: 4,
+  },
+  selectionText: {
+    fontSize: moderateScale(14),
+    fontWeight: '600',
+    color: '#334155',
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+    marginTop: 5,
+  },
+  locationButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  locationHelpText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 6,
+    textAlign: 'center',
   },
 });
 

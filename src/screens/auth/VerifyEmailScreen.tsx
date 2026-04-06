@@ -1,3 +1,4 @@
+import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { auth } from '@/src/services/firebase/firebase';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +10,7 @@ import {
     ActivityIndicator,
     Alert,
     Dimensions,
+    Platform,
     SafeAreaView,
     StatusBar,
     StyleSheet,
@@ -22,6 +24,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const VerifyEmailScreen = () => {
     const router = useRouter();
     const { user } = useUser();
+    const { colors, isDark } = useAppTheme();
     const [sending, setSending] = useState(false);
     const [checking, setChecking] = useState(false);
     const [countdown, setCountdown] = useState(0);
@@ -140,36 +143,36 @@ const VerifyEmailScreen = () => {
     const email = auth.currentUser?.email || user?.email || 'your email';
 
     return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#0A2647" />
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+            <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={isDark ? colors.bg : "#0A2647"} />
             <LinearGradient
                 colors={['#0A2647', '#144272', '#2C74B3']}
                 style={styles.gradient}
             >
                 <View style={styles.content}>
-                    <View style={styles.card}>
+                    <View style={[styles.card, { backgroundColor: colors.surface }]}>
 
-                        <View style={styles.iconCircle}>
+                        <View style={[styles.iconCircle, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' }]}>
                             <Ionicons name="mail-unread-outline" size={48} color="#3B82F6" />
                         </View>
 
-                        <Text style={styles.title}>Verify Your Email</Text>
-                        <Text style={styles.description}>We've sent a verification link to:</Text>
-                        <Text style={styles.emailText}>{email}</Text>
+                        <Text style={[styles.title, { color: colors.text }]}>Verify Your Email</Text>
+                        <Text style={[styles.description, { color: colors.textSecondary }]}>We've sent a verification link to:</Text>
+                        <Text style={[styles.emailText, { color: colors.text }]}>{email}</Text>
 
-                        <Text style={styles.subText}>
+                        <Text style={[styles.subText, { color: colors.textSecondary }]}>
                             Click the link in the email to verify your account, then tap the
                             button below. Check your spam folder if you don't see it.
                         </Text>
 
                         {/* User type indicator */}
-                        <View style={styles.userTypeBadge}>
+                        <View style={[styles.userTypeBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9' }]}>
                             <Ionicons
                                 name={user?.userType === 'donor' ? 'heart' : 'medkit'}
                                 size={14}
                                 color={user?.userType === 'donor' ? '#DC2626' : '#2563EB'}
                             />
-                            <Text style={styles.userTypeBadgeText}>
+                            <Text style={[styles.userTypeBadgeText, { color: colors.textSecondary }]}>
                                 Signing in as {user?.userType === 'donor' ? 'Blood Donor' : 'Blood Requester'}
                             </Text>
                         </View>
@@ -232,16 +235,16 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 30,
         width: '100%',
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
-        elevation: 10,
+        padding: 30,
+        ...Platform.select({
+            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20 },
+            android: { elevation: 10 },
+            web: { boxShadow: '0px 10px 20px rgba(0,0,0,0.1)' } as any,
+        }),
     },
     iconCircle: {
         width: 80,
@@ -280,13 +283,13 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     userTypeBadge: {
+        borderRadius: 20,
+        backgroundColor: '#F1F5F9',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        backgroundColor: '#F1F5F9',
         paddingHorizontal: 14,
         paddingVertical: 6,
-        borderRadius: 20,
+        gap: 6,
         marginBottom: 24,
     },
     userTypeBadgeText: {
@@ -295,11 +298,11 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     checkButton: {
-        backgroundColor: '#3B82F6',
         width: '100%',
-        paddingVertical: 14,
         borderRadius: 12,
+        backgroundColor: '#3B82F6',
         alignItems: 'center',
+        paddingVertical: 14,
         marginBottom: 16,
     },
     checkButtonText: {
@@ -322,11 +325,11 @@ const styles = StyleSheet.create({
         color: '#94A3B8',
     },
     backLink: {
-        marginTop: 30,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
         padding: 10,
+        marginTop: 30,
     },
     backLinkText: {
         color: '#FFFFFF',

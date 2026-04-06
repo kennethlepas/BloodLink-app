@@ -1,20 +1,28 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { LogoutModal } from '@/src/components/LogoutModal';
 import { useUser } from '@/src/contexts/UserContext';
-import { getDonorHistory, updateUser } from '@/src/services/firebase/database';
+import { useCachedData } from '@/src/hooks/useCachedData';
+import {
+  getDonorAcceptedRequests,
+  getDonorHistory,
+  updateUser
+} from '@/src/services/firebase/database';
+import { getDonorEligibilityStatus } from '@/src/services/firebase/donationEligibilityService';
 import { DonationRecord, Donor } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
   Modal,
   Platform,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -22,59 +30,84 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 // ═══════════════════════════════════════════════════════════════════════════
-// DESIGN TOKENS - HOSPITAL THEME (DONOR - BLUE ACCENT)
+// DESIGN SYSTEM - MODERN MEDICAL THEME
 // ═══════════════════════════════════════════════════════════════════════════
 
 const COLORS = {
   // Primary - Medical Blue
-  primary50: '#EFF6FF',
-  primary100: '#DBEAFE',
-  primary200: '#BFDBFE',
-  primary500: '#3B82F6',
-  primary600: '#2563EB',
-  primary700: '#1D4ED8',
-
+  primary: {
+    50: '#EFF6FF',
+    100: '#DBEAFE',
+    200: '#BFDBFE',
+    300: '#93C5FD',
+    400: '#60A5FA',
+    500: '#3B82F6',
+    600: '#2563EB',
+    700: '#1D4ED8',
+    800: '#1E40AF',
+    900: '#1E3A8A',
+  },
   // Accent - Blood Red
-  accent50: '#FEF2F2',
-  accent100: '#FEE2E2',
-  accent200: '#FECACA',
-  accent500: '#EF4444',
-  accent600: '#DC2626',
-  accent700: '#B91C1C',
-
+  accent: {
+    50: '#FEF2F2',
+    100: '#FEE2E2',
+    200: '#FECACA',
+    300: '#FCA5A5',
+    400: '#F87171',
+    500: '#EF4444',
+    600: '#DC2626',
+    700: '#B91C1C',
+    800: '#991B1B',
+    900: '#7F1A1A',
+  },
   // Success - Medical Green
-  success50: '#F0FDF4',
-  success100: '#DCFCE7',
-  success200: '#BBF7D0',
-  success500: '#22C55E',
-  success600: '#16A34A',
-  success700: '#15803D',
-
+  success: {
+    50: '#F0FDF4',
+    100: '#DCFCE7',
+    200: '#BBF7D0',
+    300: '#86EFAC',
+    400: '#4ADE80',
+    500: '#22C55E',
+    600: '#16A34A',
+    700: '#15803D',
+    800: '#166534',
+    900: '#14532D',
+  },
   // Warning - Amber
-  warning50: '#FFFBEB',
-  warning100: '#FEF3C7',
-  warning200: '#FDE68A',
-  warning500: '#F59E0B',
-  warning600: '#D97706',
-  warning700: '#B45309',
-
+  warning: {
+    50: '#FFFBEB',
+    100: '#FEF3C7',
+    200: '#FDE68A',
+    300: '#FCD34D',
+    400: '#FBBF24',
+    500: '#F59E0B',
+    600: '#D97706',
+    700: '#B45309',
+    800: '#92400E',
+    900: '#78350F',
+  },
   // Neutrals
-  neutral50: '#F8FAFC',
-  neutral100: '#F1F5F9',
-  neutral200: '#E2E8F0',
-  neutral400: '#94A3B8',
-  neutral500: '#64748B',
-  neutral600: '#475569',
-  neutral700: '#334155',
-  neutral800: '#1E293B',
-  neutral900: '#0F172A',
-
+  neutral: {
+    50: '#F8FAFC',
+    100: '#F1F5F9',
+    200: '#E2E8F0',
+    300: '#CBD5E1',
+    400: '#94A3B8',
+    500: '#64748B',
+    600: '#475569',
+    700: '#334155',
+    800: '#1E293B',
+    900: '#0F172A',
+  },
   // Semantic
   background: '#F8FAFC',
   surface: '#FFFFFF',
   border: '#E2E8F0',
   divider: '#F1F5F9',
+  overlay: 'rgba(0, 0, 0, 0.5)',
 };
 
 const SPACING = {
@@ -86,6 +119,7 @@ const SPACING = {
   xxl: 24,
   xxxl: 32,
   huge: 40,
+  massive: 48,
 };
 
 const TYPOGRAPHY = {
@@ -96,13 +130,16 @@ const TYPOGRAPHY = {
   xl: 18,
   xxl: 20,
   xxxl: 24,
+  display: 28,
 };
 
 const RADIUS = {
+  xs: 4,
   sm: 8,
   md: 12,
   lg: 16,
   xl: 20,
+  xxl: 24,
   full: 9999,
 };
 
@@ -122,7 +159,7 @@ const createShadow = (elevation: number) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// REUSABLE COMPONENTS
+// CUSTOM COMPONENTS
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface StatCardProps {
@@ -143,65 +180,21 @@ const StatCard: React.FC<StatCardProps> = ({ icon, value, label, color, bgColor 
   </View>
 );
 
-const DonationListItem = ({ donation, onPress }: { donation: DonationRecord; onPress: () => void }) => {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const getLocationDisplay = () => {
-    if (donation.bloodBankName) return donation.bloodBankName;
-    if (donation.location?.address) return donation.location.address;
-    if (donation.location?.city) return donation.location.city;
-    return 'Medical Facility';
-  };
-
-  return (
-    <TouchableOpacity style={styles.donationItem} onPress={onPress}>
-      <View style={styles.donationLeft}>
-        <View style={styles.donationIconContainer}>
-          <LinearGradient
-            colors={[COLORS.accent500, COLORS.accent600]}
-            style={styles.donationIconGradient}
-          >
-            <Ionicons name="water" size={20} color="#FFFFFF" />
-          </LinearGradient>
-        </View>
-        <View style={styles.donationInfo}>
-          <Text style={styles.donationLocation} numberOfLines={1}>
-            {getLocationDisplay()}
-          </Text>
-          <View style={styles.donationMeta}>
-            <Ionicons name="calendar-outline" size={12} color={COLORS.neutral500} />
-            <Text style={styles.donationDate}>{formatDate(donation.donationDate)}</Text>
-          </View>
-        </View>
-      </View>
-      <View style={styles.donationPoints}>
-        <Ionicons name="star" size={14} color={COLORS.warning600} />
-        <Text style={styles.donationPointsText}>+{donation.pointsEarned}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={COLORS.neutral400} />
-    </TouchableOpacity>
-  );
-};
-
 interface DonationItemProps {
   donation: DonationRecord;
+  onPress?: () => void;
 }
 
-const DonationDetailView: React.FC<DonationItemProps> = ({ donation }) => {
+const DonationListItem: React.FC<DonationItemProps> = ({ donation, onPress }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const getLocationDisplay = () => {
@@ -212,31 +205,33 @@ const DonationDetailView: React.FC<DonationItemProps> = ({ donation }) => {
   };
 
   return (
-    <View style={styles.donationItem}>
-      <View style={styles.donationLeft}>
-        <View style={styles.donationIconContainer}>
-          <LinearGradient
-            colors={[COLORS.accent500, COLORS.accent600]}
-            style={styles.donationIconGradient}
-          >
-            <Ionicons name="water" size={20} color="#FFFFFF" />
-          </LinearGradient>
-        </View>
-        <View style={styles.donationInfo}>
-          <Text style={styles.donationLocation} numberOfLines={1}>
-            {getLocationDisplay()}
-          </Text>
-          <View style={styles.donationMeta}>
-            <Ionicons name="calendar-outline" size={12} color={COLORS.neutral500} />
-            <Text style={styles.donationDate}>{formatDate(donation.donationDate)}</Text>
-          </View>
+    <TouchableOpacity
+      style={styles.donationItem}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.donationIconWrapper}>
+        <LinearGradient
+          colors={[COLORS.accent[500], COLORS.accent[600]]}
+          style={styles.donationIconGradient}
+        >
+          <Ionicons name="water" size={20} color="#FFFFFF" />
+        </LinearGradient>
+      </View>
+      <View style={styles.donationContent}>
+        <Text style={styles.donationLocation} numberOfLines={1}>
+          {getLocationDisplay()}
+        </Text>
+        <View style={styles.donationMeta}>
+          <Ionicons name="calendar-outline" size={12} color={COLORS.neutral[400]} />
+          <Text style={styles.donationDate}>{formatDate(donation.donationDate)}</Text>
         </View>
       </View>
       <View style={styles.donationPoints}>
-        <Ionicons name="star" size={14} color={COLORS.warning600} />
+        <Ionicons name="star" size={14} color={COLORS.warning[500]} />
         <Text style={styles.donationPointsText}>+{donation.pointsEarned}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -249,57 +244,87 @@ const DonorProfileScreen: React.FC = () => {
   const { user, logout, updateUserData } = useUser();
   const { pickAndUploadImage, takeAndUploadPhoto, uploading: imageUploading } = useImagePicker();
 
-  const [donationHistory, setDonationHistory] = useState<DonationRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAvailable, setIsAvailable] = useState(user?.isAvailable || false);
-  const [viewDonation, setViewDonation] = useState<DonationRecord | null>(null);
+  const [selectedDonation, setSelectedDonation] = useState<DonationRecord | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const isDonor = (user: any): user is Donor => user?.userType === 'donor';
+  // Fetch active commitments (pending, in_progress, pending_verification)
+  const {
+    data: commitmentsData,
+    loading: loadingCommitments,
+    refresh: refreshCommitments
+  } = useCachedData(
+    `donor_commitments_${user?.id}`,
+    () => getDonorAcceptedRequests(user!.id),
+    { enabled: !!user }
+  );
 
-  useEffect(() => {
-    loadDonationHistory();
-  }, [user]);
+  // Fetch donation history
+  const {
+    data: historyData,
+    loading: loadingHistory,
+    refresh: refreshHistory
+  } = useCachedData(
+    `donor_history_${user?.id}`,
+    () => getDonorHistory(user!.id),
+    { enabled: !!user }
+  );
+
+  // Calculate active commitments count (matches home screen logic)
+  const activeCommitments = useMemo(() =>
+    (commitmentsData || []).filter(req =>
+      ['pending', 'in_progress', 'pending_verification'].includes(req.status)
+    ),
+    [commitmentsData]
+  );
+
+  const donationHistory = historyData || [];
+  const totalDonations = donationHistory.length;
+  const totalPoints = donationHistory.reduce((sum, d) => sum + d.pointsEarned, 0);
+  const pendingRequestsCount = activeCommitments.length; // This matches home screen's pending count
+
+  const isDonor = (user: any): user is Donor => user?.userType === 'donor';
+  const loading = loadingCommitments || loadingHistory;
 
   useEffect(() => {
     if (user) setIsAvailable(user.isAvailable || false);
   }, [user]);
 
-  const loadDonationHistory = async () => {
-    if (!user?.id) return;
-
-    try {
-      setLoading(true);
-      const history = await getDonorHistory(user.id);
-      setDonationHistory(history);
-    } catch (error) {
-      console.error('Error loading donation history:', error);
-      Alert.alert('Error', 'Failed to load donation history');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadDonationHistory();
+    await Promise.all([refreshCommitments(), refreshHistory()]);
     setRefreshing(false);
   };
+
+  const [eligibility, setEligibility] = useState(getDonorEligibilityStatus(user?.lastDonationDate));
 
   const handleToggleAvailability = async () => {
     if (!user?.id) return;
 
+    // 56-day rule enforcement
+    const newAvailability = !isAvailable;
+    if (newAvailability && user.lastDonationDate) {
+      const status = getDonorEligibilityStatus(user.lastDonationDate);
+      if (!status.isEligible) {
+        Alert.alert(
+          'Not Eligible Yet',
+          status.message,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
     try {
-      const newAvailability = !isAvailable;
       setIsAvailable(newAvailability);
 
       await updateUser(user.id, { isAvailable: newAvailability });
       await updateUserData({ isAvailable: newAvailability });
 
       Alert.alert(
-        'Availability Updated',
+        'Status Updated',
         `You are now ${newAvailability ? 'available' : 'unavailable'} for blood donations`,
         [{ text: 'OK' }]
       );
@@ -307,10 +332,12 @@ const DonorProfileScreen: React.FC = () => {
       console.error('Error updating availability:', error);
       setIsAvailable(!isAvailable);
       Alert.alert('Error', 'Failed to update availability. Please try again.');
+    } finally {
+      setEligibility(getDonorEligibilityStatus(user?.lastDonationDate));
     }
   };
 
-  const handleProfilePictureUpdate = () => {
+  const handleUpdateProfilePicture = () => {
     if (Platform.OS === 'web') {
       uploadImageFromGallery();
       return;
@@ -377,11 +404,15 @@ const DonorProfileScreen: React.FC = () => {
     router.push('/(donor)/edit-profile' as any);
   };
 
+  const getTotalLivesImpacted = () => {
+    return totalDonations * 3; // Each donation saves up to 3 lives
+  };
+
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary600} />
+          <ActivityIndicator size="large" color={COLORS.primary[500]} />
           <Text style={styles.loadingText}>Loading your profile...</Text>
         </View>
       </SafeAreaView>
@@ -390,23 +421,25 @@ const DonorProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary[600]} />
+
+      {/* Header with Gradient */}
       <LinearGradient
-        colors={[COLORS.primary600, COLORS.primary700]}
+        colors={[COLORS.primary[600], COLORS.primary[700]]}
         style={styles.header}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.headerSubtitle}>DONOR DASHBOARD</Text>
-            <Text style={styles.headerTitle}>My Health Profile</Text>
+            <Text style={styles.headerBadge}>DONOR PROFILE</Text>
+            <Text style={styles.headerTitle}>My Health Dashboard</Text>
           </View>
           <TouchableOpacity
-            style={styles.headerButton}
+            style={styles.headerIconButton}
             onPress={() => router.push('/(shared)/settings' as any)}
           >
-            <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
+            <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -418,19 +451,18 @@ const DonorProfileScreen: React.FC = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[COLORS.primary600]}
-            tintColor={COLORS.primary600}
+            colors={[COLORS.primary[500]]}
+            tintColor={COLORS.primary[500]}
           />
         }
       >
         {/* Profile Card */}
         <View style={styles.profileSection}>
           <View style={styles.profileCard}>
-            {/* Avatar */}
-            <View style={styles.avatarSection}>
+            <View style={styles.profileHeader}>
               <TouchableOpacity
-                style={styles.avatarWrapper}
-                onPress={handleProfilePictureUpdate}
+                style={styles.avatarContainer}
+                onPress={handleUpdateProfilePicture}
                 disabled={imageUploading}
                 activeOpacity={0.8}
               >
@@ -438,159 +470,127 @@ const DonorProfileScreen: React.FC = () => {
                   <Image source={{ uri: user.profilePicture }} style={styles.avatar} />
                 ) : (
                   <LinearGradient
-                    colors={[COLORS.primary100, COLORS.primary200]}
+                    colors={[COLORS.primary[100], COLORS.primary[200]]}
                     style={styles.avatarPlaceholder}
                   >
-                    <Ionicons name="person" size={44} color={COLORS.primary600} />
+                    <Ionicons name="person" size={48} color={COLORS.primary[600]} />
                   </LinearGradient>
                 )}
-                <View style={styles.cameraButton}>
+                <View style={styles.cameraOverlay}>
                   {imageUploading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Ionicons name="camera" size={16} color="#FFFFFF" />
+                    <Ionicons name="camera" size={18} color="#FFFFFF" />
                   )}
                 </View>
               </TouchableOpacity>
 
-              {/* Name and Blood Type */}
               <View style={styles.profileInfo}>
                 <Text style={styles.userName}>
                   {user.firstName} {user.lastName}
                 </Text>
-                <View style={styles.badgeRow}>
+                <View style={styles.badgeContainer}>
                   <View style={styles.bloodTypeBadge}>
-                    <Ionicons name="water" size={16} color="#FFFFFF" />
+                    <Ionicons name="water" size={14} color="#FFFFFF" />
                     <Text style={styles.bloodTypeText}>{user.bloodType}</Text>
                   </View>
-                  {isDonor(user) && user.medicalHistory && (
+                  {isDonor(user) && (
                     <View style={styles.verifiedBadge}>
-                      <Ionicons name="shield-checkmark" size={14} color={COLORS.success600} />
-                      <Text style={styles.verifiedText}>Verified</Text>
+                      <Ionicons name="shield-checkmark" size={12} color={COLORS.success[600]} />
+                      <Text style={styles.verifiedText}>Verified Donor</Text>
                     </View>
                   )}
                 </View>
               </View>
             </View>
 
-            {/* Contact Info */}
-            <View style={styles.contactSection}>
-              <View style={styles.contactItem}>
-                <View style={styles.contactIcon}>
-                  <Ionicons name="mail" size={16} color={COLORS.primary600} />
+            <View style={styles.contactInfo}>
+              <View style={styles.contactRow}>
+                <View style={styles.contactIconWrapper}>
+                  <Ionicons name="mail-outline" size={16} color={COLORS.primary[600]} />
                 </View>
                 <Text style={styles.contactText} numberOfLines={1}>
                   {user.email}
                 </Text>
               </View>
-              <View style={styles.contactItem}>
-                <View style={styles.contactIcon}>
-                  <Ionicons name="call" size={16} color={COLORS.primary600} />
+              <View style={styles.contactRow}>
+                <View style={styles.contactIconWrapper}>
+                  <Ionicons name="call-outline" size={16} color={COLORS.primary[600]} />
                 </View>
                 <Text style={styles.contactText}>{user.phoneNumber}</Text>
               </View>
             </View>
 
-            {/* Edit Button */}
             <TouchableOpacity
-              style={styles.editButton}
+              style={styles.editProfileButton}
               onPress={handleEditProfile}
               activeOpacity={0.7}
             >
-              <Ionicons name="create-outline" size={18} color={COLORS.primary600} />
-              <Text style={styles.editButtonText}>Edit Profile</Text>
+              <Ionicons name="create-outline" size={18} color={COLORS.primary[600]} />
+              <Text style={styles.editProfileText}>Edit Profile</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Availability Card */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Donation Status</Text>
-          <View style={styles.availabilityCard}>
-            <View style={styles.availabilityContent}>
-              <View
-                style={[
-                  styles.availabilityIcon,
-                  {
-                    backgroundColor: isAvailable
-                      ? COLORS.success50
-                      : COLORS.neutral100,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name={isAvailable ? 'checkmark-circle' : 'close-circle'}
-                  size={28}
-                  color={isAvailable ? COLORS.success600 : COLORS.neutral500}
-                />
-              </View>
-              <View style={styles.availabilityInfo}>
-                <Text style={styles.availabilityTitle}>
-                  {isAvailable ? 'Available to Donate' : 'Currently Unavailable'}
-                </Text>
-                <Text style={styles.availabilitySubtitle}>
-                  {isAvailable
-                    ? 'Visible to requesters needing blood'
-                    : 'Hidden from donor searches'}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.toggle,
-                  isAvailable && styles.toggleActive,
-                ]}
-                onPress={handleToggleAvailability}
-                activeOpacity={0.8}
-              >
-                <View
-                  style={[
-                    styles.toggleCircle,
-                    isAvailable && styles.toggleCircleActive,
-                  ]}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
 
-        {/* Statistics */}
+
+
+        {/* Statistics Grid - Matching HomeScreen Stats */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Health Statistics</Text>
+          <Text style={styles.sectionTitle}>Impact Statistics</Text>
           <View style={styles.statsGrid}>
             <StatCard
               icon="water"
-              value={isDonor(user) ? user.totalDonations || 0 : 0}
+              value={totalDonations}
               label="Total Donations"
-              color={COLORS.accent600}
-              bgColor={COLORS.accent50}
+              color={COLORS.accent[600]}
+              bgColor={COLORS.accent[50]}
             />
             <StatCard
               icon="star"
-              value={user.points || 0}
+              value={totalPoints}
               label="Impact Points"
-              color={COLORS.warning600}
-              bgColor={COLORS.warning50}
+              color={COLORS.warning[600]}
+              bgColor={COLORS.warning[50]}
             />
             <StatCard
-              icon="heart"
-              value={isDonor(user) ? `${(user.totalDonations || 0) * 3}` : '0'}
-              label="Lives Impacted"
-              color={COLORS.success600}
-              bgColor={COLORS.success50}
+              icon="time"
+              value={pendingRequestsCount}
+              label="Pending Requests"
+              color={COLORS.primary[600]}
+              bgColor={COLORS.primary[50]}
             />
           </View>
         </View>
 
-        {/* Last Donation */}
+        {/* Additional Stats - Lives Impacted */}
+        <View style={styles.section}>
+          <View style={styles.livesImpactedCard}>
+            <LinearGradient
+              colors={[COLORS.success[500], COLORS.success[600]]}
+              style={styles.livesImpactedGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="heart" size={28} color="#FFFFFF" />
+              <View style={styles.livesImpactedInfo}>
+                <Text style={styles.livesImpactedLabel}>LIVES IMPACTED</Text>
+                <Text style={styles.livesImpactedValue}>{getTotalLivesImpacted()}</Text>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+
+        {/* Last Donation Info */}
         {user.lastDonationDate && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Last Donation</Text>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
             <View style={styles.lastDonationCard}>
               <View style={styles.lastDonationIcon}>
-                <Ionicons name="time" size={24} color={COLORS.primary600} />
+                <Ionicons name="time-outline" size={28} color={COLORS.primary[600]} />
               </View>
               <View style={styles.lastDonationInfo}>
-                <Text style={styles.lastDonationLabel}>MOST RECENT CONTRIBUTION</Text>
+                <Text style={styles.lastDonationLabel}>LAST DONATION</Text>
                 <Text style={styles.lastDonationDate}>
                   {new Date(user.lastDonationDate).toLocaleDateString('en-US', {
                     year: 'numeric',
@@ -603,37 +603,41 @@ const DonorProfileScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Donation History */}
+        {/* Donation History Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Donation History</Text>
-            <View style={styles.countBadge}>
-              <Text style={styles.countText}>{donationHistory.length}</Text>
+            <View style={styles.historyCountBadge}>
+              <Text style={styles.historyCountText}>{totalDonations}</Text>
             </View>
           </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={COLORS.primary600} />
+              <ActivityIndicator size="small" color={COLORS.primary[500]} />
               <Text style={styles.loadingText}>Loading history...</Text>
             </View>
           ) : donationHistory.length > 0 ? (
             <View style={styles.historyList}>
               {donationHistory.map((donation) => (
-                <DonationListItem key={donation.id} donation={donation} onPress={() => setViewDonation(donation)} />
+                <DonationListItem
+                  key={donation.id}
+                  donation={donation}
+                  onPress={() => setSelectedDonation(donation)}
+                />
               ))}
             </View>
           ) : (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconWrapper}>
                 <LinearGradient
-                  colors={[COLORS.primary50, COLORS.primary100]}
+                  colors={[COLORS.primary[50], COLORS.primary[100]]}
                   style={styles.emptyIcon}
                 >
                   <Ionicons
                     name="document-text-outline"
-                    size={48}
-                    color={COLORS.primary600}
+                    size={52}
+                    color={COLORS.primary[400]}
                   />
                 </LinearGradient>
               </View>
@@ -645,7 +649,34 @@ const DonorProfileScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Quick Actions */}
+        {/* Donation Status Card */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Donation Status</Text>
+          <TouchableOpacity
+            style={[styles.statusCard, { borderColor: eligibility.isEligible ? COLORS.success[200] : COLORS.warning[200] }]}
+            onPress={handleToggleAvailability}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.statusIcon, { backgroundColor: eligibility.isEligible ? COLORS.success[50] : COLORS.warning[50] }]}>
+              <Ionicons
+                name={eligibility.isEligible ? "checkmark-circle" : "time"}
+                size={24}
+                color={eligibility.isEligible ? COLORS.success[600] : COLORS.warning[600]}
+              />
+            </View>
+            <View style={styles.statusInfo}>
+              <Text style={styles.statusSubtitle}>Current Eligibility</Text>
+              <Text style={[styles.statusTitle, { color: eligibility.isEligible ? COLORS.success[700] : COLORS.warning[700] }]}>
+                {eligibility.message}
+              </Text>
+            </View>
+            <View style={[styles.toggleSwitch, isAvailable && styles.toggleSwitchActive]}>
+              <View style={[styles.toggleKnob, isAvailable && styles.toggleKnobActive]} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Actions Grid */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionsGrid}>
@@ -654,43 +685,47 @@ const DonorProfileScreen: React.FC = () => {
               onPress={() => router.push('/(donor)/requests' as any)}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.primary50 }]}>
-                <Ionicons name="list" size={22} color={COLORS.primary600} />
+              <View style={[styles.actionIcon, { backgroundColor: COLORS.primary[50] }]}>
+                <Ionicons name="notifications-outline" size={24} color={COLORS.primary[600]} />
               </View>
               <Text style={styles.actionTitle}>Blood Requests</Text>
               <Text style={styles.actionSubtitle}>View active needs</Text>
-              <View style={styles.actionArrow}>
-                <Ionicons name="arrow-forward" size={18} color={COLORS.neutral400} />
-              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() =>
-                Alert.alert('Coming Soon', 'Donation certificates will be available soon')
-              }
+              onPress={() => router.push('/(donor)/donation-history' as any)}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.warning50 }]}>
-                <Ionicons name="ribbon" size={22} color={COLORS.warning600} />
+              <View style={[styles.actionIcon, { backgroundColor: COLORS.accent[50] }]}>
+                <Ionicons name="time-outline" size={24} color={COLORS.accent[600]} />
+              </View>
+              <Text style={styles.actionTitle}>My History</Text>
+              <Text style={styles.actionSubtitle}>View all donations</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => Alert.alert('Coming Soon', 'Certificates will be available soon')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: COLORS.warning[50] }]}>
+                <Ionicons name="ribbon-outline" size={24} color={COLORS.warning[600]} />
               </View>
               <Text style={styles.actionTitle}>Certificates</Text>
               <Text style={styles.actionSubtitle}>View achievements</Text>
-              <View style={styles.actionArrow}>
-                <Ionicons name="arrow-forward" size={18} color={COLORS.neutral400} />
-              </View>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Logout */}
+        {/* Logout Button */}
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={handleLogout}
             activeOpacity={0.7}
           >
-            <Ionicons name="log-out-outline" size={20} color={COLORS.accent600} />
+            <Ionicons name="log-out-outline" size={20} color={COLORS.accent[600]} />
             <Text style={styles.logoutText}>Logout from Account</Text>
           </TouchableOpacity>
         </View>
@@ -699,18 +734,79 @@ const DonorProfileScreen: React.FC = () => {
       </ScrollView>
 
       {/* Donation Detail Modal */}
-      <Modal visible={!!viewDonation} transparent animationType="slide" onRequestClose={() => setViewDonation(null)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: COLORS.surface, borderTopLeftRadius: RADIUS.lg, borderTopRightRadius: RADIUS.lg, padding: SPACING.xl, paddingBottom: SPACING.xxxl, maxHeight: '85%' }}>
-            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border, alignSelf: 'center', marginBottom: SPACING.xl }} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-              <Text style={{ flex: 1, fontSize: TYPOGRAPHY.xl, fontWeight: '700', color: COLORS.neutral900 }}>Donation Details</Text>
-              <TouchableOpacity onPress={() => setViewDonation(null)} style={{ width: 32, height: 32, borderRadius: RADIUS.sm, backgroundColor: COLORS.neutral50, justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="close" size={22} color={COLORS.neutral500} />
+      <Modal
+        visible={!!selectedDonation}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedDonation(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Donation Details</Text>
+              <TouchableOpacity
+                onPress={() => setSelectedDonation(null)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={22} color={COLORS.neutral[500]} />
               </TouchableOpacity>
             </View>
-            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
-              {viewDonation && <DonationDetailView donation={viewDonation} />}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedDonation && (
+                <View style={styles.modalBody}>
+                  <View style={styles.modalDonationIcon}>
+                    <LinearGradient
+                      colors={[COLORS.accent[500], COLORS.accent[600]]}
+                      style={styles.modalDonationGradient}
+                    >
+                      <Ionicons name="water" size={32} color="#FFFFFF" />
+                    </LinearGradient>
+                  </View>
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Location</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {selectedDonation.bloodBankName || selectedDonation.location?.address || 'Medical Facility'}
+                    </Text>
+                  </View>
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Date & Time</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {new Date(selectedDonation.donationDate).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  </View>
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Blood Type</Text>
+                    <Text style={styles.modalInfoValue}>{selectedDonation.bloodType}</Text>
+                  </View>
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Component</Text>
+                    <Text style={styles.modalInfoValue}>{selectedDonation.bloodComponent || 'Whole Blood'}</Text>
+                  </View>
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Units Donated</Text>
+                    <Text style={styles.modalInfoValue}>{selectedDonation.unitsCollected || 1}</Text>
+                  </View>
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Points Earned</Text>
+                    <Text style={[styles.modalInfoValue, styles.pointsHighlight]}>
+                      +{selectedDonation.pointsEarned}
+                    </Text>
+                  </View>
+                  {selectedDonation.notes && (
+                    <View style={styles.modalNotes}>
+                      <Text style={styles.modalInfoLabel}>Notes</Text>
+                      <Text style={styles.modalNotesText}>{selectedDonation.notes}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -749,19 +845,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerSubtitle: {
-    fontSize: TYPOGRAPHY.sm,
-    fontWeight: '500',
+  headerBadge: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-    letterSpacing: 0.5,
+    marginBottom: SPACING.xs,
+    letterSpacing: 1,
   },
   headerTitle: {
-    fontSize: TYPOGRAPHY.xxxl,
-    fontWeight: '900',
+    fontSize: TYPOGRAPHY.display,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
-  headerButton: {
+  headerIconButton: {
     width: 44,
     height: 44,
     borderRadius: RADIUS.md,
@@ -777,62 +873,63 @@ const styles = StyleSheet.create({
   // Profile Section
   profileSection: {
     paddingHorizontal: SPACING.xl,
-    marginTop: -SPACING.xxl,
+    marginTop: -SPACING.xxxl,
   },
   profileCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.xl,
     padding: SPACING.xl,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...createShadow(5),
+    ...createShadow(4),
   },
-  avatarSection: {
+  profileHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: SPACING.xl,
   },
-  avatarWrapper: {
+  avatarContainer: {
     position: 'relative',
-    marginBottom: SPACING.md,
+    marginRight: SPACING.lg,
   },
   avatar: {
     width: 88,
     height: 88,
-    borderRadius: 44,
-    borderWidth: 4,
-    borderColor: COLORS.primary100,
+    borderRadius: RADIUS.full,
+    borderWidth: 3,
+    borderColor: COLORS.primary[100],
   },
   avatarPlaceholder: {
     width: 88,
     height: 88,
-    borderRadius: 44,
+    borderRadius: RADIUS.full,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cameraButton: {
+  cameraOverlay: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary600,
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primary[600],
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: COLORS.surface,
-    ...createShadow(3),
+    ...createShadow(2),
   },
   profileInfo: {
-    alignItems: 'center',
+    flex: 1,
   },
   userName: {
     fontSize: TYPOGRAPHY.xl,
     fontWeight: '700',
-    color: COLORS.neutral900,
+    color: COLORS.neutral[900],
     marginBottom: SPACING.sm,
   },
-  badgeRow: {
+  badgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
@@ -840,10 +937,10 @@ const styles = StyleSheet.create({
   bloodTypeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: COLORS.accent600,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    gap: SPACING.xs,
+    backgroundColor: COLORS.accent[600],
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
     borderRadius: RADIUS.full,
   },
   bloodTypeText: {
@@ -854,36 +951,36 @@ const styles = StyleSheet.create({
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.success50,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: SPACING.xs,
+    backgroundColor: COLORS.success[50],
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: COLORS.success200,
+    borderColor: COLORS.success[200],
   },
   verifiedText: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: '600',
-    color: COLORS.success700,
+    color: COLORS.success[700],
   },
-  contactSection: {
+  contactInfo: {
     gap: SPACING.sm,
     marginBottom: SPACING.lg,
     paddingTop: SPACING.lg,
     borderTopWidth: 1,
     borderTopColor: COLORS.divider,
   },
-  contactItem: {
+  contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
   },
-  contactIcon: {
+  contactIconWrapper: {
     width: 36,
     height: 36,
     borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.primary50,
+    backgroundColor: COLORS.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -891,26 +988,26 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: TYPOGRAPHY.sm,
     fontWeight: '500',
-    color: COLORS.neutral700,
+    color: COLORS.neutral[700],
   },
-  editButton: {
+  editProfileButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
     height: 44,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary50,
+    backgroundColor: COLORS.primary[50],
     borderWidth: 1.5,
-    borderColor: COLORS.primary200,
+    borderColor: COLORS.primary[200],
   },
-  editButtonText: {
+  editProfileText: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: '600',
-    color: COLORS.primary700,
+    color: COLORS.primary[700],
   },
 
-  // Sections
+  // Section
   section: {
     paddingHorizontal: SPACING.xl,
     marginTop: SPACING.xxl,
@@ -924,68 +1021,75 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: TYPOGRAPHY.lg,
     fontWeight: '700',
-    color: COLORS.neutral900,
+    color: COLORS.neutral[900],
     marginBottom: SPACING.md,
   },
 
-  // Availability
-  availabilityCard: {
+  // Status Card
+  statusCard: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...createShadow(3),
+    ...createShadow(2),
   },
-  availabilityContent: {
+  statusContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
   },
-  availabilityIcon: {
-    width: 52,
-    height: 52,
+  statusIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusIcon: {
+    width: 56,
+    height: 56,
     borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  availabilityInfo: {
+  statusInfo: {
     flex: 1,
   },
-  availabilityTitle: {
+  statusTitle: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: '700',
-    color: COLORS.neutral900,
-    marginBottom: 2,
+    color: COLORS.neutral[900],
+    marginBottom: SPACING.xs,
   },
-  availabilitySubtitle: {
+  statusSubtitle: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: '500',
-    color: COLORS.neutral500,
+    color: COLORS.neutral[500],
   },
-  toggle: {
+  toggleSwitch: {
     width: 52,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: COLORS.neutral200,
+    height: 28,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.neutral[200],
     padding: 2,
     justifyContent: 'center',
   },
-  toggleActive: {
-    backgroundColor: COLORS.success500,
+  toggleSwitchActive: {
+    backgroundColor: COLORS.success[500],
   },
-  toggleCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
     ...createShadow(1),
   },
-  toggleCircleActive: {
+  toggleKnobActive: {
     alignSelf: 'flex-end',
   },
 
-  // Stats
+  // Stats Grid
   statsGrid: {
     flexDirection: 'row',
     gap: SPACING.md,
@@ -1001,27 +1105,55 @@ const styles = StyleSheet.create({
     ...createShadow(1),
   },
   statIconWrapper: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
   statValue: {
-    fontSize: TYPOGRAPHY.xl,
+    fontSize: TYPOGRAPHY.xxl,
     fontWeight: '800',
-    color: COLORS.neutral900,
-    marginBottom: 2,
+    color: COLORS.neutral[900],
+    marginBottom: SPACING.xs,
   },
   statLabel: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: '500',
-    color: COLORS.neutral500,
+    color: COLORS.neutral[500],
     textAlign: 'center',
   },
 
-  // Last Donation
+  // Lives Impacted Card
+  livesImpactedCard: {
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    ...createShadow(4),
+  },
+  livesImpactedGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    gap: SPACING.lg,
+  },
+  livesImpactedInfo: {
+    flex: 1,
+  },
+  livesImpactedLabel: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+    letterSpacing: 1,
+    marginBottom: SPACING.xs,
+  },
+  livesImpactedValue: {
+    fontSize: TYPOGRAPHY.display,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+
+  // Last Donation Card
   lastDonationCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1034,10 +1166,10 @@ const styles = StyleSheet.create({
     ...createShadow(1),
   },
   lastDonationIcon: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary50,
+    backgroundColor: COLORS.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1047,29 +1179,29 @@ const styles = StyleSheet.create({
   lastDonationLabel: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: '600',
-    color: COLORS.neutral500,
-    marginBottom: 4,
+    color: COLORS.neutral[500],
+    marginBottom: SPACING.xs,
     letterSpacing: 0.5,
   },
   lastDonationDate: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: '700',
-    color: COLORS.neutral900,
+    color: COLORS.neutral[900],
   },
 
   // History
-  countBadge: {
-    backgroundColor: COLORS.primary50,
+  historyCountBadge: {
+    backgroundColor: COLORS.primary[50],
     paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
+    paddingVertical: SPACING.xs,
     borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: COLORS.primary200,
+    borderColor: COLORS.primary[200],
   },
-  countText: {
+  historyCountText: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: '700',
-    color: COLORS.primary700,
+    color: COLORS.primary[700],
   },
   historyList: {
     gap: SPACING.sm,
@@ -1077,64 +1209,58 @@ const styles = StyleSheet.create({
   donationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  donationLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  donationIconContainer: {
+  donationIconWrapper: {
     borderRadius: RADIUS.md,
     overflow: 'hidden',
+    marginRight: SPACING.md,
   },
   donationIconGradient: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  donationInfo: {
+  donationContent: {
     flex: 1,
   },
   donationLocation: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: '600',
-    color: COLORS.neutral900,
-    marginBottom: 4,
+    color: COLORS.neutral[900],
+    marginBottom: SPACING.xs,
   },
   donationMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: SPACING.xs,
   },
   donationDate: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: '500',
-    color: COLORS.neutral500,
+    color: COLORS.neutral[500],
   },
   donationPoints: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.warning50,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    gap: SPACING.xs,
+    backgroundColor: COLORS.warning[50],
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderRadius: RADIUS.full,
   },
   donationPointsText: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: '700',
-    color: COLORS.warning700,
+    color: COLORS.warning[700],
   },
 
-  // Actions
+  // Actions Grid
   actionsGrid: {
     flexDirection: 'row',
     gap: SPACING.md,
@@ -1146,11 +1272,12 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
+    alignItems: 'center',
     ...createShadow(1),
   },
   actionIcon: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1159,17 +1286,15 @@ const styles = StyleSheet.create({
   actionTitle: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: '700',
-    color: COLORS.neutral900,
-    marginBottom: 4,
+    color: COLORS.neutral[900],
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
   },
   actionSubtitle: {
     fontSize: TYPOGRAPHY.xs,
     fontWeight: '500',
-    color: COLORS.neutral500,
-    marginBottom: SPACING.sm,
-  },
-  actionArrow: {
-    alignSelf: 'flex-start',
+    color: COLORS.neutral[500],
+    textAlign: 'center',
   },
 
   // Logout
@@ -1180,14 +1305,14 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     height: 52,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.accent50,
+    backgroundColor: COLORS.accent[50],
     borderWidth: 1.5,
-    borderColor: COLORS.accent200,
+    borderColor: COLORS.accent[200],
   },
   logoutText: {
     fontSize: TYPOGRAPHY.base,
     fontWeight: '600',
-    color: COLORS.accent700,
+    color: COLORS.accent[700],
   },
 
   // Empty State
@@ -1199,24 +1324,24 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   emptyIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 112,
+    height: 112,
+    borderRadius: RADIUS.xxl,
     justifyContent: 'center',
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: TYPOGRAPHY.lg,
+    fontSize: TYPOGRAPHY.xl,
     fontWeight: '700',
-    color: COLORS.neutral900,
+    color: COLORS.neutral[900],
     marginBottom: SPACING.sm,
   },
   emptySubtitle: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: '500',
-    color: COLORS.neutral500,
+    color: COLORS.neutral[500],
     textAlign: 'center',
-    paddingHorizontal: SPACING.xxl,
+    paddingHorizontal: SPACING.xxxl,
   },
 
   // Loading
@@ -1228,11 +1353,102 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: TYPOGRAPHY.sm,
     fontWeight: '500',
-    color: COLORS.neutral500,
+    color: COLORS.neutral[500],
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: COLORS.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    maxHeight: '85%',
+  },
+  modalHandle: {
+    width: 48,
+    height: 4,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: SPACING.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.lg,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: TYPOGRAPHY.xl,
+    fontWeight: '700',
+    color: COLORS.neutral[900],
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.neutral[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBody: {
+    paddingBottom: SPACING.xxxl,
+  },
+  modalDonationIcon: {
+    alignItems: 'center',
+    marginBottom: SPACING.xxl,
+  },
+  modalDonationGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: RADIUS.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalInfoRow: {
+    marginBottom: SPACING.lg,
+  },
+  modalInfoLabel: {
+    fontSize: TYPOGRAPHY.xs,
+    fontWeight: '600',
+    color: COLORS.neutral[500],
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: SPACING.xs,
+  },
+  modalInfoValue: {
+    fontSize: TYPOGRAPHY.base,
+    fontWeight: '600',
+    color: COLORS.neutral[900],
+  },
+  pointsHighlight: {
+    color: COLORS.warning[600],
+    fontSize: TYPOGRAPHY.lg,
+    fontWeight: '800',
+  },
+  modalNotes: {
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  modalNotesText: {
+    fontSize: TYPOGRAPHY.base,
+    fontWeight: '500',
+    color: COLORS.neutral[700],
+    lineHeight: 20,
   },
 
   bottomSpacer: {
-    height: 120, // Increased for tab bar
+    height: 100,
   },
 });
 

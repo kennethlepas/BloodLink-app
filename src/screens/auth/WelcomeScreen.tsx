@@ -1,3 +1,4 @@
+import WelcomeSlider from '@/src/components/WelcomeSlider';
 import { useUser } from "@/src/contexts/UserContext";
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,19 +8,15 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
-  ImageStyle,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TextStyle,
   TouchableOpacity,
-  View,
-  ViewStyle
+  View
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -87,56 +84,127 @@ export default function WelcomeScreen() {
         style={styles.gradientContainer}
         locations={[0, 0.5, 1]}
       >
-        {/* Background Blood Component Decorations */}
+        {/* Background Blood Components - Faded and Distributed */}
         <View style={styles.bloodComponentsContainer}>
-          {/* Red Blood Cell - Top Left */}
-          <Svg style={styles.bloodComponent1} width="80" height="80" viewBox="0 0 80 80">
-            <Circle cx="40" cy="40" r="35" fill="rgba(220, 38, 38, 0.15)" stroke="rgba(220, 38, 38, 0.3)" strokeWidth="2" />
-            <Circle cx="40" cy="40" r="25" fill="rgba(220, 38, 38, 0.1)" />
+          {/* Red Blood Cell 1 - Top Left Area */}
+          <Svg style={styles.rbc1} width="85" height="85" viewBox="0 0 85 85">
+            <Circle cx="42.5" cy="42.5" r="38" fill="rgba(220, 38, 38, 0.08)" stroke="rgba(220, 38, 38, 0.15)" strokeWidth="2" />
+            <Circle cx="42.5" cy="42.5" r="25" fill="rgba(220, 38, 38, 0.05)" />
+            <Circle cx="42.5" cy="42.5" r="12" fill="rgba(220, 38, 38, 0.03)" />
           </Svg>
 
-          {/* Platelet - Top Right */}
-          <Svg style={styles.bloodComponent2} width="60" height="60" viewBox="0 0 60 60">
-            <Ellipse cx="30" cy="30" rx="25" ry="20" fill="rgba(251, 191, 36, 0.15)" stroke="rgba(251, 191, 36, 0.3)" strokeWidth="2" />
-            <Circle cx="30" cy="30" r="12" fill="rgba(251, 191, 36, 0.1)" />
+          {/* Red Blood Cell 2 - Middle Right */}
+          <Svg style={styles.rbc2} width="70" height="70" viewBox="0 0 70 70">
+            <Circle cx="35" cy="35" r="30" fill="rgba(220, 38, 38, 0.07)" stroke="rgba(220, 38, 38, 0.12)" strokeWidth="1.5" />
+            <Circle cx="35" cy="35" r="18" fill="rgba(220, 38, 38, 0.04)" />
           </Svg>
 
-          {/* White Blood Cell - Middle Left */}
-          <Svg style={styles.bloodComponent3} width="70" height="70" viewBox="0 0 70 70">
-            <Circle cx="35" cy="35" r="30" fill="rgba(148, 163, 184, 0.15)" stroke="rgba(148, 163, 184, 0.3)" strokeWidth="2" />
-            <Circle cx="35" cy="35" r="20" fill="rgba(148, 163, 184, 0.1)" />
-            <Circle cx="25" cy="25" r="8" fill="rgba(148, 163, 184, 0.12)" />
-            <Circle cx="45" cy="25" r="8" fill="rgba(148, 163, 184, 0.12)" />
+          {/* Red Blood Cell 3 - Bottom Center */}
+          <Svg style={styles.rbc3} width="60" height="60" viewBox="0 0 60 60">
+            <Circle cx="30" cy="30" r="26" fill="rgba(220, 38, 38, 0.06)" stroke="rgba(220, 38, 38, 0.1)" strokeWidth="1.5" />
+            <Circle cx="30" cy="30" r="14" fill="rgba(220, 38, 38, 0.03)" />
           </Svg>
 
-          {/* Plasma - Middle Right */}
-          <Svg style={styles.bloodComponent4} width="90" height="90" viewBox="0 0 90 90">
-            <Path d="M45 10 Q70 30 70 50 Q70 70 45 80 Q20 70 20 50 Q20 30 45 10" fill="rgba(59, 130, 246, 0.12)" stroke="rgba(59, 130, 246, 0.25)" strokeWidth="2" />
+          {/* Platelet 1 - Top Right */}
+          <Svg style={styles.platelet1} width="65" height="65" viewBox="0 0 65 65">
+            <Ellipse cx="32.5" cy="32.5" rx="28" ry="20" fill="rgba(251, 191, 36, 0.08)" stroke="rgba(251, 191, 36, 0.15)" strokeWidth="2" />
+            <Circle cx="32.5" cy="32.5" r="10" fill="rgba(251, 191, 36, 0.05)" />
+            <Circle cx="22" cy="28" r="4" fill="rgba(251, 191, 36, 0.04)" />
+            <Circle cx="43" cy="28" r="4" fill="rgba(251, 191, 36, 0.04)" />
           </Svg>
 
-          {/* Red Blood Cell - Bottom Left */}
-          <Svg style={styles.bloodComponent5} width="65" height="65" viewBox="0 0 65 65">
-            <Circle cx="32.5" cy="32.5" r="28" fill="rgba(220, 38, 38, 0.14)" stroke="rgba(220, 38, 38, 0.28)" strokeWidth="2" />
-            <Circle cx="32.5" cy="32.5" r="18" fill="rgba(220, 38, 38, 0.08)" />
+          {/* Platelet 2 - Bottom Left */}
+          <Svg style={styles.platelet2} width="55" height="55" viewBox="0 0 55 55">
+            <Ellipse cx="27.5" cy="27.5" rx="23" ry="16" fill="rgba(251, 191, 36, 0.07)" stroke="rgba(251, 191, 36, 0.12)" strokeWidth="1.5" />
+            <Circle cx="27.5" cy="27.5" r="8" fill="rgba(251, 191, 36, 0.04)" />
           </Svg>
 
-          {/* Platelet - Bottom Right */}
-          <Svg style={styles.bloodComponent6} width="55" height="55" viewBox="0 0 55 55">
-            <Ellipse cx="27.5" cy="27.5" rx="22" ry="18" fill="rgba(251, 191, 36, 0.14)" stroke="rgba(251, 191, 36, 0.28)" strokeWidth="2" />
+          {/* White Blood Cell 1 - Center Left */}
+          <Svg style={styles.wbc1} width="75" height="75" viewBox="0 0 75 75">
+            <Circle cx="37.5" cy="37.5" r="32" fill="rgba(148, 163, 184, 0.07)" stroke="rgba(148, 163, 184, 0.12)" strokeWidth="2" />
+            <Circle cx="37.5" cy="37.5" r="20" fill="rgba(148, 163, 184, 0.04)" />
+            <Circle cx="27" cy="27" r="6" fill="rgba(148, 163, 184, 0.05)" />
+            <Circle cx="48" cy="27" r="6" fill="rgba(148, 163, 184, 0.05)" />
+            <Circle cx="37.5" cy="48" r="6" fill="rgba(148, 163, 184, 0.05)" />
+          </Svg>
+
+          {/* White Blood Cell 2 - Bottom Right */}
+          <Svg style={styles.wbc2} width="65" height="65" viewBox="0 0 65 65">
+            <Circle cx="32.5" cy="32.5" r="28" fill="rgba(148, 163, 184, 0.06)" stroke="rgba(148, 163, 184, 0.1)" strokeWidth="1.5" />
+            <Circle cx="32.5" cy="32.5" r="16" fill="rgba(148, 163, 184, 0.03)" />
+            <Circle cx="24" cy="24" r="5" fill="rgba(148, 163, 184, 0.04)" />
+            <Circle cx="41" cy="24" r="5" fill="rgba(148, 163, 184, 0.04)" />
+          </Svg>
+
+          {/* Plasma Drop 1 - Top Center */}
+          <Svg style={styles.plasma1} width="80" height="100" viewBox="0 0 80 100">
+            <Path d="M40 10 Q65 40 65 65 Q65 85 40 95 Q15 85 15 65 Q15 40 40 10" fill="rgba(59, 130, 246, 0.06)" stroke="rgba(59, 130, 246, 0.1)" strokeWidth="2" />
+            <Path d="M40 25 Q55 45 55 60 Q55 75 40 82 Q25 75 25 60 Q25 45 40 25" fill="rgba(59, 130, 246, 0.04)" />
+          </Svg>
+
+          {/* Plasma Drop 2 - Middle Right */}
+          <Svg style={styles.plasma2} width="60" height="80" viewBox="0 0 60 80">
+            <Path d="M30 8 Q50 35 50 55 Q50 70 30 78 Q10 70 10 55 Q10 35 30 8" fill="rgba(59, 130, 246, 0.05)" stroke="rgba(59, 130, 246, 0.08)" strokeWidth="1.5" />
+          </Svg>
+
+          {/* Plasma Drop 3 - Bottom Left */}
+          <Svg style={styles.plasma3} width="50" height="65" viewBox="0 0 50 65">
+            <Path d="M25 5 Q40 28 40 45 Q40 55 25 60 Q10 55 10 45 Q10 28 25 5" fill="rgba(59, 130, 246, 0.05)" stroke="rgba(59, 130, 246, 0.08)" strokeWidth="1.5" />
+          </Svg>
+
+          {/* Hospital Cross - Faded */}
+          <Svg style={styles.hospitalCross} width="55" height="55" viewBox="0 0 55 55">
+            <Rect x="23" y="5" width="9" height="45" fill="rgba(220, 38, 38, 0.1)" />
+            <Rect x="5" y="23" width="45" height="9" fill="rgba(220, 38, 38, 0.1)" />
+          </Svg>
+
+          {/* Heartbeat Line - Bottom */}
+          <Svg style={styles.heartbeat} width="120" height="40" viewBox="0 0 120 40">
+            <Path d="M5 20 L25 20 L30 8 L40 32 L48 16 L56 24 L65 20 L115 20"
+              fill="none"
+              stroke="rgba(239, 68, 68, 0.12)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round" />
+          </Svg>
+
+          {/* Small Blood Drops Scattered */}
+          <Svg style={styles.bloodDrop1} width="30" height="40" viewBox="0 0 30 40">
+            <Path d="M15 2 Q25 20 25 30 Q25 38 15 38 Q5 38 5 30 Q5 20 15 2" fill="rgba(220, 38, 38, 0.08)" />
+          </Svg>
+
+          <Svg style={styles.bloodDrop2} width="25" height="35" viewBox="0 0 25 35">
+            <Path d="M12.5 2 Q20 18 20 26 Q20 32 12.5 32 Q5 32 5 26 Q5 18 12.5 2" fill="rgba(220, 38, 38, 0.07)" />
+          </Svg>
+
+          <Svg style={styles.bloodDrop3} width="20" height="28" viewBox="0 0 20 28">
+            <Path d="M10 2 Q16 15 16 21 Q16 26 10 26 Q4 26 4 21 Q4 15 10 2" fill="rgba(220, 38, 38, 0.06)" />
           </Svg>
         </View>
 
-        {/* Top Navigation Toggle */}
+        {/* Top Navigation */}
         <View style={styles.topNavigation}>
           <Link href={"/(auth)/user-type-selection" as Href} asChild>
             <TouchableOpacity style={styles.navButton} activeOpacity={0.7}>
-              <Text style={styles.navButtonText}>Sign Up</Text>
+              <LinearGradient
+                colors={['rgba(16, 185, 129, 0.2)', 'rgba(16, 185, 129, 0.1)']}
+                style={styles.navButtonGradient}
+              >
+                <Ionicons name="person-add-outline" size={14} color="#10B981" />
+                <Text style={styles.navButtonText}>Sign Up</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </Link>
           <View style={styles.navDivider} />
           <Link href={"/(auth)/login" as Href} asChild>
             <TouchableOpacity style={styles.navButton} activeOpacity={0.7}>
-              <Text style={styles.navButtonText}>Login</Text>
+              <LinearGradient
+                colors={['rgba(59, 130, 246, 0.2)', 'rgba(59, 130, 246, 0.1)']}
+                style={styles.navButtonGradient}
+              >
+                <Ionicons name="log-in-outline" size={14} color="#3B82F6" />
+                <Text style={[styles.navButtonText, styles.loginButtonText]}>Login</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </Link>
         </View>
@@ -146,178 +214,221 @@ export default function WelcomeScreen() {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Modern Header Section */}
-          <View style={styles.headerSection}>
-            {/* Logo Container */}
-            <View style={styles.logoCard}>
-              <View style={styles.logoImageContainer}>
-                <Image
-                  source={require('@/assets/images/logo.jpg')}
-                  style={styles.logoImage}
-                  resizeMode="cover"
-                />
-              </View>
-
-              {/* Verified Badge - Hanging at logo margin */}
-              <View style={styles.logoBadge}>
-                <View style={styles.badgeDot} />
-                <Text style={styles.badgeText}>Verified</Text>
+          {/* Compact Header Section */}
+          <View style={styles.headerBranding}>
+            <View style={styles.topBadgeContainer}>
+              <View style={styles.introBadge}>
+                <Text style={styles.introBadgeText}>🇰🇪 Kenya's Leading Network</Text>
               </View>
             </View>
 
-            {/* Brand Identity */}
-            <View style={styles.brandSection}>
-              <Text style={styles.appName}>BloodLink</Text>
-              <Text style={styles.appTagline}>Every Drop Counts, Every Life Matters</Text>
+            <View style={styles.logoRow}>
+              <View style={styles.logoWrapper}>
+                <View style={styles.logoCompact}>
+                  <Image
+                    source={require('@/assets/images/logo.jpg')}
+                    style={styles.logoImage}
+                    resizeMode="cover"
+                  />
+                </View>
+                <View style={styles.verifiedMiniBadge}>
+                  <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
+                </View>
+              </View>
+              <View style={styles.brandTitleContainer}>
+                <Text style={styles.appNameCompact}>BloodLink</Text>
+                <Text style={styles.appTaglineCompact}>Blood Donation Management System</Text>
+              </View>
             </View>
+            <Text style={styles.welcomeSubtext}>Every Drop Counts, Every Life Matters</Text>
           </View>
 
-          {/* Hero Content Section */}
-          <View style={styles.heroSection}>
-            <View style={styles.heroCard}>
-              <Text style={styles.heroTitle}>
-                Connect with{'\n'}
-                <Text style={styles.heroTitleHighlight}>Life-Savers</Text> Today
-              </Text>
-              <Text style={styles.heroDescription}>
-                Join a trusted network of donors and requesters working together to save lives through quick and reliable blood donation connections
-              </Text>
-            </View>
-
-            {/* Impact Stats */}
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, styles.statIconRed]}>
-                  <Ionicons name="people" size={moderateScale(24)} color="#DC2626" />
-                </View>
-                <Text style={styles.statValue}>1,000+</Text>
-                <Text style={styles.statLabel}>Active Donors</Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, styles.statIconGreen]}>
-                  <Ionicons name="heart" size={moderateScale(24)} color="#10B981" />
-                </View>
-                <Text style={styles.statValue}>500+</Text>
-                <Text style={styles.statLabel}>Lives Saved</Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <View style={[styles.statIconContainer, styles.statIconBlue]}>
-                  <Ionicons name="time" size={moderateScale(24)} color="#3B82F6" />
-                </View>
-                <Text style={styles.statValue}>24/7</Text>
-                <Text style={styles.statLabel}>Support</Text>
-              </View>
-            </View>
+          {/* Welcome Slider */}
+          <View style={styles.sliderWrapper}>
+            <WelcomeSlider />
           </View>
 
-          {/* Features Section */}
-          <View style={styles.featuresSection}>
+          {/* Stats Section - Dashboard Style (No Cards) */}
+          <View style={styles.statsSection}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeaderLine} />
-              <Text style={styles.sectionTitle}>Why Choose BloodLink</Text>
+              <Text style={styles.sectionTitle}>Our Impact in Kenya</Text>
               <View style={styles.sectionHeaderLine} />
             </View>
 
-            <View style={styles.featuresList}>
-              {/* Feature 1 */}
-              <View style={styles.modernFeatureCard}>
-                <View style={styles.featureIconWrapper}>
-                  <LinearGradient
-                    colors={['#EF4444', '#DC2626']}
-                    style={styles.featureIconGradient}
-                  >
-                    <Ionicons name="location-sharp" size={moderateScale(26)} color="#FFFFFF" />
-                  </LinearGradient>
+            <View style={styles.statsDashboard}>
+              <View style={styles.statsDashboardRow}>
+                <View style={styles.statItemDashboard}>
+                  <View style={[styles.statIconGlow, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                    <Ionicons name="business" size={moderateScale(24)} color="#EF4444" />
+                  </View>
+                  <Text style={styles.statValueDashboard}>500+</Text>
+                  <Text style={styles.statLabelDashboard}>Partner Hospitals</Text>
                 </View>
-                <View style={styles.featureTextContainer}>
-                  <Text style={styles.featureTitle}>Real-Time Location Tracking</Text>
-                  <Text style={styles.featureDescription}>
-                    Find nearby donors instantly with our advanced GPS-powered matching system
-                  </Text>
-                </View>
-                <View style={styles.featureArrow}>
-                  <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+
+                <View style={styles.statItemDashboard}>
+                  <View style={[styles.statIconGlow, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                    <Ionicons name="people" size={moderateScale(24)} color="#10B981" />
+                  </View>
+                  <Text style={styles.statValueDashboard}>2,500+</Text>
+                  <Text style={styles.statLabelDashboard}>Active Donors</Text>
                 </View>
               </View>
 
-              {/* Feature 2 */}
-              <View style={styles.modernFeatureCard}>
-                <View style={styles.featureIconWrapper}>
-                  <LinearGradient
-                    colors={['#3B82F6', '#2563EB']}
-                    style={styles.featureIconGradient}
-                  >
-                    <Ionicons name="shield-checkmark" size={moderateScale(26)} color="#FFFFFF" />
-                  </LinearGradient>
+              <View style={styles.statsDashboardRow}>
+                <View style={styles.statItemDashboard}>
+                  <View style={[styles.statIconGlow, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                    <Ionicons name="heart" size={moderateScale(24)} color="#3B82F6" />
+                  </View>
+                  <Text style={styles.statValueDashboard}>1,200+</Text>
+                  <Text style={styles.statLabelDashboard}>Lives Saved</Text>
                 </View>
-                <View style={styles.featureTextContainer}>
-                  <Text style={styles.featureTitle}>Verified & Secure Network</Text>
-                  <Text style={styles.featureDescription}>
-                    All donors are verified for safety with comprehensive profile screening
-                  </Text>
-                </View>
-                <View style={styles.featureArrow}>
-                  <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-                </View>
-              </View>
 
-              {/* Feature 3 */}
-              <View style={styles.modernFeatureCard}>
-                <View style={styles.featureIconWrapper}>
-                  <LinearGradient
-                    colors={['#10B981', '#059669']}
-                    style={styles.featureIconGradient}
-                  >
-                    <Ionicons name="notifications" size={moderateScale(26)} color="#FFFFFF" />
-                  </LinearGradient>
-                </View>
-                <View style={styles.featureTextContainer}>
-                  <Text style={styles.featureTitle}>Instant Emergency Alerts</Text>
-                  <Text style={styles.featureDescription}>
-                    Get notified immediately when someone in your area needs your blood type
-                  </Text>
-                </View>
-                <View style={styles.featureArrow}>
-                  <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-                </View>
-              </View>
-
-              {/* Feature 4 */}
-              <View style={styles.modernFeatureCard}>
-                <View style={styles.featureIconWrapper}>
-                  <LinearGradient
-                    colors={['#F59E0B', '#D97706']}
-                    style={styles.featureIconGradient}
-                  >
-                    <Ionicons name="analytics" size={moderateScale(26)} color="#FFFFFF" />
-                  </LinearGradient>
-                </View>
-                <View style={styles.featureTextContainer}>
-                  <Text style={styles.featureTitle}>Track Your Impact</Text>
-                  <Text style={styles.featureDescription}>
-                    Monitor your donation history and see the lives you've helped save
-                  </Text>
-                </View>
-                <View style={styles.featureArrow}>
-                  <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+                <View style={styles.statItemDashboard}>
+                  <View style={[styles.statIconGlow, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+                    <Ionicons name="time" size={moderateScale(24)} color="#F59E0B" />
+                  </View>
+                  <Text style={styles.statValueDashboard}>24/7</Text>
+                  <Text style={styles.statLabelDashboard}>Emergency Care</Text>
                 </View>
               </View>
             </View>
+          </View>
+
+          {/* About Us Section */}
+          <View style={styles.aboutSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLine} />
+              <Text style={styles.sectionTitle}>Our Mission</Text>
+              <View style={styles.sectionHeaderLine} />
+            </View>
+            <View style={styles.aboutContent}>
+              <Text style={styles.aboutText}>
+                BloodLink is a dedicated digital health platform committed to bridging the gap between blood donors and those in need across Kenya.
+              </Text>
+              <Text style={styles.aboutText}>
+                We leverage technology to ensure reaching donors and managing blood requests is easier than ever, creating a seamless, verified, and efficient lifesaving network.
+              </Text>
+            </View>
+          </View>
+
+          {/* Why Choose Us Section - Redesigned (Staggered, No Cards) */}
+          <View style={styles.whyChooseSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLine} />
+              <Text style={styles.sectionTitle}>Why Choose Our Network</Text>
+              <View style={styles.sectionHeaderLine} />
+            </View>
+
+            <View style={styles.staggeredFeatures}>
+              {/* Feature 1 - Left */}
+              <View style={styles.featureItemLeft}>
+                <LinearGradient
+                  colors={['#EF4444', 'rgba(239, 68, 68, 0.2)']}
+                  style={styles.featureIconLarge}
+                >
+                  <Ionicons name="location-sharp" size={moderateScale(32)} color="#FFFFFF" />
+                </LinearGradient>
+                <View style={styles.featureTextContent}>
+                  <Text style={styles.featureTitleLarge}>Real-Time Tracking</Text>
+                  <Text style={styles.featureDescLarge}>Find nearby donors instantly with advanced GPS mapping</Text>
+                </View>
+              </View>
+
+              {/* Feature 2 - Right */}
+              <View style={styles.featureItemRight}>
+                <View style={[styles.featureTextContent, { alignItems: 'flex-end' }]}>
+                  <Text style={styles.featureTitleLarge}>Verified Network</Text>
+                  <Text style={[styles.featureDescLarge, { textAlign: 'right' }]}>Every donor and hospital is thoroughly verified for your safety</Text>
+                </View>
+                <LinearGradient
+                  colors={['#3B82F6', 'rgba(59, 130, 246, 0.2)']}
+                  style={styles.featureIconLarge}
+                >
+                  <Ionicons name="shield-checkmark" size={moderateScale(32)} color="#FFFFFF" />
+                </LinearGradient>
+              </View>
+
+              {/* Feature 3 - Left */}
+              <View style={styles.featureItemLeft}>
+                <LinearGradient
+                  colors={['#10B981', 'rgba(16, 185, 129, 0.2)']}
+                  style={styles.featureIconLarge}
+                >
+                  <Ionicons name="notifications" size={moderateScale(32)} color="#FFFFFF" />
+                </LinearGradient>
+                <View style={styles.featureTextContent}>
+                  <Text style={styles.featureTitleLarge}>Emergency Alerts</Text>
+                  <Text style={styles.featureDescLarge}>Receive instant notifications when blood is needed urgently</Text>
+                </View>
+              </View>
+
+              {/* Feature 4 - Right */}
+              <View style={styles.featureItemRight}>
+                <View style={[styles.featureTextContent, { alignItems: 'flex-end' }]}>
+                  <Text style={styles.featureTitleLarge}>Track Your Impact</Text>
+                  <Text style={[styles.featureDescLarge, { textAlign: 'right' }]}>See exactly how many lives you've helped save through our app</Text>
+                </View>
+                <LinearGradient
+                  colors={['#F59E0B', 'rgba(245, 158, 11, 0.2)']}
+                  style={styles.featureIconLarge}
+                >
+                  <Ionicons name="analytics" size={moderateScale(32)} color="#FFFFFF" />
+                </LinearGradient>
+              </View>
+            </View>
+          </View>
+
+          {/* User Guide Section */}
+          <View style={styles.guideSection}>
+            <LinearGradient
+              colors={['#8B5CF6', '#6D28D9']}
+              style={styles.guideCard}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.guideIconContainer}>
+                <Ionicons name="book-outline" size={moderateScale(40)} color="#FFFFFF" />
+              </View>
+              <View style={styles.guideContent}>
+                <Text style={styles.guideTitle}>New to BloodLink?</Text>
+                <Text style={styles.guideSubtext}>
+                  Explore our comprehensive user guide to learn how everything works.
+                </Text>
+                <TouchableOpacity
+                  style={styles.guideButton}
+                  onPress={() => router.push('/(shared)/guide' as any)}
+                >
+                  <Text style={styles.guideButtonText}>Explore User Guide</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#8B5CF6" />
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
           </View>
 
           {/* Call to Action Section */}
           <View style={styles.ctaSection}>
-            <View style={styles.ctaCard}>
+            <LinearGradient
+              colors={['rgba(59, 130, 246, 0.15)', 'rgba(37, 99, 235, 0.1)']}
+              style={styles.ctaCard}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
               <View style={styles.ctaContent}>
-                <Text style={styles.ctaTitle}>Ready to Make a Difference?</Text>
+                <View style={styles.kenyaBadge}>
+                  <Text style={styles.kenyaBadgeText}>🇰🇪 Proudly Serving Kenya</Text>
+                </View>
+
+                <Text style={styles.ctaTitle}>
+                  Ready to Make a{' '}
+                  <Text style={styles.ctaHighlight}>Difference?</Text>
+                </Text>
+
                 <Text style={styles.ctaSubtext}>
-                  Join thousands of heroes saving lives every day
+                  Join thousands of Kenyan heroes saving lives every day through our trusted platform
                 </Text>
               </View>
 
-              {/* Primary CTA Button */}
               <Link href={"/(auth)/user-type-selection" as Href} asChild>
                 <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
                   <LinearGradient
@@ -326,7 +437,7 @@ export default function WelcomeScreen() {
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                   >
-                    <Text style={styles.primaryButtonText}>Get Started</Text>
+                    <Text style={styles.primaryButtonText}>Get Started Now</Text>
                     <View style={styles.buttonIconContainer}>
                       <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                     </View>
@@ -334,20 +445,25 @@ export default function WelcomeScreen() {
                 </TouchableOpacity>
               </Link>
 
-              {/* Secondary Link */}
               <View style={styles.loginLinkContainer}>
                 <Text style={styles.loginPromptText}>Already have an account? </Text>
                 <Link href={"/(auth)/login" as Href} asChild>
                   <TouchableOpacity activeOpacity={0.7}>
-                    <Text style={styles.loginLinkText}>Sign In</Text>
+                    <Text style={styles.loginLinkText}>Sign In →</Text>
                   </TouchableOpacity>
                 </Link>
               </View>
-            </View>
+            </LinearGradient>
           </View>
 
-          {/* Footer Info */}
+          {/* Footer */}
           <View style={styles.footer}>
+            <View style={styles.certificationRow}>
+              <View style={styles.certBadge}>
+                <Text style={styles.certText}>🇰🇪 Kenya Ministry of Health Approved</Text>
+              </View>
+            </View>
+
             <Text style={styles.footerText}>
               By continuing, you agree to our{' '}
               <Text
@@ -364,6 +480,10 @@ export default function WelcomeScreen() {
                 Privacy Policy
               </Text>
             </Text>
+
+            <Text style={styles.copyrightText}>
+              © 2024 BloodLink Kenya | Saving lives, one drop at a time
+            </Text>
           </View>
         </ScrollView>
       </LinearGradient>
@@ -371,77 +491,7 @@ export default function WelcomeScreen() {
   );
 }
 
-interface Styles {
-  container: ViewStyle;
-  gradientContainer: ViewStyle;
-  scrollContent: ViewStyle;
-  loadingContainer: ViewStyle;
-  bloodComponentsContainer: ViewStyle;
-  bloodComponent1: ViewStyle;
-  bloodComponent2: ViewStyle;
-  bloodComponent3: ViewStyle;
-  bloodComponent4: ViewStyle;
-  bloodComponent5: ViewStyle;
-  bloodComponent6: ViewStyle;
-  topNavigation: ViewStyle;
-  navButton: ViewStyle;
-  navButtonText: TextStyle;
-  navDivider: ViewStyle;
-  headerSection: ViewStyle;
-  logoCard: ViewStyle;
-  logoImageContainer: ViewStyle;
-  logoImage: ImageStyle;
-  logoPlaceholder: ViewStyle;
-  logoText: TextStyle;
-  logoBadge: ViewStyle;
-  badgeDot: ViewStyle;
-  badgeText: TextStyle;
-  brandSection: ViewStyle;
-  appName: TextStyle;
-  appTagline: TextStyle;
-  heroSection: ViewStyle;
-  heroCard: ViewStyle;
-  heroTitle: TextStyle;
-  heroTitleHighlight: TextStyle;
-  heroDescription: TextStyle;
-  statsGrid: ViewStyle;
-  statItem: ViewStyle;
-  statIconContainer: ViewStyle;
-  statIconRed: ViewStyle;
-  statIconGreen: ViewStyle;
-  statIconBlue: ViewStyle;
-  statValue: TextStyle;
-  statLabel: TextStyle;
-  featuresSection: ViewStyle;
-  sectionHeader: ViewStyle;
-  sectionHeaderLine: ViewStyle;
-  sectionTitle: TextStyle;
-  featuresList: ViewStyle;
-  modernFeatureCard: ViewStyle;
-  featureIconWrapper: ViewStyle;
-  featureIconGradient: ViewStyle;
-  featureTextContainer: ViewStyle;
-  featureTitle: TextStyle;
-  featureDescription: TextStyle;
-  featureArrow: ViewStyle;
-  ctaSection: ViewStyle;
-  ctaCard: ViewStyle;
-  ctaContent: ViewStyle;
-  ctaTitle: TextStyle;
-  ctaSubtext: TextStyle;
-  primaryButton: ViewStyle;
-  primaryButtonGradient: ViewStyle;
-  primaryButtonText: TextStyle;
-  buttonIconContainer: ViewStyle;
-  loginLinkContainer: ViewStyle;
-  loginPromptText: TextStyle;
-  loginLinkText: TextStyle;
-  footer: ViewStyle;
-  footerText: TextStyle;
-  footerLink: TextStyle;
-}
-
-const styles = StyleSheet.create<Styles>({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0A2647',
@@ -459,7 +509,7 @@ const styles = StyleSheet.create<Styles>({
     justifyContent: "center",
   },
 
-  // Blood Component Decorations
+  // Blood Components Container
   bloodComponentsContainer: {
     position: 'absolute',
     top: 0,
@@ -468,311 +518,443 @@ const styles = StyleSheet.create<Styles>({
     bottom: 0,
     zIndex: 0,
   },
-  bloodComponent1: {
+
+  // Red Blood Cells
+  rbc1: {
     position: 'absolute',
-    top: verticalScale(100),
-    left: scale(20),
-    opacity: 1,
+    top: verticalScale(60),
+    left: scale(10),
+    opacity: 0.6,
   },
-  bloodComponent2: {
+  rbc2: {
+    position: 'absolute',
+    top: verticalScale(300),
+    right: scale(15),
+    opacity: 0.5,
+  },
+  rbc3: {
+    position: 'absolute',
+    bottom: verticalScale(250),
+    left: scale(30),
+    opacity: 0.4,
+  },
+
+  // Platelets
+  platelet1: {
     position: 'absolute',
     top: verticalScale(120),
-    right: scale(30),
-    opacity: 1,
+    right: scale(25),
+    opacity: 0.55,
   },
-  bloodComponent3: {
+  platelet2: {
     position: 'absolute',
-    top: verticalScale(350),
-    left: scale(10),
-    opacity: 1,
+    bottom: verticalScale(350),
+    right: scale(20),
+    opacity: 0.45,
   },
-  bloodComponent4: {
+
+  // White Blood Cells
+  wbc1: {
     position: 'absolute',
-    top: verticalScale(400),
-    right: scale(15),
-    opacity: 1,
+    top: verticalScale(450),
+    left: scale(8),
+    opacity: 0.5,
   },
-  bloodComponent5: {
-    position: 'absolute',
-    bottom: verticalScale(200),
-    left: scale(25),
-    opacity: 1,
-  },
-  bloodComponent6: {
+  wbc2: {
     position: 'absolute',
     bottom: verticalScale(150),
-    right: scale(20),
-    opacity: 1,
+    right: scale(35),
+    opacity: 0.4,
+  },
+
+  // Plasma Drops
+  plasma1: {
+    position: 'absolute',
+    top: verticalScale(200),
+    left: scale(40),
+    opacity: 0.4,
+  },
+  plasma2: {
+    position: 'absolute',
+    top: verticalScale(380),
+    right: scale(45),
+    opacity: 0.35,
+  },
+  plasma3: {
+    position: 'absolute',
+    bottom: verticalScale(450),
+    left: scale(50),
+    opacity: 0.35,
+  },
+
+  // Medical Symbols
+  hospitalCross: {
+    position: 'absolute',
+    top: verticalScale(250),
+    right: scale(50),
+    opacity: 0.4,
+  },
+  heartbeat: {
+    position: 'absolute',
+    bottom: verticalScale(100),
+    left: scale(20),
+    opacity: 0.35,
+  },
+
+  // Small Blood Drops
+  bloodDrop1: {
+    position: 'absolute',
+    top: verticalScale(520),
+    right: scale(60),
+    opacity: 0.7,
+  },
+  bloodDrop2: {
+    position: 'absolute',
+    bottom: verticalScale(500),
+    right: scale(80),
+    opacity: 0.7,
+  },
+  bloodDrop3: {
+    position: 'absolute',
+    top: verticalScale(180),
+    right: scale(70),
+    opacity: 0.7,
   },
 
   // Top Navigation
   topNavigation: {
-    position: 'absolute',
-    top: verticalScale(1),
-    right: scale(5),
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 2,
+    justifyContent: 'flex-end',
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(12),
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
     zIndex: 10,
-    ...(Platform.OS === 'web'
-      ? {
-        backdropFilter: 'blur(10px)',
-      } as any
-      : {}),
   },
   navButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    marginHorizontal: scale(4),
+  },
+  navButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: scale(14),
+    paddingVertical: scale(8),
+    borderRadius: 20,
+    gap: 6,
   },
   navButtonText: {
-    color: '#10B981',
     fontSize: moderateScale(13),
     fontWeight: '600',
+    color: '#10B981',
+  },
+  loginButtonText: {
+    color: '#3B82F6',
   },
   navDivider: {
     width: 1,
-    height: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    height: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginHorizontal: scale(8),
   },
 
-  // Header Section
-  headerSection: {
-    paddingTop: verticalScale(20),
-    paddingHorizontal: scale(20),
+  // Compact Header branding
+  headerBranding: {
     alignItems: 'center',
-    marginBottom: verticalScale(15),
+    marginBottom: verticalScale(20),
+    paddingTop: verticalScale(70),
   },
-  logoCard: {
-    position: 'relative',
+  topBadgeContainer: {
     marginBottom: verticalScale(12),
-  },
-  logoImageContainer: {
-    width: moderateScale(100),
-    height: moderateScale(135),
-    borderRadius: 20,
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  introBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(6),
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  introBadgeText: {
+    fontSize: moderateScale(10),
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(15),
+  },
+  logoWrapper: {
+    position: 'relative',
+  },
+  logoCompact: {
+    width: moderateScale(70),
+    height: moderateScale(95),
+    borderRadius: 8,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 10,
   },
-  logoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: moderateScale(50),
-  },
-  logoBadge: {
+  verifiedMiniBadge: {
     position: 'absolute',
-    bottom: -22,
-    right: -22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    bottom: -8,
+    right: -8,
     backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 16,
-    borderWidth: 3,
-    borderColor: '#144272',
-  },
-  badgeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#FFFFFF',
-    marginRight: 4,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: moderateScale(10),
-    fontWeight: '700',
-  },
-  brandSection: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 4,
+    borderWidth: 1.5,
+    borderColor: '#0A2647',
+    zIndex: 10,
   },
-  appName: {
-    fontSize: moderateScale(32),
+  brandTitleContainer: {
+    justifyContent: 'center',
+  },
+  appNameCompact: {
+    fontSize: moderateScale(22),
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
-    marginBottom: 6,
   },
-  appTagline: {
-    fontSize: moderateScale(14),
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  // Hero Section
-  heroSection: {
-    paddingHorizontal: scale(20),
-    marginBottom: verticalScale(20),
-  },
-  heroCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
-    padding: scale(20),
-    marginBottom: verticalScale(20),
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    ...(Platform.OS === 'web'
-      ? {
-        backdropFilter: 'blur(10px)',
-      } as any
-      : {}),
-  },
-  heroTitle: {
-    fontSize: moderateScale(28),
-    fontWeight: '800',
-    color: '#FFFFFF',
-    lineHeight: moderateScale(36),
-    marginBottom: verticalScale(12),
-  },
-  heroTitleHighlight: {
-    color: '#3B82F6',
-  },
-  heroDescription: {
-    fontSize: moderateScale(15),
-    color: 'rgba(255, 255, 255, 0.85)',
-    lineHeight: moderateScale(22),
-    fontWeight: '400',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: scale(12),
-  },
-  statItem: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    padding: scale(16),
-    alignItems: 'center',
-  },
-  statIconContainer: {
-    width: moderateScale(48),
-    height: moderateScale(48),
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  statIconRed: {
-    backgroundColor: '#FEE2E2',
-  },
-  statIconGreen: {
-    backgroundColor: '#D1FAE5',
-  },
-  statIconBlue: {
-    backgroundColor: '#DBEAFE',
-  },
-  statValue: {
-    fontSize: moderateScale(20),
-    fontWeight: '800',
-    color: '#1E293B',
-    marginBottom: 4,
-  },
-  statLabel: {
+  appTaglineCompact: {
     fontSize: moderateScale(11),
-    color: '#64748B',
-    fontWeight: '600',
-    textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  welcomeSubtext: {
+    fontSize: moderateScale(12),
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontStyle: 'italic',
+    marginTop: 10,
   },
 
-  // Features Section
-  featuresSection: {
+  // Slider
+  sliderWrapper: {
+    marginTop: verticalScale(5),
+    marginBottom: verticalScale(10),
+    zIndex: 1,
+  },
+
+  // Stats Section (Dashboard Style)
+  statsSection: {
     paddingHorizontal: scale(20),
-    marginBottom: verticalScale(20),
+    marginBottom: verticalScale(30),
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: verticalScale(20),
+    justifyContent: 'center',
+    marginBottom: verticalScale(16),
+    width: '100%',
   },
   sectionHeaderLine: {
     flex: 1,
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    maxWidth: SCREEN_WIDTH * 0.2,
   },
   sectionTitle: {
     fontSize: moderateScale(16),
     fontWeight: '700',
     color: '#FFFFFF',
     marginHorizontal: scale(12),
+    textAlign: 'center',
   },
-  featuresList: {
-    gap: verticalScale(12),
-  },
-  modernFeatureCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 18,
-    padding: scale(16),
+  statsDashboard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 20,
+    padding: scale(8),
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  featureIconWrapper: {
-    marginRight: scale(14),
+  statsDashboardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: verticalScale(5),
   },
-  featureIconGradient: {
-    width: moderateScale(54),
-    height: moderateScale(54),
-    borderRadius: 14,
+  statItemDashboard: {
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featureTextContainer: {
     flex: 1,
   },
-  featureTitle: {
-    fontSize: moderateScale(15),
+  statIconGlow: {
+    width: moderateScale(48),
+    height: moderateScale(48),
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statValueDashboard: {
+    fontSize: moderateScale(22),
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  statLabelDashboard: {
+    fontSize: moderateScale(11),
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Why Choose Us (Redesigned)
+  whyChooseSection: {
+    paddingHorizontal: scale(20),
+    marginBottom: verticalScale(30),
+  },
+  staggeredFeatures: {
+    gap: verticalScale(25),
+    marginTop: verticalScale(10),
+  },
+  featureItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(15),
+    paddingRight: scale(20),
+  },
+  featureItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(15),
+    paddingLeft: scale(20),
+    justifyContent: 'flex-end',
+  },
+  featureIconLarge: {
+    width: moderateScale(64),
+    height: moderateScale(64),
+    borderRadius: moderateScale(32),
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  featureTextContent: {
+    flex: 1,
+  },
+  featureTitleLarge: {
+    fontSize: moderateScale(16),
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
-  featureDescription: {
+  featureDescLarge: {
     fontSize: moderateScale(13),
-    color: '#64748B',
+    color: 'rgba(255, 255, 255, 0.7)',
     lineHeight: moderateScale(18),
-    fontWeight: '400',
   },
-  featureArrow: {
-    marginLeft: scale(8),
+
+  // About Section
+  aboutSection: {
+    paddingHorizontal: scale(20),
+    marginBottom: verticalScale(30),
+  },
+  aboutContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 20,
+    padding: scale(20),
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  aboutText: {
+    fontSize: moderateScale(14),
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: moderateScale(22),
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+
+  // Guide Section
+  guideSection: {
+    paddingHorizontal: scale(20),
+    marginBottom: verticalScale(30),
+  },
+  guideCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: scale(20),
+    borderRadius: 24,
+    gap: scale(15),
+  },
+  guideIconContainer: {
+    width: moderateScale(70),
+    height: moderateScale(70),
+    borderRadius: moderateScale(20),
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  guideContent: {
+    flex: 1,
+  },
+  guideTitle: {
+    fontSize: moderateScale(18),
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  guideSubtext: {
+    fontSize: moderateScale(13),
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: moderateScale(18),
+    marginBottom: 12,
+  },
+  guideButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: scale(15),
+    paddingVertical: verticalScale(8),
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  guideButtonText: {
+    fontSize: moderateScale(13),
+    fontWeight: '700',
+    color: '#8B5CF6',
   },
 
   // CTA Section
   ctaSection: {
-    paddingHorizontal: scale(20),
-    marginBottom: verticalScale(15),
+    paddingHorizontal: scale(16),
+    marginBottom: verticalScale(20),
   },
   ctaCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 20,
-    padding: scale(24),
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-    ...(Platform.OS === 'web'
-      ? {
-        backdropFilter: 'blur(10px)',
-      } as any
-      : {}),
+    padding: scale(20),
   },
   ctaContent: {
-    marginBottom: verticalScale(20),
+    marginBottom: verticalScale(16),
     alignItems: 'center',
+  },
+  kenyaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: scale(12),
+    paddingVertical: scale(6),
+    borderRadius: 20,
+    marginBottom: verticalScale(12),
+    gap: 6,
+  },
+  kenyaBadgeText: {
+    fontSize: moderateScale(11),
+    color: '#10B981',
+    fontWeight: '600',
   },
   ctaTitle: {
     fontSize: moderateScale(22),
@@ -781,8 +963,11 @@ const styles = StyleSheet.create<Styles>({
     textAlign: 'center',
     marginBottom: 8,
   },
+  ctaHighlight: {
+    color: '#3B82F6',
+  },
   ctaSubtext: {
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(12),
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     fontWeight: '400',
@@ -790,26 +975,26 @@ const styles = StyleSheet.create<Styles>({
   primaryButton: {
     borderRadius: 14,
     overflow: 'hidden',
-    marginBottom: verticalScale(16),
+    marginBottom: verticalScale(12),
   },
   primaryButtonGradient: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(16),
-    paddingHorizontal: scale(24),
+    alignItems: 'center',
+    paddingVertical: verticalScale(14),
+    paddingHorizontal: scale(20),
   },
   primaryButtonText: {
-    fontSize: moderateScale(17),
+    fontSize: moderateScale(16),
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   buttonIconContainer: {
-    marginLeft: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     padding: 6,
+    marginLeft: 8,
   },
   loginLinkContainer: {
     flexDirection: 'row',
@@ -817,25 +1002,44 @@ const styles = StyleSheet.create<Styles>({
     justifyContent: 'center',
   },
   loginPromptText: {
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(12),
     color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '400',
   },
   loginLinkText: {
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(12),
     color: '#FFFFFF',
     fontWeight: '700',
-    textDecorationLine: 'underline',
   },
 
   // Footer
   footer: {
-    paddingHorizontal: scale(20),
+    paddingHorizontal: scale(16),
     alignItems: 'center',
+    gap: verticalScale(10),
+    paddingBottom: verticalScale(20),
+  },
+  certificationRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  certBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: scale(12),
+    paddingVertical: scale(6),
+    borderRadius: 20,
+    gap: 6,
+  },
+  certText: {
+    fontSize: moderateScale(10),
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
   },
   footerText: {
-    fontSize: moderateScale(12),
-    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: moderateScale(10),
+    color: 'rgba(255, 255, 255, 0.5)',
     textAlign: 'center',
     fontWeight: '400',
   },
@@ -843,5 +1047,10 @@ const styles = StyleSheet.create<Styles>({
     color: '#FFFFFF',
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  copyrightText: {
+    fontSize: moderateScale(9),
+    color: 'rgba(255, 255, 255, 0.3)',
+    textAlign: 'center',
   },
 });

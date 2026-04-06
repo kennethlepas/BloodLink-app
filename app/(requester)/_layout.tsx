@@ -9,11 +9,11 @@ export default function RequesterLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#3B82F6', // Keep brand blue for active
+        tabBarActiveTintColor: colors.primary, // Use theme primary blue
         tabBarInactiveTintColor: colors.textSecondary, // Use theme secondary text
         tabBarHideOnKeyboard: true, // Hide on keyboard
         tabBarStyle: {
-          backgroundColor: isDark ? colors.surface : '#FFFFFF', // Use surface color
+          backgroundColor: colors.surface, // Use theme surface color
           borderTopWidth: 0, // Remove top border
           elevation: 5, // Android shadow
           shadowColor: '#000', // iOS shadow
@@ -50,11 +50,35 @@ export default function RequesterLayout() {
       />
 
       <Tabs.Screen
+        name="booking"
+        options={{
+          title: 'Booking',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="my-requests"
         options={{
           title: 'My Requests',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="referrals"
+        options={{
+          title: 'Referrals',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "gift" : "gift-outline"}
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
@@ -90,7 +114,7 @@ export default function RequesterLayout() {
       <Tabs.Screen
         name="find-donors"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
         }}
       />
 

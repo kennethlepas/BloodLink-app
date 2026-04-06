@@ -1,4 +1,4 @@
-import { useAppTheme } from '@/src/contexts/ThemeContext';
+import { useAppTheme, type ThemeColors } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { getVerificationRequest } from '@/src/services/firebase/database';
 import { VerificationRequest } from '@/src/types/types';
@@ -24,10 +24,44 @@ type TimelineStep = {
     color: string;
 };
 
+const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bg },
+    header: { paddingHorizontal: 16, paddingBottom: 20 },
+    hTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    hTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+    hSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+
+    banner: { marginTop: 8, marginHorizontal: 16, marginBottom: 20, borderRadius: 16, padding: 18 },
+    bannerTitle: { fontSize: 17, fontWeight: '800', color: '#FFF' },
+    bannerMsg: { fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 6, lineHeight: 20 },
+
+    section: { marginHorizontal: 16, marginBottom: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.surfaceBorder, backgroundColor: colors.surface, padding: 16 },
+    sTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 16 },
+
+    // Timeline
+    timelineRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
+    tDot: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+    tLine: { minHeight: 20, width: 2, marginLeft: 17, marginTop: 4, flex: 1, alignSelf: 'center' },
+    tContent: { flex: 1, paddingLeft: 12, paddingTop: 4 },
+    tLabel: { fontSize: 14, fontWeight: '700' },
+    tSub: { fontSize: 12, marginTop: 2 },
+
+    // Rejection card
+    rejCard: { marginTop: 4, borderRadius: 12, borderWidth: 1, borderColor: isDark ? colors.dangerBorder : '#FECACA', backgroundColor: isDark ? colors.surfaceAlt : '#FEF2F2', padding: 14 },
+    rejTitle: { fontSize: 13, fontWeight: '700', color: colors.danger, marginBottom: 4 },
+    rejText: { fontSize: 13, color: colors.text, lineHeight: 18 },
+
+    // Re-submit button
+    rBtn: { marginHorizontal: 16, borderRadius: 14, overflow: 'hidden', marginBottom: 16 },
+    rGrad: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingVertical: 14 },
+    rText: { fontSize: 15, fontWeight: '800', color: '#FFF' },
+});
+
 export default function VerificationStatusScreen() {
     const router = useRouter();
     const { user } = useUser();
-    const { colors } = useAppTheme();
+    const { colors, isDark } = useAppTheme();
 
     const [loading, setLoading] = useState(true);
     const [request, setRequest] = useState<VerificationRequest | null>(null);
@@ -40,19 +74,16 @@ export default function VerificationStatusScreen() {
         });
     }, [user?.id]);
 
+    const s = getStyles(colors, isDark);
     const status = request?.status ?? (user?.verificationStatus as any) ?? 'unsubmitted';
 
-    const BLUE = '#2563EB';
-    const GREEN = '#10B981';
-    const RED = '#EF4444';
-
     const timelineSteps: TimelineStep[] = [
-        { label: 'Documents Submitted', icon: 'cloud-upload-outline', done: true, active: false, color: GREEN },
-        { label: 'Under Admin Review', icon: 'hourglass-outline', done: status !== 'pending', active: status === 'pending', color: status === 'pending' ? BLUE : GREEN },
-        { label: status === 'rejected' ? 'Rejected by Admin' : 'Account Verified', icon: status === 'rejected' ? 'close-circle-outline' : 'shield-checkmark-outline', done: status === 'approved', active: status === 'rejected', color: status === 'approved' ? GREEN : status === 'rejected' ? RED : '#D1D5DB' },
+        { label: 'Documents Submitted', icon: 'cloud-upload-outline', done: true, active: false, color: colors.success },
+        { label: 'Under Admin Review', icon: 'hourglass-outline', done: status !== 'pending' && status !== 'unsubmitted', active: status === 'pending', color: status === 'pending' ? colors.primary : colors.success },
+        { label: status === 'rejected' ? 'Rejected by Admin' : 'Account Verified', icon: status === 'rejected' ? 'close-circle-outline' : 'shield-checkmark-outline', done: status === 'approved', active: status === 'rejected', color: status === 'approved' ? colors.success : status === 'rejected' ? colors.danger : colors.divider },
     ];
 
-    const bannerColor = status === 'approved' ? GREEN : status === 'rejected' ? RED : BLUE;
+    const bannerColor = status === 'approved' ? colors.success : status === 'rejected' ? colors.danger : colors.primary;
     const bannerTitle = status === 'approved' ? 'Verification Approved ✅' : status === 'rejected' ? 'Verification Rejected ❌' : 'Verification Under Review';
     const bannerMessage = status === 'approved'
         ? 'Your account is now fully verified. You can use all features of BloodLink.'
@@ -60,45 +91,11 @@ export default function VerificationStatusScreen() {
             ? 'Your verification was not approved. Please re-submit with corrected documents.'
             : 'Our team is reviewing your documents. This usually takes 24–48 hours.';
 
-    const s = StyleSheet.create({
-        container: { flex: 1, backgroundColor: colors.bg },
-        header: { paddingHorizontal: 16, paddingBottom: 20 },
-        hTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-        backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-        hTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
-        hSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-
-        banner: { marginHorizontal: 16, borderRadius: 16, padding: 18, marginBottom: 20, marginTop: 8 },
-        bannerTitle: { fontSize: 17, fontWeight: '800', color: '#FFF' },
-        bannerMsg: { fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 6, lineHeight: 20 },
-
-        section: { marginHorizontal: 16, marginBottom: 16, backgroundColor: colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.surfaceBorder },
-        sTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 16 },
-
-        // Timeline
-        timelineRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
-        tDot: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-        tLine: { width: 2, flex: 1, minHeight: 20, alignSelf: 'center', marginLeft: 17, marginTop: 4 },
-        tContent: { flex: 1, paddingLeft: 12, paddingTop: 4 },
-        tLabel: { fontSize: 14, fontWeight: '700' },
-        tSub: { fontSize: 12, marginTop: 2 },
-
-        // Rejection card
-        rejCard: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FECACA', marginTop: 4 },
-        rejTitle: { fontSize: 13, fontWeight: '700', color: '#DC2626', marginBottom: 4 },
-        rejText: { fontSize: 13, color: '#7F1D1D', lineHeight: 18 },
-
-        // Re-submit button
-        rBtn: { marginHorizontal: 16, borderRadius: 14, overflow: 'hidden', marginBottom: 16 },
-        rGrad: { paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
-        rText: { fontSize: 15, fontWeight: '800', color: '#FFF' },
-    });
-
     if (loading) {
         return (
             <SafeAreaView style={s.container}>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color={BLUE} />
+                    <ActivityIndicator size="large" color={colors.primary} />
                 </View>
             </SafeAreaView>
         );
@@ -106,7 +103,7 @@ export default function VerificationStatusScreen() {
 
     return (
         <SafeAreaView style={s.container} edges={['top']}>
-            <LinearGradient colors={[BLUE, '#3B82F6']} style={s.header}>
+            <LinearGradient colors={[colors.primary, '#3B82F6']} style={s.header}>
                 <View style={s.hTop}>
                     <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
                         <Ionicons name="arrow-back" size={20} color="#FFF" />
@@ -144,7 +141,7 @@ export default function VerificationStatusScreen() {
                                 </View>
                             </View>
                             {idx < timelineSteps.length - 1 && (
-                                <View style={[s.tLine, { backgroundColor: timelineSteps[idx + 1].done || timelineSteps[idx + 1].active ? step.color : '#E5E7EB', marginBottom: 4, height: 20 }]} />
+                                <View style={[s.tLine, { backgroundColor: timelineSteps[idx + 1].done || timelineSteps[idx + 1].active ? step.color : colors.divider, marginBottom: 4, height: 20 }]} />
                             )}
                         </View>
                     ))}
@@ -167,7 +164,7 @@ export default function VerificationStatusScreen() {
                         style={s.rBtn}
                         onPress={() => router.push(user?.userType === 'donor' ? '/(shared)/donor-verification' : '/(shared)/requester-verification' as any)}
                     >
-                        <LinearGradient colors={[RED, '#DC2626']} style={s.rGrad}>
+                        <LinearGradient colors={[colors.danger, '#DC2626']} style={s.rGrad}>
                             <Ionicons name="refresh-circle" size={20} color="#FFF" />
                             <Text style={s.rText}>{status === 'rejected' ? 'Re-submit Verification' : 'Start Verification'}</Text>
                         </LinearGradient>

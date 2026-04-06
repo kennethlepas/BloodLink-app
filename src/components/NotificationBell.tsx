@@ -80,19 +80,19 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
 const styles = StyleSheet.create({
   bellContainer: {
-    position: 'relative',
     padding: 8,
+    position: 'relative',
   },
   badge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
+    position: 'absolute',
+    top: 4,
+    right: 4,
     // Web needs explicit zIndex to render above icon
     ...(Platform.OS === 'web' && { zIndex: 10 }),
   },

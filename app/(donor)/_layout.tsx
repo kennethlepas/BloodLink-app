@@ -9,18 +9,18 @@ export default function DonorLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#3B82F6', // Keep brand blue for active
+        tabBarActiveTintColor: colors.primary, // Use theme primary blue
         tabBarInactiveTintColor: colors.textSecondary, // Use theme secondary text
-        tabBarHideOnKeyboard: true, // Hide on keyboard to prevent layout issues
+        tabBarHideOnKeyboard: true, // Hide on keyboard
         tabBarStyle: {
-          backgroundColor: isDark ? colors.surface : '#FFFFFF', // Use surface color (lighter than bg)
-          borderTopWidth: 0, // Remove top border for clean look
+          backgroundColor: colors.surface, // Use theme surface color
+          borderTopWidth: 0, // Remove top border
           elevation: 5, // Android shadow
           shadowColor: '#000', // iOS shadow
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: isDark ? 0.3 : 0.1,
           shadowRadius: 10,
-          height: 60, // Taller for better touch targets
+          height: 60, // Taller
           position: 'absolute', // Floating effect
           bottom: 20, // Float from bottom
           left: 20, // Margin left
@@ -31,7 +31,7 @@ export default function DonorLayout() {
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',
-          marginBottom: 5, // Space between icon and text
+          marginBottom: 5,
         },
         tabBarItemStyle: {
           justifyContent: 'center',
@@ -50,6 +50,23 @@ export default function DonorLayout() {
       />
 
       <Tabs.Screen
+        name="book-donation"
+        options={{
+          title: 'Donate',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="water" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="booking-status"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+
+      <Tabs.Screen
         name="requests"
         options={{
           title: 'Requests',
@@ -62,9 +79,9 @@ export default function DonorLayout() {
       <Tabs.Screen
         name="donation-history"
         options={{
-          title: 'History',
+          title: 'Bookings',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time" size={size} color={color} />
+            <Ionicons name="calendar" size={size} color={color} />
           ),
         }}
       />
@@ -88,14 +105,23 @@ export default function DonorLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="availability-toggle"
         options={{
           href: null,
         }}
       />
+
       <Tabs.Screen
         name="edit-profile"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="booking"
         options={{
           href: null,
         }}

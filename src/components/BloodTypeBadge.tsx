@@ -25,15 +25,15 @@ const BloodTypeBadge: React.FC<BloodTypeBadgeProps> = ({ type, size = 'medium' }
 
 const styles = StyleSheet.create({
     badge: {
-        backgroundColor: '#DC2626',
         borderRadius: 8,
+        backgroundColor: '#DC2626',
         justifyContent: 'center',
         alignItems: 'center',
+        elevation: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
-        elevation: 3,
     },
     bloodType: {
         color: '#FFFFFF',

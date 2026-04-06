@@ -400,3 +400,222 @@ export const sendBatchNotifications = async (
     throw error;
   }
 };
+
+
+// ==================== TICKET NOTIFICATIONS ====================
+
+/**
+ * Notify admins of a new ticket (especially disputes)
+ */
+export const notifyAdminsOfNewTicket = async (
+  ticketId: string,
+  ticketDetails: {
+    type: string;
+    priority: string;
+    subject: string;
+    userName: string;
+  }
+): Promise<void> => {
+  try {
+    // In a real implementation, you would query for admin user IDs
+    // For now, this is a placeholder that would be called with admin IDs
+    const priorityEmoji = 
+      ticketDetails.priority === 'critical' ? '🚨' :
+      ticketDetails.priority === 'high' ? '⚠️' :
+      ticketDetails.priority === 'medium' ? '📋' : '📝';
+
+    const typeLabel = 
+      ticketDetails.type === 'dispute' ? 'Dispute' :
+      ticketDetails.type === 'bug_report' ? 'Bug Report' :
+      ticketDetails.type === 'feature_request' ? 'Feature Request' :
+      ticketDetails.type === 'verification_issue' ? 'Verification Issue' :
+      ticketDetails.type === 'account_issue' ? 'Account Issue' : 'Support Request';
+
+    await createNotification({
+      userId: 'admin', // This would be replaced with actual admin user IDs
+      type: 'ticket_created',
+      title: `${priorityEmoji} New ${typeLabel}`,
+      message: `${ticketDetails.userName} created a ${ticketDetails.priority} priority ${typeLabel}: ${ticketDetails.subject}`,
+      data: {
+        ticketId,
+        action: 'view_ticket',
+      },
+      isRead: false,
+      timestamp: ''
+    });
+    
+    console.log(`New ticket notification sent for ticket: ${ticketId}`);
+  } catch (error) {
+    console.error('Error sending new ticket notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Notify user when their ticket is assigned to an admin
+ */
+export const notifyUserOfTicketAssignment = async (
+  userId: string,
+  ticketId: string,
+  ticketDetails: {
+    subject: string;
+    adminName: string;
+  }
+): Promise<void> => {
+  try {
+    await createNotification({
+      userId,
+      type: 'ticket_assigned',
+      title: '👤 Your Ticket Has Been Assigned',
+      message: `${ticketDetails.adminName} is now handling your request: "${ticketDetails.subject}". They will review it shortly.`,
+      data: {
+        ticketId,
+        action: 'view_ticket',
+      },
+      isRead: false,
+      timestamp: ''
+    });
+    console.log(`Ticket assignment notification sent to user: ${userId}`);
+  } catch (error) {
+    console.error('Error sending ticket assignment notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Notify user when their ticket status is updated
+ */
+export const notifyUserOfTicketStatusUpdate = async (
+  userId: string,
+  ticketId: string,
+  ticketDetails: {
+    subject: string;
+    oldStatus: string;
+    newStatus: string;
+  }
+): Promise<void> => {
+  try {
+    const statusEmoji = 
+      ticketDetails.newStatus === 'resolved' ? '✅' :
+      ticketDetails.newStatus === 'closed' ? '🏁' :
+      ticketDetails.newStatus === 'under_review' ? '🔍' :
+      ticketDetails.newStatus === 'awaiting_user' ? '💬' : '📋';
+
+    await createNotification({
+      userId,
+      type: 'ticket_updated',
+      title: `${statusEmoji} Ticket Status Updated`,
+      message: `Your ticket "${ticketDetails.subject}" status changed from ${ticketDetails.oldStatus} to ${ticketDetails.newStatus}.`,
+      data: {
+        ticketId,
+        action: 'view_ticket',
+      },
+      isRead: false,
+      timestamp: ''
+    });
+    console.log(`Ticket status update notification sent to user: ${userId}`);
+  } catch (error) {
+    console.error('Error sending ticket status update notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Notify user of a new message on their ticket
+ */
+export const notifyUserOfTicketMessage = async (
+  userId: string,
+  ticketId: string,
+  messageDetails: {
+    ticketSubject: string;
+    senderName: string;
+    messagePreview: string;
+  }
+): Promise<void> => {
+  try {
+    const preview = messageDetails.messagePreview.length > 50
+      ? messageDetails.messagePreview.substring(0, 50) + '...'
+      : messageDetails.messagePreview;
+
+    await createNotification({
+      userId,
+      type: 'ticket_message',
+      title: `💬 New Message on Your Ticket`,
+      message: `${messageDetails.senderName} replied to "${messageDetails.ticketSubject}": ${preview}`,
+      data: {
+        ticketId,
+        action: 'view_ticket',
+      },
+      isRead: false,
+      timestamp: ''
+    });
+    console.log(`Ticket message notification sent to user: ${userId}`);
+  } catch (error) {
+    console.error('Error sending ticket message notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Notify user when their ticket is resolved
+ */
+export const notifyUserOfTicketResolution = async (
+  userId: string,
+  ticketId: string,
+  ticketDetails: {
+    subject: string;
+    resolution: string;
+  }
+): Promise<void> => {
+  try {
+    await createNotification({
+      userId,
+      type: 'ticket_resolved',
+      title: '✅ Ticket Resolved',
+      message: `Great news! Your ticket "${ticketDetails.subject}" has been resolved. ${ticketDetails.resolution}`,
+      data: {
+        ticketId,
+        action: 'view_ticket_and_confirm',
+      },
+      isRead: false,
+      timestamp: ''
+    });
+    console.log(`Ticket resolution notification sent to user: ${userId}`);
+  } catch (error) {
+    console.error('Error sending ticket resolution notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Enhanced dispute notification that creates a ticket automatically
+ */
+export const notifyDonorOfDisputeWithTicket = async (
+  donorId: string,
+  acceptedRequestId: string,
+  ticketId: string,
+  requesterDetails: {
+    requesterName: string;
+    disputeReason: string;
+  }
+): Promise<void> => {
+  try {
+    await createNotification({
+      userId: donorId,
+      type: 'donation_disputed',
+      title: '⚠️ Donation Disputed',
+      message: `${requesterDetails.requesterName} has raised a concern about the donation. Reason: ${requesterDetails.disputeReason}. A support ticket has been created for this dispute.`,
+      data: {
+        acceptedRequestId,
+        ticketId,
+        action: 'view_ticket',
+      },
+      isRead: false,
+      timestamp: ''
+    });
+    console.log(`Dispute with ticket notification sent to donor: ${donorId}`);
+  } catch (error) {
+    console.error('Error sending dispute with ticket notification:', error);
+    throw error;
+  }
+};

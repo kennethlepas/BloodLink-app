@@ -1,4 +1,4 @@
-import { uploadImageToCloudinary } from '@/src/services/cloudinary/upload.service';
+import { uploadImageToCloudinary, type UploadType } from '@/src/services/cloudinary/upload.service';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Alert, Platform } from 'react-native';
@@ -38,10 +38,10 @@ export const useImagePicker = () => {
     return true;
   };
 
-  const pickAndUploadImage = async (folder: string = 'bloodlink/profile_pictures'): Promise<string | null> => {
+  const pickAndUploadImage = async (folder: string = 'bloodlink/profile_pictures', uploadType: UploadType = 'profile'): Promise<string | null> => {
     try {
       setError(null);
-      
+
       const hasPermission = await requestPermissions();
       if (!hasPermission) return null;
 
@@ -59,7 +59,7 @@ export const useImagePicker = () => {
       setUploading(true);
 
       const imageUri = result.assets[0].uri;
-      const uploadResult = await uploadImageToCloudinary(imageUri, folder);
+      const uploadResult = await uploadImageToCloudinary(imageUri, folder, uploadType);
 
       setUploading(false);
       return uploadResult.secure_url;
@@ -72,7 +72,7 @@ export const useImagePicker = () => {
     }
   };
 
-  const takeAndUploadPhoto = async (folder: string = 'bloodlink/profile_pictures'): Promise<string | null> => {
+  const takeAndUploadPhoto = async (folder: string = 'bloodlink/profile_pictures', uploadType: UploadType = 'profile'): Promise<string | null> => {
     try {
       setError(null);
 
@@ -92,7 +92,7 @@ export const useImagePicker = () => {
       setUploading(true);
 
       const imageUri = result.assets[0].uri;
-      const uploadResult = await uploadImageToCloudinary(imageUri, folder);
+      const uploadResult = await uploadImageToCloudinary(imageUri, folder, uploadType);
 
       setUploading(false);
       return uploadResult.secure_url;

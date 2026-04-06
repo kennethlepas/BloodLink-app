@@ -1,18 +1,23 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
+import { useCachedData } from '@/src/hooks/useCachedData';
 import {
   cancelAcceptedRequest,
   createNotification,
   getDonorAcceptedRequests,
+  getDonorBookings,
   getDonorHistory,
+  getTicketIdByRelatedEntity,
   markDonationPendingVerification,
-  startAcceptedRequest
+  startAcceptedRequest,
+  updateDonorBookingStatus
 } from '@/src/services/firebase/database';
-import { AcceptedRequest, DonationRecord } from '@/src/types/types';
+import { AcceptedRequest, DonationRecord, DonorBooking } from '@/src/types/types';
+import { showRatingPrompt } from '@/src/utils/ratingPromptHelper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,7 +35,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type TabType = 'active' | 'history';
+type TabType = 'active' | 'history' | 'bookings';
+
 
 // Brand Colors 
 const B_DARK = '#1D4ED8';
@@ -61,14 +67,13 @@ const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
 
 const DonationHistoryScreen: React.FC = () => {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, updateUserData } = useUser();
   const { isDark, colors } = useAppTheme();
 
-  const [loading, setLoading] = useState(true);
+  const params = useLocalSearchParams<{ tab?: TabType }>();
+
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('active');
-  const [acceptedRequests, setAcceptedRequests] = useState<AcceptedRequest[]>([]);
-  const [donations, setDonations] = useState<DonationRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>(params.tab || 'active');
   const [filter, setFilter] = useState<'all' | 'thisYear' | 'lastYear'>('all');
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
@@ -77,6 +82,90 @@ const DonationHistoryScreen: React.FC = () => {
   const [donationNotes, setDonationNotes] = useState('');
   const [viewCommitment, setViewCommitment] = useState<AcceptedRequest | null>(null);
   const [viewDonation, setViewDonation] = useState<DonationRecord | null>(null);
+  const [disputeTicketId, setDisputeTicketId] = useState<string | null>(null);
+  const [loadingDisputeTicket, setLoadingDisputeTicket] = useState(false);
+
+  // Fetch ticket ID for disputed commitment
+  useEffect(() => {
+    const fetchDisputeTicket = async () => {
+      if (viewCommitment?.status === 'disputed') {
+        setLoadingDisputeTicket(true);
+        try {
+          const ticketId = await getTicketIdByRelatedEntity(viewCommitment.id, 'accepted_request');
+          setDisputeTicketId(ticketId);
+        } catch (error) {
+          console.error('Error fetching dispute ticket:', error);
+          setDisputeTicketId(null);
+        } finally {
+          setLoadingDisputeTicket(false);
+        }
+      } else {
+        setDisputeTicketId(null);
+      }
+    };
+
+    fetchDisputeTicket();
+  }, [viewCommitment]);
+
+  // Track if we've already shown the rating prompt for this session
+  const [hasShownRatingPrompt, setHasShownRatingPrompt] = useState(false);
+
+  // Track if donor has active commitments (pending, in_progress, or pending_verification)
+  const [hasActiveCommitment, setHasActiveCommitment] = useState(false);
+
+  // 1. Fetch active commitments with SWR hook
+  const {
+    data: commitmentsData,
+    loading: loadingCommitments,
+    refresh: refreshCommitments
+  } = useCachedData(
+    `donor_commitments_${user?.id}`,
+    () => getDonorAcceptedRequests(user!.id),
+    { enabled: !!user }
+  );
+
+  // 2. Fetch Donation History (completed donations)
+  const {
+    data: donationsData,
+    loading: loadingHistory,
+    refresh: refreshHistory
+  } = useCachedData(
+    `donor_history_${user?.id}`,
+    () => getDonorHistory(user!.id),
+    { enabled: !!user }
+  );
+
+  const donations = donationsData || [];
+  const acceptedRequests = commitmentsData || [];
+  const activeCommitments = useMemo(() =>
+    acceptedRequests.filter(r => ['pending', 'in_progress', 'pending_verification'].includes(r.status)),
+    [acceptedRequests]
+  );
+
+  // 3. Fetch Donor Hospital Bookings
+  const {
+    data: donorBookingsData,
+    loading: loadingBookings,
+    refresh: refreshBookings
+  } = useCachedData(
+    `donor_hospital_bookings_${user?.id}`,
+    () => getDonorBookings(user!.id),
+    { enabled: !!user }
+  );
+
+  const donorBookings = donorBookingsData || [];
+  const loading = loadingCommitments || loadingHistory || loadingBookings;
+
+  // Check if donor has any active commitment
+  useEffect(() => {
+    const hasActive = activeCommitments.length > 0;
+    setHasActiveCommitment(hasActive);
+
+    // Log for debugging
+    if (hasActive) {
+      console.log(`Donor has ${activeCommitments.length} active commitment(s). Cannot accept new requests.`);
+    }
+  }, [activeCommitments]);
 
   // Theme-aware colors
   const TEXT_DARK = colors.text;
@@ -86,56 +175,56 @@ const DonationHistoryScreen: React.FC = () => {
   const SURFACE = colors.surface;
   const BG = colors.bg;
 
-  useEffect(() => { loadData(); }, [user]);
-
-  const loadData = async () => {
-    if (!user) return;
+  const onRefresh = useCallback(async () => {
     try {
-      setLoading(true);
-      const activeCommitments = await getDonorAcceptedRequests(user.id);
-      const pending = activeCommitments.filter(
-        req => ['pending', 'in_progress', 'pending_verification'].includes(req.status)
-      );
-      setAcceptedRequests(pending);
-      const donorHistory = await getDonorHistory(user.id);
-      setDonations(donorHistory);
+      setRefreshing(true);
+      await Promise.all([refreshCommitments(), refreshHistory(), refreshBookings()]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load donation data. Please try again.');
+      console.log('Error refreshing donor history:', error);
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [refreshCommitments, refreshHistory, refreshBookings]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
+  const loadData = useCallback(async () => {
+    try {
+      await Promise.all([refreshCommitments(), refreshHistory(), refreshBookings()]);
+    } catch (error) {
+      console.log('Error loading donor history:', error);
+    }
+  }, [refreshCommitments, refreshHistory, refreshBookings]);
 
-  const getFilteredDonations = () => {
+  const filteredDonations = useMemo(() => {
     const now = new Date().getFullYear();
     if (filter === 'thisYear') return donations.filter(d => new Date(d.donationDate).getFullYear() === now);
     if (filter === 'lastYear') return donations.filter(d => new Date(d.donationDate).getFullYear() === now - 1);
     return donations;
-  };
+  }, [donations, filter]);
 
-  const filteredDonations = getFilteredDonations();
-  const totalPoints = filteredDonations.reduce((s, d) => s + d.pointsEarned, 0);
-  const totalUnits = filteredDonations.reduce((s, d) => s + (d.unitsCollected || 1), 0);
+  const totalPoints = useMemo(() => filteredDonations.reduce((s, d) => s + d.pointsEarned, 0), [filteredDonations]);
+  const totalUnits = useMemo(() => filteredDonations.reduce((s, d) => s + (d.unitsCollected || 1), 0), [filteredDonations]);
 
   const handleStartCommitment = async (c: AcceptedRequest) => {
     try {
       await startAcceptedRequest(c.id);
       Alert.alert('Success', 'Commitment marked as in progress!');
       await loadData();
-    } catch { Alert.alert('Error', 'Failed to update commitment.'); }
+    } catch {
+      Alert.alert('Error', 'Failed to update commitment.');
+    }
   };
 
-  const handleCancelCommitment = (c: AcceptedRequest) => { setSelectedCommitment(c); setCancelModalVisible(true); };
+  const handleCancelCommitment = (c: AcceptedRequest) => {
+    setSelectedCommitment(c);
+    setCancelModalVisible(true);
+  };
 
   const confirmCancelCommitment = async () => {
     if (!selectedCommitment) return;
-    if (!cancellationReason.trim()) { Alert.alert('Required', 'Please provide a reason for cancellation.'); return; }
+    if (!cancellationReason.trim()) {
+      Alert.alert('Required', 'Please provide a reason for cancellation.');
+      return;
+    }
     try {
       await cancelAcceptedRequest(selectedCommitment.id, cancellationReason);
       await createNotification({
@@ -157,29 +246,76 @@ const DonationHistoryScreen: React.FC = () => {
       setCancellationReason('');
       Alert.alert('Cancelled', 'Commitment cancelled and requester notified.');
       await loadData();
-    } catch { Alert.alert('Error', 'Failed to cancel commitment.'); }
+    } catch {
+      Alert.alert('Error', 'Failed to cancel commitment.');
+    }
   };
 
-  const handleCompleteCommitment = (c: AcceptedRequest) => { setSelectedCommitment(c); setCompleteModalVisible(true); };
+  const handleCompleteCommitment = (c: AcceptedRequest) => {
+    setSelectedCommitment(c);
+    setCompleteModalVisible(true);
+  };
 
   const confirmCompleteCommitment = async () => {
     if (!user || !selectedCommitment) return;
+
     try {
+      // Mark donation as pending verification
       await markDonationPendingVerification(selectedCommitment.id, donationNotes || undefined);
+
+      // Notify requester
       await createNotification({
         userId: selectedCommitment.requesterId,
         type: 'verify_donation',
         title: 'Verify Donation',
         message: `${user.firstName} ${user.lastName} has marked the donation as complete. Please verify.`,
-        data: { acceptedRequestId: selectedCommitment.id, donorId: user.id, requestId: selectedCommitment.requestId },
-        isRead: false, timestamp: ''
+        data: {
+          acceptedRequestId: selectedCommitment.id,
+          donorId: user.id,
+          requestId: selectedCommitment.requestId
+        },
+        isRead: false,
+        timestamp: new Date().toISOString()
       });
+
+      // Close modal
       setCompleteModalVisible(false);
       setSelectedCommitment(null);
       setDonationNotes('');
-      Alert.alert('Awaiting Verification', 'The requester has been notified to verify your donation.');
+
+      Alert.alert(
+        'Awaiting Verification',
+        'The requester has been notified to verify your donation. Once verified, you will receive your points and the donation will be added to your history.'
+      );
+
+      // Refresh data
       await loadData();
-    } catch { Alert.alert('Error', 'Failed to complete donation.'); }
+
+      // Check if user should be prompted to rate the app
+      // Only prompt if:
+      // 1. User hasn't already reviewed the app (check user.hasReviewed flag)
+      // 2. We haven't shown the prompt in this session
+      // 3. The donation was completed successfully
+      if (!user.hasReviewed && !hasShownRatingPrompt) {
+        setHasShownRatingPrompt(true);
+
+        // Show rating prompt after a short delay
+        setTimeout(() => {
+          showRatingPrompt(router, user.id, async () => {
+            // Update user's hasReviewed flag after successful review
+            if (user.id) {
+              const { updateUser } = await import('@/src/services/firebase/database');
+              await updateUser(user.id, { hasReviewed: true });
+              await updateUserData({ hasReviewed: true });
+            }
+          });
+        }, 1500);
+      }
+
+    } catch (error: any) {
+      console.error('Error completing donation:', error);
+      Alert.alert('Error', 'Failed to complete donation. Please try again.');
+    }
   };
 
   const formatDate = (d: string) => {
@@ -199,7 +335,25 @@ const DonationHistoryScreen: React.FC = () => {
     switch (s) {
       case 'in_progress': return { label: 'IN PROGRESS', color: B_LIGHT, bg: B_PALE };
       case 'pending_verification': return { label: 'AWAITING VERIFY', color: WARN, bg: WARN_PALE };
+      case 'disputed': return { label: 'DISPUTED', color: DANGER, bg: DANGER_PALE };
+      case 'cancelled':
+      case 'cancel': return { label: 'CANCELLED', color: '#6B7280', bg: '#F3F4F6' };
       default: return { label: 'PENDING', color: WARN, bg: WARN_PALE };
+    }
+  };
+
+  // Function to navigate to find requests with active commitment check
+  const handleFindRequests = () => {
+    if (hasActiveCommitment) {
+      Alert.alert(
+        'Active Commitment Found',
+        `You have ${activeCommitments.length} active ${activeCommitments.length === 1 ? 'commitment' : 'commitments'}. Please complete or cancel your current commitment before accepting new requests.`,
+        [
+          { text: 'OK' }
+        ]
+      );
+    } else {
+      router.push('/(donor)/requests' as any);
     }
   };
 
@@ -400,6 +554,30 @@ const DonationHistoryScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
+          {item.status === 'disputed' && (
+            <TouchableOpacity
+              style={[st.chatBtn, { flex: 2, borderColor: DANGER, backgroundColor: DANGER_PALE }]}
+              onPress={() => {
+                if (disputeTicketId) {
+                  setViewCommitment(null);
+                  router.push(`/(shared)/ticket/${disputeTicketId}` as any);
+                } else if (!loadingDisputeTicket) {
+                  Alert.alert('Info', 'Support ticket not found or still loading.');
+                }
+              }}
+              disabled={loadingDisputeTicket}
+            >
+              {loadingDisputeTicket ? (
+                <ActivityIndicator size="small" color={DANGER} />
+              ) : (
+                <>
+                  <Ionicons name="warning" size={16} color={DANGER} />
+                  <Text style={[st.chatBtnText, { color: DANGER }]}>View Dispute Ticket</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={st.cancelIconBtn} onPress={() => handleCancelCommitment(item)}>
             <Ionicons name="close-circle" size={20} color={DANGER} />
           </TouchableOpacity>
@@ -489,6 +667,29 @@ const DonationHistoryScreen: React.FC = () => {
     </View>
   );
 
+  const handleCancelBooking = async (booking: DonorBooking) => {
+    Alert.alert(
+      'Confirm Cancellation',
+      'Are you sure you want to cancel this donation booking? This will free up the slot for other donors.',
+      [
+        { text: 'Keep Booking', style: 'cancel' },
+        {
+          text: 'Cancel Booking',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateDonorBookingStatus(booking.id, 'cancel');
+              Alert.alert('Success', 'Booking cancelled successfully.');
+            } catch (error) {
+              console.error('Error cancelling booking:', error);
+              Alert.alert('Error', 'Failed to cancel booking. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderEmptyCommitments = () => (
     <View style={st.emptyWrap}>
       <View style={st.emptyIconWrap}>
@@ -498,7 +699,7 @@ const DonationHistoryScreen: React.FC = () => {
       </View>
       <Text style={st.emptyTitle}>No Active Commitments</Text>
       <Text style={st.emptyText}>You haven't accepted any blood requests yet.</Text>
-      <TouchableOpacity style={st.emptyActionBtn} onPress={() => router.push('/(donor)/requests' as any)}>
+      <TouchableOpacity style={st.emptyActionBtn} onPress={handleFindRequests}>
         <LinearGradient colors={[B_DARK, B_MID]} style={st.emptyActionGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
           <Ionicons name="search" size={18} color="#FFFFFF" />
           <Text style={st.emptyActionText}>Find Blood Requests</Text>
@@ -525,29 +726,35 @@ const DonationHistoryScreen: React.FC = () => {
     // Header
     header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 },
     headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    backBtn: {
-      width: 38, height: 38, borderRadius: 12,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      justifyContent: 'center', alignItems: 'center',
-    },
+    backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
     headerTitleWrap: { alignItems: 'center' },
     headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
     headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
 
     // Stats
     statsRow: { flexDirection: 'row', gap: 10 },
-    statCard: {
-      flex: 1,
-      backgroundColor: 'rgba(255,255,255,0.15)',
-      borderRadius: 14,
-      paddingVertical: 12,
-      alignItems: 'center',
-      gap: 4,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.1)',
-    },
+    statCard: { flex: 1, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', gap: 4, paddingVertical: 12 },
     statValue: { fontSize: 22, fontWeight: '900', color: '#FFFFFF' },
     statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: '600' },
+
+    // Warning Banner
+    warningBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    warningText: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '600',
+      color: '#92400E',
+      lineHeight: 16,
+    },
 
     // Tabs
     tabBar: {
@@ -557,11 +764,7 @@ const DonationHistoryScreen: React.FC = () => {
       borderBottomColor: BORDER,
       paddingHorizontal: 8,
     },
-    tab: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 6, paddingVertical: 14,
-      borderBottomWidth: 2.5, borderBottomColor: 'transparent',
-    },
+    tab: { flex: 1, borderBottomWidth: 2.5, borderBottomColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14 },
     tabActive: { borderBottomColor: B_MID },
     tabText: { fontSize: 14, fontWeight: '700', color: TEXT_SOFT },
     tabTextActive: { color: B_MID },
@@ -580,11 +783,7 @@ const DonationHistoryScreen: React.FC = () => {
       gap: 8, backgroundColor: SURFACE,
       borderBottomWidth: 1, borderBottomColor: BORDER,
     },
-    filterBtn: {
-      paddingHorizontal: 14, paddingVertical: 7,
-      borderRadius: 20, backgroundColor: BG,
-      borderWidth: 1, borderColor: BORDER,
-    },
+    filterBtn: { borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, paddingHorizontal: 14, paddingVertical: 7 },
     filterBtnActive: { backgroundColor: B_MID, borderColor: B_MID },
     filterBtnText: { fontSize: 13, fontWeight: '600', color: TEXT_MID },
     filterBtnTextActive: { color: '#FFFFFF' },
@@ -594,28 +793,17 @@ const DonationHistoryScreen: React.FC = () => {
     loadingText: { fontSize: 15, color: TEXT_MID },
 
     // List
-    listContent: { padding: 16, paddingBottom: 40 },
+    listContent: { padding: 16, paddingBottom: 100 },
 
     // Card
-    card: {
-      backgroundColor: SURFACE,
-      borderRadius: 18,
-      marginBottom: 16,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: BORDER,
-      ...shadow('#000', 0.08, 12, 4),
-    },
+    card: { marginBottom: 16, borderRadius: 18, borderWidth: 1, borderColor: BORDER, backgroundColor: SURFACE, overflow: 'hidden', ...shadow('#000', 0.08, 12, 4) },
     cardTopBand: { paddingHorizontal: 16, paddingVertical: 14 },
     cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     donationTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     bloodTypeBlock: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     bloodTypeSmallLabel: { fontSize: 10, color: 'rgba(255,255,255,0.65)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
     bloodTypeValue: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', marginTop: 1 },
-    statusPill: {
-      flexDirection: 'row', alignItems: 'center', gap: 5,
-      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
-    },
+    statusPill: { borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6 },
     statusDot: { width: 6, height: 6, borderRadius: 3 },
     statusPillText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
     pointsBadge: {
@@ -631,11 +819,7 @@ const DonationHistoryScreen: React.FC = () => {
     // Info Grid
     infoGrid: { flexDirection: 'row', gap: 10 },
     infoCell: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-    infoCellIcon: {
-      width: 30, height: 30, borderRadius: 9,
-      justifyContent: 'center', alignItems: 'center',
-      flexShrink: 0,
-    },
+    infoCellIcon: { width: 30, height: 30, borderRadius: 9, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
     infoCellText: { flex: 1 },
     infoCellLabel: { fontSize: 10, color: TEXT_SOFT, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
     infoCellValue: { fontSize: 13, color: TEXT_DARK, fontWeight: '700' },
@@ -649,47 +833,23 @@ const DonationHistoryScreen: React.FC = () => {
 
     // Stats Pills
     statsPillsRow: { flexDirection: 'row', gap: 8 },
-    statPill: {
-      flex: 1, flexDirection: 'column', alignItems: 'center', gap: 3,
-      backgroundColor: BG, borderRadius: 12,
-      paddingVertical: 10, paddingHorizontal: 8,
-      borderWidth: 1, borderColor: BORDER,
-    },
+    statPill: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, flexDirection: 'column', alignItems: 'center', gap: 3, paddingVertical: 10, paddingHorizontal: 8 },
     statPillLabel: { fontSize: 10, color: TEXT_SOFT, fontWeight: '600', textTransform: 'uppercase' },
     statPillValue: { fontSize: 14, fontWeight: '800' },
 
     // Notes Box
-    notesBox: {
-      flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-      padding: 12, backgroundColor: SUCCESS_PALE, borderRadius: 10,
-      borderLeftWidth: 3, borderLeftColor: SUCCESS,
-    },
+    notesBox: { borderRadius: 10, borderLeftWidth: 3, borderLeftColor: SUCCESS, backgroundColor: SUCCESS_PALE, flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12 },
     notesText: { flex: 1, fontSize: 13, color: TEXT_DARK, lineHeight: 18 },
 
     // Verification Notice
-    verifyNotice: {
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-      padding: 11, backgroundColor: WARN_PALE, borderRadius: 10,
-      borderWidth: 1, borderColor: '#FDE68A',
-    },
+    verifyNotice: { borderRadius: 10, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: WARN_PALE, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 11 },
     verifyNoticeText: { flex: 1, fontSize: 12, color: '#92400E', fontWeight: '600' },
 
     // Card Actions
-    cardActions: {
-      flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10,
-      borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: BG,
-    },
-    chatBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 5, backgroundColor: B_PALE, paddingVertical: 9, borderRadius: 10,
-      borderWidth: 1, borderColor: '#BFDBFE',
-    },
+    cardActions: { borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: BG, flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
+    chatBtn: { flex: 1, borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE', backgroundColor: B_PALE, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: 9 },
     chatBtnText: { fontSize: 13, fontWeight: '700', color: B_MID },
-    startBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 5, backgroundColor: SUCCESS_PALE, paddingVertical: 9, borderRadius: 10,
-      borderWidth: 1, borderColor: '#A7F3D0',
-    },
+    startBtn: { flex: 1, borderRadius: 10, borderWidth: 1, borderColor: '#A7F3D0', backgroundColor: SUCCESS_PALE, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: 9 },
     startBtnText: { fontSize: 13, fontWeight: '700', color: SUCCESS },
     completeBtn: { flex: 1.5, borderRadius: 10, overflow: 'hidden' },
     completeBtnGrad: {
@@ -697,10 +857,7 @@ const DonationHistoryScreen: React.FC = () => {
       gap: 5, paddingVertical: 10,
     },
     completeBtnText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
-    cancelIconBtn: {
-      width: 40, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: DANGER_PALE, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA',
-    },
+    cancelIconBtn: { width: 40, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA', backgroundColor: DANGER_PALE, alignItems: 'center', justifyContent: 'center' },
 
     // Donation Date
     donationDateRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -718,10 +875,7 @@ const DonationHistoryScreen: React.FC = () => {
     // Empty State
     emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 40 },
     emptyIconWrap: { marginBottom: 20, ...shadow(B_MID, 0.15, 20, 6) },
-    emptyIconGrad: {
-      width: 110, height: 110, borderRadius: 55,
-      justifyContent: 'center', alignItems: 'center',
-    },
+    emptyIconGrad: { width: 110, height: 110, borderRadius: 55, justifyContent: 'center', alignItems: 'center' },
     emptyTitle: { fontSize: 20, fontWeight: '800', color: TEXT_DARK, marginBottom: 8, textAlign: 'center' },
     emptyText: { fontSize: 14, color: TEXT_MID, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
     emptyActionBtn: { borderRadius: 14, overflow: 'hidden', ...shadow(B_MID, 0.25, 10, 4) },
@@ -733,39 +887,19 @@ const DonationHistoryScreen: React.FC = () => {
 
     // Modals
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 20 },
-    modalSheet: {
-      backgroundColor: SURFACE,
-      borderRadius: 26,
-      padding: 24,
-      paddingBottom: 30,
-      ...shadow('#000', 0.2, 30, 10),
-    },
+    modalSheet: { borderRadius: 26, backgroundColor: SURFACE, padding: 24, paddingBottom: 30, ...shadow('#000', 0.2, 30, 10) },
     modalHandle: { display: 'none' },
     modalHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
     modalTitleIcon: { width: 36, height: 36, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
     modalTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: TEXT_DARK },
-    modalCloseBtn: {
-      width: 32, height: 32, borderRadius: 10,
-      backgroundColor: BG, justifyContent: 'center', alignItems: 'center',
-    },
+    modalCloseBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: BG, justifyContent: 'center', alignItems: 'center' },
     modalDesc: { fontSize: 14, color: TEXT_MID, lineHeight: 20, marginBottom: 18 },
     modalInputLabel: { fontSize: 13, fontWeight: '700', color: TEXT_DARK, marginBottom: 8 },
-    modalInput: {
-      borderWidth: 1.5, borderColor: BORDER, borderRadius: 12,
-      padding: 12, fontSize: 14, color: TEXT_DARK,
-      backgroundColor: BG, minHeight: 100, marginBottom: 20,
-    },
+    modalInput: { minHeight: 100, borderRadius: 12, borderWidth: 1.5, borderColor: BORDER, backgroundColor: BG, fontSize: 14, color: TEXT_DARK, marginBottom: 20, padding: 12 },
     modalBtnsRow: { flexDirection: 'row', gap: 10 },
-    modalKeepBtn: {
-      flex: 1, paddingVertical: 14, borderRadius: 14,
-      backgroundColor: BG, alignItems: 'center',
-      borderWidth: 1, borderColor: BORDER,
-    },
+    modalKeepBtn: { flex: 1, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, alignItems: 'center', paddingVertical: 14 },
     modalKeepText: { fontSize: 14, fontWeight: '700', color: TEXT_MID },
-    modalConfirmCancelBtn: {
-      flex: 1, paddingVertical: 14, borderRadius: 14,
-      backgroundColor: DANGER, alignItems: 'center',
-    },
+    modalConfirmCancelBtn: { flex: 1, borderRadius: 14, backgroundColor: DANGER, alignItems: 'center', paddingVertical: 14 },
     modalConfirmCancelText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
     modalCompleteBtn: { flex: 1.5, borderRadius: 14, overflow: 'hidden' },
     modalCompleteBtnGrad: {
@@ -808,6 +942,16 @@ const DonationHistoryScreen: React.FC = () => {
             ))}
           </View>
         )}
+
+        {/* Active Commitment Warning */}
+        {hasActiveCommitment && (
+          <View style={[st.warningBanner, { backgroundColor: WARN_PALE, borderColor: WARN }]}>
+            <Ionicons name="alert-circle" size={18} color={WARN} />
+            <Text style={st.warningText}>
+              You have {activeCommitments.length} active {activeCommitments.length === 1 ? 'commitment' : 'commitments'}. Complete or cancel before accepting new requests.
+            </Text>
+          </View>
+        )}
       </LinearGradient>
 
       {/* Tabs */}
@@ -815,6 +959,7 @@ const DonationHistoryScreen: React.FC = () => {
         {[
           { key: 'active', label: 'Active', icon: 'time', count: acceptedRequests.length },
           { key: 'history', label: 'History', icon: 'checkmark-done-circle', count: donations.length },
+          { key: 'bookings', label: 'Bookings', icon: 'calendar', count: donorBookings.length },
         ].map((tab) => {
           const isActive = activeTab === tab.key as TabType;
           return (
@@ -877,13 +1022,92 @@ const DonationHistoryScreen: React.FC = () => {
               ListEmptyComponent={renderEmptyCommitments}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
             />
-          ) : (
+          ) : activeTab === 'history' ? (
             <FlatList
               data={filteredDonations}
               renderItem={renderDonationListItem}
               keyExtractor={(i) => i.id}
               contentContainerStyle={st.listContent}
               ListEmptyComponent={renderEmptyHistory}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
+            />
+          ) : (
+            <FlatList
+              data={donorBookings}
+              renderItem={({ item }) => {
+                const statusMap: Record<string, { color: string; icon: string; bg: string; label: string }> = {
+                  pending: { color: WARN, icon: 'time', bg: WARN_PALE, label: 'Pending' },
+                  confirmed: { color: B_MID, icon: 'checkmark-circle', bg: B_PALE, label: 'Confirmed' },
+                  completed: { color: SUCCESS, icon: 'trophy', bg: SUCCESS_PALE, label: 'Completed' },
+                  rejected: { color: DANGER, icon: 'close-circle', bg: DANGER_PALE, label: 'Rejected' },
+                  cancelled: { color: '#6B7280', icon: 'close-circle', bg: '#F3F4F6', label: 'Cancelled' },
+                  cancel: { color: '#6B7280', icon: 'close-circle', bg: '#F3F4F6', label: 'Cancelled' },
+                };
+                const cfg = statusMap[item.status] || statusMap.pending;
+                return (
+                  <TouchableOpacity
+                    style={st.card}
+                    onPress={() => router.push({ pathname: '/(donor)/booking-status' as any, params: { bookingId: item.id } })}
+                    activeOpacity={0.9}
+                  >
+                    <LinearGradient colors={['#312E81', '#1E1B4B']} style={[st.cardTopBand, { paddingVertical: 12 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                          <Ionicons name="calendar" size={16} color="rgba(255,255,255,0.8)" />
+                          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                            Booking ID: {item.id.substring(0, 8).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={[st.statusPill, { backgroundColor: cfg.bg }]}>
+                          <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
+                          <Text style={[st.statusPillText, { color: cfg.color, fontSize: 10 }]}>{cfg.label}</Text>
+                        </View>
+                      </View>
+                    </LinearGradient>
+                    <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: SUCCESS_PALE, justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="business" size={18} color={SUCCESS} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, color: TEXT_DARK, fontWeight: '700' }} numberOfLines={1}>{item.hospitalName}</Text>
+                        <Text style={{ fontSize: 12, color: TEXT_MID }}>
+                          {item.scheduledDate} at {item.scheduledTime}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {item.status === 'pending' && (
+                          <TouchableOpacity
+                            style={st.cancelIconBtn}
+                            onPress={() => handleCancelBooking(item)}
+                          >
+                            <Ionicons name="close-circle" size={22} color={DANGER} />
+                          </TouchableOpacity>
+                        )}
+                        <Ionicons name="chevron-forward" size={20} color={BORDER} />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+              keyExtractor={(i) => i.id}
+              contentContainerStyle={st.listContent}
+              ListEmptyComponent={() => (
+                <View style={st.emptyWrap}>
+                  <View style={st.emptyIconWrap}>
+                    <LinearGradient colors={[B_PALE, '#C7D2FE']} style={st.emptyIconGrad}>
+                      <Ionicons name="calendar-outline" size={48} color={B_MID} />
+                    </LinearGradient>
+                  </View>
+                  <Text style={st.emptyTitle}>No Hospital Bookings</Text>
+                  <Text style={st.emptyText}>You haven't booked any donation slots at hospitals yet.</Text>
+                  <TouchableOpacity style={st.emptyActionBtn} onPress={() => router.push('/(donor)/find-donors' as any)}>
+                    <LinearGradient colors={[B_DARK, B_MID]} style={st.emptyActionGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                      <Ionicons name="add-circle" size={18} color="#FFFFFF" />
+                      <Text style={st.emptyActionText}>Book a Donation Slot</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
             />
           )}

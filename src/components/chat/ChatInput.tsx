@@ -97,11 +97,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
 const styles = StyleSheet.create({
   container: {
+    borderTopWidth: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderTopWidth: 1,
     gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
@@ -122,10 +122,10 @@ const styles = StyleSheet.create({
     maxHeight: 100,
     minHeight: 44,
     borderRadius: 22,
+    borderWidth: 1,
     paddingHorizontal: 18,
     paddingVertical: 10,
     fontSize: 16,
-    borderWidth: 1,
   },
   sendButton: {
     width: 44,

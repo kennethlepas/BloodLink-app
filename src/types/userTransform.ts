@@ -19,7 +19,11 @@ export const transformFirebaseUser = (firebaseUserData: any): User => {
     points: firebaseUserData.points ?? 0,
     weight: firebaseUserData.weight,
     county: firebaseUserData.county,
-    town: firebaseUserData.town,
+    subCounty: firebaseUserData.subCounty || firebaseUserData.town,
+    verificationStatus: firebaseUserData.verificationStatus,
+    isVerified: firebaseUserData.isVerified,
+    verificationRejectionReason: firebaseUserData.verificationRejectionReason,
+    hasReviewed: firebaseUserData.hasReviewed ?? false,
   };
 };
 

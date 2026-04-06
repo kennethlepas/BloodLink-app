@@ -7,24 +7,29 @@ export interface CloudinaryUploadResponse {
   url: string;
 }
 
+export type UploadType = 'profile' | 'verification';
+
 export const uploadImageToCloudinary = async (
   imageUri: string,
-  folder: string = 'bloodlink/profile_pictures'
+  folder: string = 'bloodlink/profile_pictures',
+  uploadType: UploadType = 'profile'
 ): Promise<CloudinaryUploadResponse> => {
   try {
+    const preset =
+      uploadType === 'verification'
+        ? cloudinaryConfig.verificationPreset
+        : cloudinaryConfig.uploadPreset;
+
     const formData = new FormData();
 
     if (Platform.OS === 'web') {
-      // For web: Convert data URI to Blob
       const response = await fetch(imageUri);
       const blob = await response.blob();
       formData.append('file', blob);
     } else {
-      // For mobile: Use file object
       const filename = imageUri.split('/').pop();
       const match = /\.(\w+)$/.exec(filename || '');
       const type = match ? `image/${match[1]}` : 'image/jpeg';
-
       formData.append('file', {
         uri: imageUri,
         type,
@@ -32,20 +37,15 @@ export const uploadImageToCloudinary = async (
       } as any);
     }
 
-    // Add upload preset (required for unsigned uploads)
-    formData.append('upload_preset', cloudinaryConfig.uploadPreset);
-    
-    // Add folder
+    formData.append('upload_preset', preset);
     formData.append('folder', folder);
 
-       console.log('Uploading to Cloudinary...');
+    console.log(`Uploading to Cloudinary [${uploadType}] preset: ${preset}, folder: ${folder}`);
 
     const uploadResponse = await fetch(CLOUDINARY_UPLOAD_URL, {
       method: 'POST',
       body: formData,
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers: { Accept: 'application/json' },
     });
 
     if (!uploadResponse.ok) {
@@ -56,7 +56,7 @@ export const uploadImageToCloudinary = async (
 
     const data = await uploadResponse.json();
     console.log('Upload successful:', data.secure_url);
-    
+
     return {
       secure_url: data.secure_url,
       public_id: data.public_id,
@@ -68,7 +68,6 @@ export const uploadImageToCloudinary = async (
   }
 };
 
-// Helper function to extract public_id from Cloudinary URL
 export const getPublicIdFromUrl = (url: string): string | null => {
   try {
     const matches = url.match(/\/([^\/]+)\.[^.]+$/);

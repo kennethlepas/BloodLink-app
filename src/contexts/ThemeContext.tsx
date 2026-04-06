@@ -44,22 +44,25 @@ export interface ThemeColors {
     success: string;
     danger: string;
     warning: string;
+
+    // UI Enhancements
+    surfaceTint: string; // for grid cell backgrounds
 }
 
 const lightColors: ThemeColors = {
-    bg: '#EFF6FF',
+    bg: '#F2EFE9',          // ★ Warm cream background
     surface: '#FFFFFF',
-    surfaceAlt: '#F8FAFC',
-    surfaceBorder: '#E8EEFF',
+    surfaceAlt: '#EDE9E3',   // ★ Slightly darker cream for headers/footers
+    surfaceBorder: '#E8E4DE', // ★ Warm cream border tone
 
     text: '#0C1A3A',
     textSecondary: '#64748B',
     textMuted: '#94A3B8',
 
-    divider: '#F1F5F9',
+    divider: '#E8E4DE',      // ★ Matching warm border
 
-    inputBg: '#F8FAFC',
-    inputBorder: '#E8EEFF',
+    inputBg: '#FFFFFF',
+    inputBorder: '#E8E4DE',
 
     dangerBorder: '#FECACA',
 
@@ -73,6 +76,8 @@ const lightColors: ThemeColors = {
     success: '#10B981', // Emerald 500
     danger: '#EF4444', // Red 500
     warning: '#F59E0B', // Amber 500
+
+    surfaceTint: '#F5F2ED', // ★ Warm cream tint for detail cells
 };
 
 const darkColors: ThemeColors = {
@@ -102,6 +107,8 @@ const darkColors: ThemeColors = {
     success: '#34D399', // Emerald 400
     danger: '#F87171', // Red 400
     warning: '#FBBF24', // Amber 400
+
+    surfaceTint: '#1E293B', // Keep same as surface for dark mode
 };
 
 // ─── Context type ────────────────────────────────────────────────────────────

@@ -4,31 +4,31 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    Platform,
-    RefreshControl,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Platform,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const B_SKY    = '#2563EB';
-const B_LIGHT  = '#3B82F6';
-const B_SOFT   = '#60A5FA';
-const B_PALE   = '#DBEAFE';
-const B_BG     = '#EFF6FF';
+const B_SKY = '#2563EB';
+const B_LIGHT = '#3B82F6';
+const B_SOFT = '#60A5FA';
+const B_PALE = '#DBEAFE';
+const B_BG = '#EFF6FF';
 
 export default function AllReviewsScreen() {
   const { user } = useUser();
   const router = useRouter();
-  
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -47,14 +47,14 @@ export default function AllReviewsScreen() {
     try {
       setLoading(true);
       const { getApprovedReviews, getAverageRating } = await import('@/src/services/firebase/database');
-      
+
       const allReviews = await getApprovedReviews(100); // Get up to 100 reviews
       const ratingData = await getAverageRating();
-      
+
       setReviews(allReviews);
       setAverageRating(ratingData.average);
       setTotalReviews(ratingData.count);
-      
+
       // Calculate rating breakdown
       const breakdown = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
       allReviews.forEach((review: any) => {
@@ -62,7 +62,7 @@ export default function AllReviewsScreen() {
         breakdown[rating as keyof typeof breakdown]++;
       });
       setRatingBreakdown(breakdown);
-      
+
     } catch (error) {
       console.error('Error loading reviews:', error);
     } finally {
@@ -98,10 +98,10 @@ export default function AllReviewsScreen() {
           <Text style={s.reviewName}>{item.userName || 'Anonymous'}</Text>
           <View style={s.reviewMeta}>
             <View style={s.roleTag}>
-              <Ionicons 
-                name={item.userType === 'donor' ? 'heart' : 'medkit'} 
-                size={10} 
-                color={item.userType === 'donor' ? '#EA580C' : B_SKY} 
+              <Ionicons
+                name={item.userType === 'donor' ? 'heart' : 'medkit'}
+                size={10}
+                color={item.userType === 'donor' ? '#EA580C' : B_SKY}
               />
               <Text style={s.roleText}>
                 {item.userType === 'donor' ? 'Donor' : 'Requester'}
@@ -120,11 +120,11 @@ export default function AllReviewsScreen() {
 
       <View style={s.stars}>
         {[...Array(5)].map((_, i) => (
-          <Ionicons 
-            key={i} 
-            name={i < item.rating ? 'star' : 'star-outline'} 
-            size={16} 
-            color={i < item.rating ? '#F59E0B' : '#CBD5E1'} 
+          <Ionicons
+            key={i}
+            name={i < item.rating ? 'star' : 'star-outline'}
+            size={16}
+            color={i < item.rating ? '#F59E0B' : '#CBD5E1'}
           />
         ))}
       </View>
@@ -167,8 +167,8 @@ export default function AllReviewsScreen() {
           <Ionicons name="star" size={14} color="#F59E0B" />
         </View>
         <View style={s.ratingBarTrack}>
-          <View 
-            style={[s.ratingBarFill, { width: `${percentage}%` }]} 
+          <View
+            style={[s.ratingBarFill, { width: `${percentage}%` }]}
           />
         </View>
         <Text style={s.ratingBarCount}>{count}</Text>
@@ -206,11 +206,11 @@ export default function AllReviewsScreen() {
             <Text style={s.overallNumber}>{averageRating.toFixed(1)}</Text>
             <View style={s.overallStars}>
               {[...Array(5)].map((_, i) => (
-                <Ionicons 
-                  key={i} 
-                  name={i < Math.floor(averageRating) ? 'star' : 'star-outline'} 
-                  size={14} 
-                  color="#F59E0B" 
+                <Ionicons
+                  key={i}
+                  name={i < Math.floor(averageRating) ? 'star' : 'star-outline'}
+                  size={14}
+                  color="#F59E0B"
                 />
               ))}
             </View>
@@ -239,10 +239,10 @@ export default function AllReviewsScreen() {
             style={[s.filterPill, filter === rating && s.filterPillActive]}
             onPress={() => setFilter(rating as any)}
           >
-            <Ionicons 
-              name="star" 
-              size={12} 
-              color={filter === rating ? '#FFFFFF' : '#F59E0B'} 
+            <Ionicons
+              name="star"
+              size={12}
+              color={filter === rating ? '#FFFFFF' : '#F59E0B'}
             />
             <Text style={[s.filterPillText, filter === rating && s.filterPillTextActive]}>
               {rating} ({ratingBreakdown[rating as keyof typeof ratingBreakdown]})
@@ -280,8 +280,8 @@ export default function AllReviewsScreen() {
           </View>
           <Text style={s.emptyTitle}>No Reviews Yet</Text>
           <Text style={s.emptyText}>
-            {filter === 'all' 
-              ? 'Be the first to share your experience!' 
+            {filter === 'all'
+              ? 'Be the first to share your experience!'
               : `No ${filter}-star reviews yet`}
           </Text>
           <TouchableOpacity
@@ -322,8 +322,8 @@ const s = StyleSheet.create({
   },
   headerTop: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 20,
   },
   backButton: {
@@ -352,19 +352,19 @@ const s = StyleSheet.create({
 
   // Overall Rating Card
   overallCard: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 16,
-    padding: 20,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    flexDirection: 'row',
     gap: 20,
+    padding: 20,
     ...shadow(B_SKY, 0.15, 12, 4),
   },
   overallLeft: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingRight: 20,
     borderRightWidth: 1,
     borderRightColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingRight: 20,
   },
   overallNumber: {
     fontSize: 48,
@@ -395,10 +395,10 @@ const s = StyleSheet.create({
     gap: 10,
   },
   ratingBarLabel: {
+    width: 40,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    width: 40,
   },
   ratingBarNumber: {
     fontSize: 13,
@@ -408,14 +408,14 @@ const s = StyleSheet.create({
   ratingBarTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: '#E2E8F0',
     borderRadius: 4,
+    backgroundColor: '#E2E8F0',
     overflow: 'hidden',
   },
   ratingBarFill: {
     height: '100%',
-    backgroundColor: '#F59E0B',
     borderRadius: 4,
+    backgroundColor: '#F59E0B',
   },
   ratingBarCount: {
     fontSize: 12,
@@ -427,25 +427,25 @@ const s = StyleSheet.create({
 
   // Filter Pills
   filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 10,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   filterPill: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
   },
   filterPillActive: {
     backgroundColor: B_SKY,
@@ -465,12 +465,12 @@ const s = StyleSheet.create({
     padding: 16,
   },
   reviewCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 18,
-    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    marginBottom: 14,
     ...shadow('#000', 0.08, 10, 3),
   },
   reviewHeader: {
@@ -498,12 +498,12 @@ const s = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: '#EA580C',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: '#FFFFFF',
+    backgroundColor: '#EA580C',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   bloodTypeBadgeText: {
     fontSize: 9,
@@ -525,13 +525,13 @@ const s = StyleSheet.create({
     gap: 10,
   },
   roleTag: {
+    borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
     backgroundColor: '#F1F5F9',
-    borderRadius: 6,
   },
   roleText: {
     fontSize: 11,
@@ -554,13 +554,13 @@ const s = StyleSheet.create({
     lineHeight: 22,
   },
   categoryTag: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginTop: 12,
     paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
   },
   categoryText: {
     fontSize: 13,
@@ -619,6 +619,7 @@ const s = StyleSheet.create({
   },
   emptyButtonGrad: {
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 14,

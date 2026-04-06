@@ -24,9 +24,12 @@ export const VerificationBanner: React.FC<VerificationBannerProps> = ({
     const { colors } = useAppTheme();
 
     // Verified users — render nothing
-    if (!status || status === 'approved') return null;
+    if (status === 'approved') return null;
 
-    const config = {
+    // Map undefined or missing status to 'unsubmitted'
+    const finalStatus = status || 'unsubmitted';
+
+    const CONFIG_MAP = {
         unsubmitted: {
             bg: '#FFF7ED',
             border: '#FDBA74',
@@ -60,25 +63,52 @@ export const VerificationBanner: React.FC<VerificationBannerProps> = ({
             btnColor: '#DC2626',
             route: userType === 'donor' ? '/(shared)/donor-verification' : '/(shared)/requester-verification',
         },
-    }[status];
+    };
+
+    const config = CONFIG_MAP[finalStatus as keyof typeof CONFIG_MAP];
+    if (!config) return null;
 
     const s = StyleSheet.create({
         container: {
-            marginHorizontal: 16,
-            marginBottom: 12,
             borderRadius: 14,
             borderWidth: 1,
             borderColor: config.border,
             backgroundColor: config.bg,
+            marginHorizontal: 16,
+            marginBottom: 12,
             overflow: 'hidden',
         },
-        inner: { flexDirection: 'row', padding: 14, alignItems: 'flex-start' },
-        iconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: config.iconColor + '18', justifyContent: 'center', alignItems: 'center', marginRight: 12, flexShrink: 0 },
+        inner: {
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            padding: 14,
+        },
+        iconWrap: {
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            backgroundColor: config.iconColor + '18',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginRight: 12,
+            flexShrink: 0
+        },
         textCol: { flex: 1 },
         title: { fontSize: 13, fontWeight: '800', color: colors.text, marginBottom: 3 },
         msg: { fontSize: 12, color: colors.textSecondary, lineHeight: 17 },
-        btnRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 14, paddingBottom: 12, paddingTop: 4 },
-        btn: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, backgroundColor: config.btnColor },
+        btnRow: {
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            paddingHorizontal: 14,
+            paddingTop: 4,
+            paddingBottom: 12,
+        },
+        btn: {
+            borderRadius: 20,
+            backgroundColor: config.btnColor,
+            paddingHorizontal: 16,
+            paddingVertical: 7,
+        },
         btnTxt: { fontSize: 12, fontWeight: '800', color: '#FFF' },
     });
 

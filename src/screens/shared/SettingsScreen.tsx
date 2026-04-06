@@ -22,22 +22,10 @@ import { LogoutModal } from '@/src/components/LogoutModal';
 import { useAppTheme, type ThemeColors } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { updateUser } from '@/src/services/firebase/database';
+import { getDonorEligibilityStatus } from '@/src/services/firebase/donationEligibilityService';
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-
-const PALETTE = {
-  skyBlue: '#2563EB',
-  blue: '#3B82F6',
-  blueSoft: '#60A5FA',
-  bluePale: '#DBEAFE',
-  orangeDeep: '#C2410C',
-  orangeMid: '#EA580C',
-  orangeLite: '#FB923C',
-  orangePale: '#FFF7ED',
-} as const;
-
 
 /**
  * Cross-platform shadow helper.
@@ -161,12 +149,7 @@ function buildStyles(colors: ThemeColors) {
       flex: 1,
       backgroundColor: colors.bg,
     },
-    loadingContainer: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 12,
-    },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
     loadingText: {
       fontSize: 15,
       marginTop: 8,
@@ -188,37 +171,14 @@ function buildStyles(colors: ThemeColors) {
       overflow: 'hidden',
     },
 
-    hCircle1: {
-      position: 'absolute',
-      width: 180,
-      height: 180,
-      borderRadius: 90,
-      backgroundColor: 'rgba(255,255,255,0.07)',
-      top: -60,
-      right: -40,
-    },
-    hCircle2: {
-      position: 'absolute',
-      width: 120,
-      height: 120,
-      borderRadius: 60,
-      backgroundColor: 'rgba(255,255,255,0.05)',
-      bottom: -30,
-      left: 20,
-    },
+    hCircle1: { width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.07)', position: 'absolute', top: -60, right: -40 },
+    hCircle2: { width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)', position: 'absolute', bottom: -30, left: 20 },
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       marginBottom: 16,
     },
-    backBtn: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor: 'rgba(255,255,255,0.18)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
+    backBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center' },
     headerCenter: {
       flex: 1,
       alignItems: 'center',
@@ -235,23 +195,8 @@ function buildStyles(colors: ThemeColors) {
       marginTop: 2,
     },
 
-    profileBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.15)',
-      borderRadius: 16,
-      paddingVertical: 10,
-      paddingHorizontal: 14,
-      gap: 12,
-    },
-    profileBadgeAvatar: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor: 'rgba(255,255,255,0.3)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
+    profileBadge: { borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 14 },
+    profileBadgeAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
     profileBadgeInitial: {
       fontSize: 18,
       fontWeight: '700',
@@ -267,19 +212,11 @@ function buildStyles(colors: ThemeColors) {
       color: 'rgba(255,255,255,0.8)',
       marginTop: 2,
     },
-    editProfileBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#FFFFFF',
-      borderRadius: 20,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      gap: 4,
-    },
+    editProfileBtn: { borderRadius: 20, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6 },
     editProfileBtnText: {
       fontSize: 13,
       fontWeight: '600',
-      color: PALETTE.skyBlue,
+      color: colors.primary,
     },
 
     sectionHeading: {
@@ -289,12 +226,7 @@ function buildStyles(colors: ThemeColors) {
       marginBottom: 10,
       paddingHorizontal: 2,
     },
-    sectionBar: {
-      width: 3,
-      height: 16,
-      borderRadius: 2,
-      marginRight: 8,
-    },
+    sectionBar: { width: 3, height: 16, borderRadius: 2, marginRight: 8 },
     sectionTitle: {
       fontSize: 13,
       fontWeight: '700',
@@ -302,29 +234,11 @@ function buildStyles(colors: ThemeColors) {
       textTransform: 'uppercase',
     },
 
-    card: {
-      borderRadius: 16,
-      borderWidth: 1,
-      overflow: 'hidden',
-      ...makeShadow('#000', 0.06, 8, 2),
-    },
+    card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden', ...makeShadow('#000', 0.06, 8, 2) },
 
 
-    settingsItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 13,
-      paddingHorizontal: 14,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      gap: 12,
-    },
-    settingsIconWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
+    settingsItem: { borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14 },
+    settingsIconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
     settingsTextWrap: {
       flex: 1,
     },
@@ -365,7 +279,7 @@ function buildStyles(colors: ThemeColors) {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, updateUserData, logout } = useUser();
+  const { user, updateUserData, logout, deleteAccount } = useUser();
   const { themeMode, isDark, colors, setThemeMode } = useAppTheme();
 
   const isDonor = user?.userType === 'donor';
@@ -379,6 +293,7 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [eligibility, setEligibility] = useState(getDonorEligibilityStatus(user?.lastDonationDate));
 
   // Build styles once per theme change (not on every render)
   const styles = buildStyles(colors);
@@ -390,14 +305,29 @@ export default function SettingsScreen() {
 
   const handleToggleProfileVisibility = async (value: boolean) => {
     if (!user?.id) return;
+
+    // 56-day rule enforcement
+    if (value && user.lastDonationDate) {
+      const status = getDonorEligibilityStatus(user.lastDonationDate);
+      if (!status.isEligible) {
+        Alert.alert(
+          'Not Eligible Yet',
+          status.message,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
     try {
       setSaving(true);
       setProfileVisible(value);
       await updateUser(user.id, { isAvailable: value });
       await updateUserData({ isAvailable: value });
+      setEligibility(getDonorEligibilityStatus(user.lastDonationDate));
     } catch {
       setProfileVisible(!value);
-      Alert.alert('Error', 'Failed to update profile visibility.');
+      Alert.alert('Error', 'Failed to update availability.');
     } finally {
       setSaving(false);
     }
@@ -426,8 +356,18 @@ export default function SettingsScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () =>
-            Alert.alert('Coming Soon', 'Account deletion will be available in a future update.'),
+          onPress: async () => {
+            try {
+              setSaving(true);
+              await deleteAccount();
+              router.replace('/(auth)/login' as any);
+            } catch (e) {
+              console.log('Delete account error:', e);
+              // Error alerts are handled in the context
+            } finally {
+              setSaving(false);
+            }
+          },
         },
       ],
     );
@@ -438,7 +378,7 @@ export default function SettingsScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PALETTE.skyBlue} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
             Loading settings…
           </Text>
@@ -450,11 +390,11 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={PALETTE.skyBlue} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.primary} />
 
       {/* Gradient header  */}
       <LinearGradient
-        colors={[PALETTE.skyBlue, PALETTE.blue]}
+        colors={[colors.primary, '#60A5FA']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -504,7 +444,7 @@ export default function SettingsScreen() {
             onPress={() => router.push(editProfileRoute as any)}
             activeOpacity={0.75}
           >
-            <Ionicons name="create-outline" size={15} color={PALETTE.skyBlue} />
+            <Ionicons name="create-outline" size={15} color={colors.primary} />
             <Text style={styles.editProfileBtnText}>Edit</Text>
           </TouchableOpacity>
         </View>
@@ -521,15 +461,15 @@ export default function SettingsScreen() {
         <SectionHeading
           title="Account & Profile"
           icon="person-circle-outline"
-          color={PALETTE.skyBlue}
+          color={colors.primary}
           textColor={colors.text}
           styles={styles}
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
             icon="person-outline"
-            iconBg={isDark ? 'rgba(37, 99, 235, 0.15)' : PALETTE.bluePale}
-            iconColor={PALETTE.skyBlue}
+            iconBg={isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE'}
+            iconColor={colors.primary}
             label="Edit Profile"
             subtitle="Name, photo, contact info"
             onPress={() => router.push(editProfileRoute as any)}
@@ -548,8 +488,8 @@ export default function SettingsScreen() {
           />
           <SettingsItem
             icon="water"
-            iconBg={isDark ? 'rgba(234, 88, 12, 0.15)' : PALETTE.orangePale}
-            iconColor={PALETTE.orangeMid}
+            iconBg={isDark ? 'rgba(234, 88, 12, 0.15)' : '#FFF7ED'}
+            iconColor="#EA580C"
             label="Blood Type"
             subtitle={user.bloodType}
             isLast
@@ -558,19 +498,63 @@ export default function SettingsScreen() {
           />
         </View>
 
+        {/* Donation Status - ONLY FOR DONORS */}
+        {isDonor && (
+          <>
+            <SectionHeading
+              title="Donation Status"
+              icon="heart-outline"
+              color={colors.success}
+              textColor={colors.text}
+              styles={styles}
+            />
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+              <SettingsItem
+                icon="calendar-outline"
+                iconBg={isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5'}
+                iconColor={colors.success}
+                label="Available for Donation"
+                subtitle={eligibility.message}
+                rightElement={
+                  <Switch
+                    value={profileVisible}
+                    onValueChange={handleToggleProfileVisibility}
+                    trackColor={{ false: colors.divider, true: colors.success }}
+                    thumbColor="#FFFFFF"
+                    style={styles.switchStyle}
+                    disabled={saving}
+                  />
+                }
+                colors={colors}
+                styles={styles}
+              />
+              <SettingsItem
+                icon="time-outline"
+                iconBg={isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE'}
+                iconColor={colors.primary}
+                label="Last Donation"
+                subtitle={user.lastDonationDate ? new Date(user.lastDonationDate).toLocaleDateString() : 'No record'}
+                isLast
+                colors={colors}
+                styles={styles}
+              />
+            </View>
+          </>
+        )}
+
         {/* Notifications */}
         <SectionHeading
           title="Notifications"
           icon="notifications-outline"
-          color={PALETTE.orangeMid}
+          color="#EA580C"
           textColor={colors.text}
           styles={styles}
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
             icon="notifications"
-            iconBg={isDark ? 'rgba(234, 88, 12, 0.15)' : PALETTE.orangePale}
-            iconColor={PALETTE.orangeMid}
+            iconBg={isDark ? 'rgba(234, 88, 12, 0.15)' : '#FFF7ED'}
+            iconColor="#EA580C"
             label="Push Notifications"
             subtitle="Receive alerts on your device"
             rightElement={
@@ -634,28 +618,6 @@ export default function SettingsScreen() {
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
-            icon="eye-outline"
-            iconBg={isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF'}
-            iconColor="#8B5CF6"
-            label="Profile Visibility"
-            subtitle={profileVisible ? 'Visible to others' : 'Hidden from searches'}
-            rightElement={
-              saving
-                ? <ActivityIndicator size="small" color={PALETTE.skyBlue} />
-                : (
-                  <Switch
-                    value={profileVisible}
-                    onValueChange={handleToggleProfileVisibility}
-                    trackColor={{ false: colors.divider, true: colors.success }}
-                    thumbColor="#FFFFFF"
-                    style={styles.switchStyle}
-                  />
-                )
-            }
-            colors={colors}
-            styles={styles}
-          />
-          <SettingsItem
             icon="location-outline"
             iconBg={isDark ? 'rgba(22, 163, 74, 0.15)' : '#F0FDF4'}
             iconColor="#16A34A"
@@ -697,8 +659,8 @@ export default function SettingsScreen() {
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
             icon="sunny-outline"
-            iconBg={themeMode === 'light' ? 'rgba(37, 99, 235, 0.1)' : colors.surfaceAlt}
-            iconColor={PALETTE.skyBlue}
+            iconBg={themeMode === 'light' ? 'rgba(59, 130, 246, 0.1)' : colors.surfaceAlt}
+            iconColor={colors.primary}
             label="Light Mode"
             onPress={() => setThemeMode('light')}
             rightElement={
@@ -761,11 +723,11 @@ export default function SettingsScreen() {
         />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
           <SettingsItem
-            icon="star-outline"
+            icon={user?.hasReviewed ? "star" : "star-outline"}
             iconBg={isDark ? 'rgba(217, 119, 6, 0.15)' : '#FEF3C7'}
             iconColor="#D97706"
-            label="Rate BloodLink"
-            subtitle="Love the app? Let us know!"
+            label={user?.hasReviewed ? "Your Feedback" : "Rate BloodLink"}
+            subtitle={user?.hasReviewed ? "Thank you for rating us!" : "Love the app? Let us know!"}
             onPress={() => router.push('/(shared)/rate-app' as any)}
             colors={colors}
             styles={styles}
@@ -867,6 +829,7 @@ export default function SettingsScreen() {
         onLogout={handleConfirmLogout}
         isLoggingOut={isLoggingOut}
       />
+
     </SafeAreaView>
   );
 }

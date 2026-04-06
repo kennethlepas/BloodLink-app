@@ -1,479 +1,114 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
-import {
-  getBloodBanks,
-  searchBloodBanksByType
-} from '@/src/services/firebase/database';
+import { useUser } from '@/src/contexts/UserContext';
+import { useCachedData } from '@/src/hooks/useCachedData';
 import { BloodBank, BloodType, Location } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ExpoLocation from 'expo-location';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
-  StatusBar, StyleSheet, Text,
-  TouchableOpacity, View
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KENYA_COUNTIES, getSubCountiesByCounty } from '../../constants/kenyaLocations';
+import {
+  getBloodBanks,
+  searchBloodBanksByType
+} from '../../services/firebase/database';
+import { DEFAULT_LOCATION, getCurrentLocation } from '../../services/location/locationService';
 
 const BLOOD_TYPES: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-// Default location (Nairobi city center)
-const DEFAULT_LOCATION: Location = {
-  latitude: -1.286389,
-  longitude: 36.817223,
-  address: 'Nairobi, Kenya'
-};
-
-const shadow = (c = '#000', o = 0.08, r = 10, e = 3) =>
-  Platform.select({
-    web: { boxShadow: `0 2px ${r}px rgba(0,0,0,${o})` } as any,
-    default: {
-      shadowColor: c,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: o,
-      shadowRadius: r,
-      elevation: e
-    },
-  });
 
 const FindBloodScreen: React.FC = () => {
   const router = useRouter();
   const { colors, isDark } = useAppTheme();
+  const { user } = useUser();
 
   const [selectedBloodType, setSelectedBloodType] = useState<BloodType | 'all'>('all');
   const [isBloodTypeExpanded, setIsBloodTypeExpanded] = useState(false);
   const [viewBloodBank, setViewBloodBank] = useState<BloodBank | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bloodBanks, setBloodBanks] = useState<BloodBank[]>([]);
   const [allBloodBanks, setAllBloodBanks] = useState<BloodBank[]>([]);
   const [userLocation, setUserLocation] = useState<Location | null>(null);
   const [searched, setSearched] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [usingDefaultLocation, setUsingDefaultLocation] = useState(false);
+  const [selectedCounty, setSelectedCounty] = useState('');
+  const [selectedSubCounty, setSelectedSubCounty] = useState('');
+  const [isCountyExpanded, setIsCountyExpanded] = useState(false);
+  const [isSubCountyExpanded, setIsSubCountyExpanded] = useState(false);
 
-  const st = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bg },
-
-    header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 18 },
-    headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-    headerCenter: { alignItems: 'center', flex: 1 },
-    headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
-    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
-
-    searchControls: { gap: 12 },
-    pickerBlock: { gap: 6 },
-    pickerBlockLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: 0.5, paddingLeft: 2 },
-    pickerWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', paddingRight: 8 },
-    pickerIconContainer: { width: 40, height: 50, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-    picker: { flex: 1, height: 50, marginLeft: -8, color: colors.primary },
-
-    searchBtnRow: { flexDirection: 'row', gap: 8 },
-    clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-    clearBtnText: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.95)' },
-    searchBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.25)', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-    searchBtnDisabled: { opacity: 0.5 },
-    searchBtnText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
-
-    locationNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-    locationNoteText: { flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
-
-    loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-    loadingText: { fontSize: 15, color: colors.textSecondary },
-    listContent: { padding: 16, paddingBottom: 40 },
-
-    card: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      marginBottom: 12,
-      ...shadow('#000', 0.06, 8, 3),
-      borderWidth: 1,
-      borderColor: colors.divider
-    },
-    cardHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 16,
-      gap: 12
-    },
-    cardIconCircle: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: 'center',
-      alignItems: 'center'
-    },
-    cardTitle: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: colors.text,
-      marginBottom: 4
-    },
-    cardMetaRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6
-    },
-    cardStatus: {
-      fontSize: 12,
-      fontWeight: '600'
-    },
-    cardDot: {
-      fontSize: 12,
-      color: colors.textMuted
-    },
-    cardDistance: {
-      fontSize: 12,
-      color: colors.textSecondary
-    },
-    cardDivider: {
-      height: 1,
-      backgroundColor: colors.divider,
-      marginHorizontal: 16
-    },
-    cardFooter: {
-      padding: 12,
-      paddingHorizontal: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      backgroundColor: colors.surfaceAlt,
-      borderBottomLeftRadius: 16,
-      borderBottomRightRadius: 16
-    },
-    cardFooterItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      flex: 1
-    },
-    cardFooterText: {
-      fontSize: 13,
-      color: colors.textSecondary,
-      flex: 1
-    },
-    cardFooterBadge: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12
-    },
-    cardFooterBadgeText: {
-      fontSize: 11,
-      fontWeight: '700'
-    },
-
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.4)',
-      justifyContent: 'center',
-      padding: 20
-    },
-    modalContainer: {
-      backgroundColor: colors.bg,
-      borderRadius: 24,
-      maxHeight: '90%',
-      width: '100%',
-      overflow: 'hidden',
-      ...shadow('#000', 0.2, 12, 10)
-    },
-    modalHeader: {
-      padding: 20,
-      paddingBottom: 24,
-    },
-    modalHeaderContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 16
-    },
-    modalIconCircle: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: colors.surface,
-      justifyContent: 'center',
-      alignItems: 'center'
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: '800',
-      color: '#FFFFFF',
-      marginBottom: 6
-    },
-    modalSubtitleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8
-    },
-    statusBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8
-    },
-    statusText: {
-      fontSize: 11,
-      fontWeight: '700'
-    },
-    modalDistance: {
-      fontSize: 13,
-      color: 'rgba(255,255,255,0.9)',
-      fontWeight: '500'
-    },
-    closeBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      justifyContent: 'center',
-      alignItems: 'center'
-    },
-    modalBody: {
-      flex: 1,
-      padding: 20
-    },
-    sectionBox: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 16,
-      ...shadow('#000', 0.04, 8, 2)
-    },
-    sectionTitle: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: colors.text,
-      marginBottom: 12
-    },
-    infoRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginBottom: 12
-    },
-    infoText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      flex: 1
-    },
-    inventoryGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 10
-    },
-    invItem: {
-      width: '22%',
-      backgroundColor: colors.surfaceAlt,
-      padding: 10,
-      borderRadius: 10,
-      alignItems: 'center',
-      gap: 4
-    },
-    invItemLow: {
-      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
-      borderWidth: 1,
-      borderColor: isDark ? '#7F1D1D' : '#FECACA'
-    },
-    invType: {
-      fontSize: 14,
-      fontWeight: '800',
-      color: colors.text
-    },
-    invUnits: {
-      fontSize: 11,
-      fontWeight: '600'
-    },
-    modalActions: {
-      flexDirection: 'row',
-      gap: 12,
-      marginBottom: 20
-    },
-    modalActionBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      paddingVertical: 14,
-      borderRadius: 14
-    },
-    modalActionText: {
-      fontSize: 14,
-      fontWeight: '700'
-    },
-
-    emptyWrap: {
-      flex: 1,
-      alignItems: 'center',
-      paddingVertical: 60,
-      paddingHorizontal: 40
-    },
-    emptyIconWrap: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 20
-    },
-    emptyTitle: {
-      fontSize: 19,
-      fontWeight: '800',
-      color: colors.text,
-      marginBottom: 8,
-      textAlign: 'center'
-    },
-    emptyText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: 20
-    },
-    pickerTrigger: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      backgroundColor: 'rgba(255,255,255,0.95)',
-      borderRadius: 12,
-      height: 50,
-      paddingHorizontal: 12,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.3)',
-    },
-    pickerTriggerExpanded: {
-      borderBottomLeftRadius: 0,
-      borderBottomRightRadius: 0,
-    },
-    inlineSelectionContainer: {
-      backgroundColor: 'rgba(255,255,255,1)',
-      borderWidth: 1,
-      borderTopWidth: 0,
-      borderColor: 'rgba(255,255,255,0.3)',
-      borderBottomLeftRadius: 12,
-      borderBottomRightRadius: 12,
-      padding: 12,
-      marginTop: -2,
-      marginBottom: 8,
-    },
-    selectionGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      justifyContent: 'center'
-    },
-    selectionItem: {
-      width: '22%',
-      aspectRatio: 1,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#F8FAFC',
-    },
-    selectionItemActive: {
-      backgroundColor: `${colors.primary}15`,
-      borderColor: colors.primary,
-    },
-    selectionText: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.textSecondary,
-      marginTop: 2
-    },
-    selectionTextActive: {
-      color: colors.primary,
-    },
-    allTypeItem: {
-      width: '100%',
-      height: 40,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#F8FAFC',
-      marginBottom: 8
+  const {
+    data: allBanksData,
+    loading: loadingAll,
+    refresh: refreshAll
+  } = useCachedData(
+    'all_blood_banks',
+    getBloodBanks,
+    {
+      onSuccess: (data) => {
+        if (!searched) {
+          setAllBloodBanks(data);
+          setBloodBanks(data);
+        }
+      }
     }
-  });
+  );
 
-  useEffect(() => {
-    loadAllBloodBanks();
-  }, []);
+  const loading = loadingAll || searching;
 
-  const loadAllBloodBanks = async () => {
-    try {
-      setLoading(true);
-      const banks = await getBloodBanks();
-      setAllBloodBanks(banks);
-      setBloodBanks(banks);
-    } catch (error) {
-      console.log('Error loading blood banks:', error);
-      Alert.alert('Error', 'Failed to load blood banks.');
-    } finally {
-      setLoading(false);
-    }
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+  const isBloodBankOpen = (hours?: { open: string; close: string }) => {
+    if (!hours?.open || !hours?.close) return null;
+    const now = new Date();
+    const cur = now.getHours() * 60 + now.getMinutes();
+    const [oh, om] = hours.open.split(':').map(Number);
+    const [ch, cm] = hours.close.split(':').map(Number);
+    return cur >= oh * 60 + om && cur <= ch * 60 + cm;
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    if (searched) {
-      await handleSearch();
-    } else {
-      await loadAllBloodBanks();
-    }
-    setRefreshing(false);
+  const getInventoryStatus = (units: number) => {
+    if (units === 0) return { color: colors.danger, label: 'Empty', bg: isDark ? 'rgba(239,68,68,0.15)' : '#FEE2E2' };
+    if (units < 5) return { color: colors.warning, label: 'Low', bg: isDark ? 'rgba(245,158,11,0.15)' : '#FEF3C7' };
+    return { color: colors.success, label: 'Good', bg: isDark ? 'rgba(16,185,129,0.15)' : '#D1FAE5' };
   };
 
-  const getCurrentLocation = async (): Promise<Location | null> => {
+  const totalUnitsFor = (bank: BloodBank) =>
+    Object.values(bank.inventory || {}).reduce((s, inv) => s + (inv?.units || 0), 0);
+
+  // ─── Actions ────────────────────────────────────────────────────────────────
+  const getCurrentLocationHandler = async (): Promise<Location | null> => {
     try {
       setLoadingLocation(true);
       setUsingDefaultLocation(false);
 
-      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-
-      if (status !== 'granted') {
-        console.log('Location permission denied - using default location');
+      const loc = await getCurrentLocation(ExpoLocation.Accuracy.Balanced);
+      if (loc) {
+        setUserLocation(loc);
+        return loc;
+      } else {
         setUserLocation(DEFAULT_LOCATION);
         setUsingDefaultLocation(true);
         return DEFAULT_LOCATION;
       }
-
-      try {
-        const position = await Promise.race([
-          ExpoLocation.getCurrentPositionAsync({
-            accuracy: ExpoLocation.Accuracy.Balanced,
-            timeInterval: 5000,
-            distanceInterval: 0,
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Location timeout')), 10000)
-          )
-        ]);
-
-        const { latitude, longitude } = (position as ExpoLocation.LocationObject).coords;
-        const location: Location = { latitude, longitude };
-
-        console.log('✅ Got actual location:', latitude, longitude);
-        setUserLocation(location);
-        setUsingDefaultLocation(false);
-
-        return location;
-      } catch (locationError: any) {
-        console.log('Location fetch failed - using default location');
-        setUserLocation(DEFAULT_LOCATION);
-        setUsingDefaultLocation(true);
-        return DEFAULT_LOCATION;
-      }
-    } catch (error: any) {
-      console.log('Error in getCurrentLocation:', error);
-      setUserLocation(DEFAULT_LOCATION);
-      setUsingDefaultLocation(true);
-      return DEFAULT_LOCATION;
     } finally {
       setLoadingLocation(false);
     }
@@ -481,34 +116,29 @@ const FindBloodScreen: React.FC = () => {
 
   const handleSearch = async () => {
     try {
-      setLoading(true);
+      setSearching(true);
       setSearched(true);
+      const location = await getCurrentLocationHandler();
+      let banks: BloodBank[] = selectedBloodType === 'all'
+        ? await getBloodBanks()
+        : await searchBloodBanksByType(selectedBloodType, location || undefined);
 
-      const location = await getCurrentLocation();
-      console.log('🔍 Searching with location:', location);
-
-      let banks: BloodBank[] = [];
-
-      if (selectedBloodType === 'all') {
-        banks = await getBloodBanks();
-      } else {
-        banks = await searchBloodBanksByType(selectedBloodType, location || undefined);
+      // Filter by County/Sub-County if selected
+      if (selectedCounty) {
+        banks = banks.filter(b => b.county === selectedCounty);
+      }
+      if (selectedSubCounty) {
+        banks = banks.filter(b => b.subCounty === selectedSubCounty);
       }
 
-      console.log(`📊 Found ${banks.length} blood banks with ${selectedBloodType}`);
       setBloodBanks(banks);
-
       if (banks.length === 0) {
-        Alert.alert(
-          'No Results',
-          `No blood banks found with ${selectedBloodType} blood type available.`
-        );
+        Alert.alert('No Results', `No blood banks found with ${selectedBloodType} blood available.`);
       }
-    } catch (error) {
-      console.log('Error searching blood banks:', error);
+    } catch {
       Alert.alert('Error', 'Failed to search blood banks. Please try again.');
     } finally {
-      setLoading(false);
+      setSearching(false);
     }
   };
 
@@ -517,200 +147,369 @@ const FindBloodScreen: React.FC = () => {
     setBloodBanks(allBloodBanks);
     setUserLocation(null);
     setUsingDefaultLocation(false);
+    setSelectedCounty('');
+    setSelectedSubCounty('');
   };
 
-  const handleCallBloodBank = (phoneNumber: string) => {
-    const url = `tel:${phoneNumber}`;
-    Linking.canOpenURL(url)
-      .then((supported) => {
-        if (supported) {
-          Linking.openURL(url);
-        } else {
-          Alert.alert('Error', 'Unable to make phone call on this device.');
-        }
-      })
-      .catch((error) => {
-        console.log('Error opening dialer:', error);
-        Alert.alert('Error', 'Failed to open phone dialer.');
-      });
-  };
-
-  const handleGetDirections = (bank: BloodBank) => {
-    const { latitude, longitude } = bank.location;
-    const scheme = Platform.select({
-      ios: 'maps:0,0?q=',
-      android: 'geo:0,0?q='
-    });
-    const latLng = `${latitude},${longitude}`;
-    const label = bank.name;
-    const url = Platform.select({
-      ios: `${scheme}${label}@${latLng}`,
-      android: `${scheme}${latLng}(${label})`
-    });
-
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        Alert.alert('Error', 'Unable to open maps on this device.');
-      });
+  const handleCall = (phoneNumber: string) => {
+    try {
+      if (!phoneNumber || phoneNumber === 'Not provided') {
+        Alert.alert('No Phone', 'This blood bank has no phone number listed.');
+        return;
+      }
+      const url = `tel:${phoneNumber.replace(/\s/g, '')}`;
+      Linking.canOpenURL(url)
+        .then(ok => {
+          if (ok) return Linking.openURL(url);
+          Alert.alert('Not Supported', 'Calling is not supported on this device/platform.');
+        })
+        .catch(err => {
+          console.error('Call error:', err);
+          Alert.alert('Error', 'Failed to open phone dialer.');
+        });
+    } catch (err) {
+      console.error('handleCall error:', err);
+      Alert.alert('Error', 'An unexpected error occurred while trying to call.');
     }
   };
 
-  const isBloodBankOpen = (hours: { open: string; close: string }) => {
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentTime = currentHour * 60 + currentMinute;
+  const handleDirections = (bank: BloodBank) => {
+    try {
+      const { latitude, longitude } = bank.location;
+      if (!latitude || !longitude) {
+        Alert.alert('No Location', 'The exact coordinates for this blood bank are not available.');
+        return;
+      }
+      const label = encodeURIComponent(bank.name);
+      const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&destination_place_name=${label}`;
+      const appleUrl = `maps://?daddr=${latitude},${longitude}&q=${label}`;
+      const url = Platform.OS === 'ios' ? appleUrl : googleUrl;
 
-    const [openHour, openMinute] = hours.open.split(':').map(Number);
-    const [closeHour, closeMinute] = hours.close.split(':').map(Number);
-
-    const openTime = openHour * 60 + openMinute;
-    const closeTime = closeHour * 60 + closeMinute;
-
-    return currentTime >= openTime && currentTime <= closeTime;
+      Linking.canOpenURL(url)
+        .then(ok => {
+          if (ok) return Linking.openURL(url);
+          return Linking.openURL(googleUrl);
+        })
+        .catch(err => {
+          console.error('Directions error:', err);
+          Alert.alert('Error', 'Unable to open maps application.');
+        });
+    } catch (err) {
+      console.error('handleDirections error:', err);
+      Alert.alert('Error', 'An unexpected error occurred while opening directions.');
+    }
   };
 
-  const renderBloodBankModal = () => {
-    if (!viewBloodBank) return null;
-    const item = viewBloodBank;
-    const inventory = item.inventory[selectedBloodType === 'all' ? 'O+' : selectedBloodType];
-    const isOpen = item.operatingHours ? isBloodBankOpen(item.operatingHours) : false;
-
-    return (
-      <View style={st.modalOverlay}>
-        <View style={st.modalContainer}>
-          <LinearGradient
-            colors={[colors.primary, '#60A5FA']}
-            style={st.modalHeader}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <View style={st.modalHeaderContent}>
-              <View style={st.modalIconCircle}>
-                <Ionicons name="business" size={24} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.modalTitle} numberOfLines={1}>{item.name}</Text>
-                <View style={st.modalSubtitleRow}>
-                  {isOpen ? (
-                    <View style={[st.statusBadge, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#D1FAE5' }]}>
-                      <Text style={[st.statusText, { color: colors.success }]}>Open Now</Text>
-                    </View>
-                  ) : (
-                    <View style={[st.statusBadge, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2' }]}>
-                      <Text style={[st.statusText, { color: colors.danger }]}>Closed</Text>
-                    </View>
-                  )}
-                  {item.distance !== undefined && (
-                    <Text style={st.modalDistance}>{item.distance.toFixed(1)} km away</Text>
-                  )}
-                </View>
-              </View>
-              <TouchableOpacity onPress={() => setViewBloodBank(null)} style={st.closeBtn}>
-                <Ionicons name="close" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-
-          <ScrollView style={st.modalBody} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-            <View style={st.sectionBox}>
-              <Text style={st.sectionTitle}>Contact & Location</Text>
-              <View style={st.infoRow}>
-                <Ionicons name="location" size={18} color={colors.textSecondary} />
-                <Text style={st.infoText}>{item.address}</Text>
-              </View>
-              <View style={st.infoRow}>
-                <Ionicons name="call" size={18} color={colors.textSecondary} />
-                <Text style={st.infoText}>{item.phoneNumber}</Text>
-              </View>
-              <View style={st.infoRow}>
-                <Ionicons name="time" size={18} color={colors.textSecondary} />
-                <Text style={st.infoText}>{item.operatingHours?.open} - {item.operatingHours?.close}</Text>
-              </View>
-            </View>
-
-            <View style={st.sectionBox}>
-              <Text style={st.sectionTitle}>Blood Inventory</Text>
-              <View style={st.inventoryGrid}>
-                {BLOOD_TYPES.map(type => {
-                  const inv = item.inventory[type];
-                  const units = inv?.units || 0;
-                  const isLow = units < 5;
-                  return (
-                    <View key={type} style={[st.invItem, isLow ? st.invItemLow : null]}>
-                      <Text style={st.invType}>{type}</Text>
-                      <Text style={[st.invUnits, isLow ? { color: colors.danger } : { color: colors.primary }]}>
-                        {units} units
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={st.modalActions}>
-              <TouchableOpacity
-                style={[st.modalActionBtn, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#D1FAE5' }]}
-                onPress={() => handleCallBloodBank(item.phoneNumber)}
-              >
-                <Ionicons name="call" size={20} color={colors.success} />
-                <Text style={[st.modalActionText, { color: colors.success }]}>Call Now</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[st.modalActionBtn, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE' }]}
-                onPress={() => handleGetDirections(item)}
-              >
-                <Ionicons name="navigate" size={20} color={colors.primary} />
-                <Text style={[st.modalActionText, { color: colors.primary }]}>Get Directions</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </View>
-    );
+  const handleChat = async (bank: BloodBank) => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please login to chat with blood banks.');
+      return;
+    }
+    try {
+      setViewBloodBank(null);
+      router.push({
+        pathname: '/(shared)/chat' as any,
+        params: {
+          recipientId: bank.id,
+          recipientName: bank.name,
+          recipientType: 'hospital',
+          chatRole: user.userType
+        }
+      });
+    } catch (error) {
+      console.error('Error starting chat:', error);
+      Alert.alert('Error', 'Failed to start chat. Please try again.');
+    }
   };
 
-  const renderBloodBankListItem = ({ item }: { item: BloodBank }) => {
-    const isOpen = item.operatingHours ? isBloodBankOpen(item.operatingHours) : false;
-    const totalUnits = Object.values(item.inventory).reduce((sum, inv) => sum + (inv?.units || 0), 0);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    if (searched) await handleSearch();
+    else await refreshAll();
+    setRefreshing(false);
+  }, [searched, refreshAll]);
+
+  const closeModal = () => {
+    setViewBloodBank(null);
+  };
+
+  // ─── Styles ────────────────────────────────────────────────────────────────
+  const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bg },
+
+    // Header
+    header: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 16 },
+    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    headerCenter: { flex: 1, alignItems: 'center' },
+    headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
+    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+
+    // Search controls
+    searchControls: { gap: 8 },
+    pickerBlock: { gap: 4 },
+    pickerBlockLabel: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.9)', letterSpacing: 0.5, textTransform: 'uppercase' },
+    pickerTrigger: {
+      height: 44,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.3)',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 12
+    },
+    pickerTriggerExpanded: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+    inlineSelectionContainer: {
+      borderBottomLeftRadius: 14,
+      borderBottomRightRadius: 14,
+      borderWidth: 1,
+      borderTopWidth: 0,
+      borderColor: 'rgba(255,255,255,0.3)',
+      backgroundColor: 'rgba(255,255,255,1)',
+      marginTop: -2,
+      marginBottom: 8,
+      padding: 16
+    },
+    selectionGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
+    selectionItem: {
+      width: '22%',
+      aspectRatio: 1,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      backgroundColor: '#F8FAFC',
+      justifyContent: 'center',
+      alignItems: 'center'
+    },
+    selectionItemActive: { borderColor: '#2563EB', backgroundColor: '#DBEAFE' },
+    selectionText: { fontSize: 12, fontWeight: '700', color: '#64748B', marginTop: 4 },
+    selectionTextActive: { color: '#2563EB' },
+    allTypeItem: {
+      width: '100%',
+      height: 44,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      backgroundColor: '#F8FAFC',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 12
+    },
+    searchBtnRow: { flexDirection: 'row', gap: 10 },
+    clearBtn: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.3)',
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 10
+    },
+    clearBtnText: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.95)' },
+    searchBtn: {
+      flex: 1,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.3)',
+      backgroundColor: 'rgba(255,255,255,0.25)',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 10
+    },
+    searchBtnDisabled: { opacity: 0.5 },
+    searchBtnText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+    locationNote: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.2)',
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10
+    },
+    locationNoteText: { flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+
+    // List
+    loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
+    loadingText: { fontSize: 15, color: colors.textSecondary },
+    listContent: { padding: 16, paddingBottom: 100 },
+
+    // Card
+    card: {
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.divider,
+      backgroundColor: colors.surface,
+      marginBottom: 14,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      elevation: 3,
+    },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
+    cardIconCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+    cardTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 4 },
+    cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    cardStatus: { fontSize: 12, fontWeight: '600' },
+    cardDot: { fontSize: 12, color: colors.textMuted },
+    cardDistance: { fontSize: 12, color: colors.textSecondary },
+    cardDivider: { height: 1, backgroundColor: colors.divider, marginHorizontal: 16 },
+    cardFooter: {
+      borderBottomLeftRadius: 20,
+      borderBottomRightRadius: 20,
+      backgroundColor: colors.surfaceAlt,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 14,
+      paddingHorizontal: 16
+    },
+    cardFooterItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+    cardFooterText: { flex: 1, fontSize: 13, color: colors.textSecondary },
+    cardFooterBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
+    cardFooterBadgeText: { fontSize: 11, fontWeight: '700' },
+
+    // ─── Centered Modal ─────────────────────────────────────────────────────────
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    centeredModal: {
+      width: '90%',
+      maxWidth: 400,
+      maxHeight: '85%',
+      backgroundColor: colors.surface,
+      borderRadius: 24,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 20,
+      elevation: 8,
+    },
+    modalGradientHeader: {
+      paddingHorizontal: 20,
+      paddingTop: 20,
+      paddingBottom: 24,
+    },
+    modalHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 14,
+    },
+    modalIconCircle: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalTitleBlock: { flex: 1 },
+    modalTitle: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
+    modalBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    modalStatusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+    modalStatusText: { fontSize: 11, fontWeight: '700' },
+    modalDistanceChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)' },
+    modalDistanceText: { fontSize: 11, fontWeight: '600', color: '#FFFFFF' },
+    modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    modalBody: { padding: 20 },
+    modalSection: { marginBottom: 20 },
+    modalSectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 12 },
+    actionsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+    actionBtn: { flex: 1, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingVertical: 14 },
+    actionBtnText: { fontSize: 13, fontWeight: '700' },
+    infoCard: { backgroundColor: colors.bg, borderRadius: 16, padding: 16, marginBottom: 12 },
+    infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+    infoIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
+    infoContent: { flex: 1 },
+    infoLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 2, textTransform: 'uppercase' },
+    infoValue: { fontSize: 14, color: colors.text, fontWeight: '500' },
+    inventoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    invItem: {
+      width: '22%',
+      borderRadius: 14,
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: 'transparent'
+    },
+    invType: { fontSize: 14, fontWeight: '800', color: colors.text },
+    invUnits: { fontSize: 10, fontWeight: '700' },
+    legendRow: { flexDirection: 'row', gap: 16, marginTop: 16, flexWrap: 'wrap' },
+    legendDot: { width: 8, height: 8, borderRadius: 4 },
+    legendText: { fontSize: 11, color: colors.textMuted, marginLeft: 4 },
+
+    // Empty state
+    emptyWrap: { flex: 1, alignItems: 'center', paddingVertical: 80, paddingHorizontal: 40 },
+    emptyIconWrap: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+    emptyTitle: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 8, textAlign: 'center' },
+    emptyText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  });
+
+  // ─── Render Functions ────────────────────────────────────────────────────────
+  const renderCard = ({ item }: { item: BloodBank }) => {
+    const openStatus = isBloodBankOpen(item.operatingHours);
+    const total = totalUnitsFor(item);
 
     return (
-      <TouchableOpacity style={st.card} onPress={() => setViewBloodBank(item)} activeOpacity={0.9}>
-        <View style={st.cardHeader}>
-          <View style={[st.cardIconCircle, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE' }]}>
-            <Ionicons name="business" size={20} color={colors.primary} />
+      <TouchableOpacity style={styles.card} onPress={() => setViewBloodBank(item)} activeOpacity={0.88}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.cardIconCircle, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#DBEAFE' }]}>
+            <Ionicons name="business" size={24} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={st.cardTitle} numberOfLines={1}>{item.name}</Text>
-            <View style={st.cardMetaRow}>
-              {isOpen ? (
-                <Text style={[st.cardStatus, { color: colors.success }]}>Open</Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
+            <View style={styles.cardMetaRow}>
+              {openStatus === null ? null : openStatus ? (
+                <Text style={[styles.cardStatus, { color: colors.success }]}>Open</Text>
               ) : (
-                <Text style={[st.cardStatus, { color: colors.danger }]}>Closed</Text>
+                <Text style={[styles.cardStatus, { color: colors.danger }]}>Closed</Text>
               )}
-              <Text style={st.cardDot}>•</Text>
-              <Text style={st.cardDistance}>{item.distance?.toFixed(1) || '--'} km</Text>
+              {openStatus !== null && <Text style={styles.cardDot}>•</Text>}
+              <Text style={styles.cardDistance}>{item.distance?.toFixed(1) ?? '--'} km</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.divider} />
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </View>
 
-        <View style={st.cardDivider} />
+        <View style={styles.cardDivider} />
 
-        <View style={st.cardFooter}>
-          <View style={st.cardFooterItem}>
+        <View style={styles.cardFooter}>
+          <View style={styles.cardFooterItem}>
             <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-            <Text style={st.cardFooterText} numberOfLines={1}>{item.address}</Text>
+            <Text style={styles.cardFooterText} numberOfLines={1}>{item.address}</Text>
           </View>
           {selectedBloodType !== 'all' ? (
-            <View style={[st.cardFooterBadge, { backgroundColor: item.inventory[selectedBloodType]?.units ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#D1FAE5') : (isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2') }]}>
-              <Text style={[st.cardFooterBadgeText, { color: item.inventory[selectedBloodType]?.units ? colors.success : colors.danger }]}>
-                {selectedBloodType}: {item.inventory[selectedBloodType]?.units || 0} units
+            <View style={[styles.cardFooterBadge, {
+              backgroundColor: (item.inventory[selectedBloodType]?.units ?? 0) > 0
+                ? (isDark ? 'rgba(16,185,129,0.15)' : colors.success + '1a')
+                : (isDark ? 'rgba(239,68,68,0.15)' : colors.danger + '1a')
+            }]}>
+              <Text style={[styles.cardFooterBadgeText, {
+                color: (item.inventory[selectedBloodType]?.units ?? 0) > 0 ? colors.success : colors.danger
+              }]}>
+                {selectedBloodType}: {item.inventory[selectedBloodType]?.units ?? 0} units
               </Text>
             </View>
           ) : (
-            <View style={[st.cardFooterBadge, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE' }]}>
-              <Text style={[st.cardFooterBadgeText, { color: colors.primary }]}>{totalUnits} Total Units</Text>
+            <View style={[styles.cardFooterBadge, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#DBEAFE' }]}>
+              <Text style={[styles.cardFooterBadgeText, { color: colors.primary }]}>{total} Total Units</Text>
             </View>
           )}
         </View>
@@ -718,95 +517,279 @@ const FindBloodScreen: React.FC = () => {
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={st.emptyWrap}>
-      <LinearGradient colors={isDark ? ['#1E293B', '#334155'] : ['#DBEAFE', '#EFF6FF']} style={st.emptyIconWrap}>
-        <Ionicons
-          name={searched ? "file-tray-outline" : "business-outline"}
-          size={46}
-          color={colors.primary}
-        />
+  const renderModal = () => {
+    if (!viewBloodBank) return null;
+    const item = viewBloodBank;
+    const openStatus = isBloodBankOpen(item.operatingHours);
+
+    return (
+      <Modal
+        visible={!!viewBloodBank}
+        animationType="fade"
+        transparent
+        statusBarTranslucent
+        onRequestClose={closeModal}
+      >
+        <TouchableWithoutFeedback onPress={closeModal}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => { }}>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <View style={styles.centeredModal}>
+                  {/* Gradient Header */}
+                  <LinearGradient
+                    colors={[colors.primary, '#60A5FA']}
+                    style={styles.modalGradientHeader}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <View style={styles.modalHeaderRow}>
+                      <View style={styles.modalIconCircle}>
+                        <Ionicons name="business" size={28} color="#FFFFFF" />
+                      </View>
+                      <View style={styles.modalTitleBlock}>
+                        <Text style={styles.modalTitle} numberOfLines={2}>{item.name}</Text>
+                        <View style={styles.modalBadgeRow}>
+                          {openStatus === true && (
+                            <View style={[styles.modalStatusBadge, { backgroundColor: 'rgba(16,185,129,0.25)' }]}>
+                              <Text style={[styles.modalStatusText, { color: '#6EE7B7' }]}>● Open Now</Text>
+                            </View>
+                          )}
+                          {openStatus === false && (
+                            <View style={[styles.modalStatusBadge, { backgroundColor: 'rgba(239,68,68,0.25)' }]}>
+                              <Text style={[styles.modalStatusText, { color: '#FCA5A5' }]}>● Closed</Text>
+                            </View>
+                          )}
+                          {item.distance !== undefined && (
+                            <View style={styles.modalDistanceChip}>
+                              <Ionicons name="navigate" size={12} color="#FFFFFF" />
+                              <Text style={styles.modalDistanceText}>{item.distance.toFixed(1)} km away</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <TouchableOpacity style={styles.modalCloseBtn} onPress={closeModal}>
+                        <Ionicons name="close" size={22} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </LinearGradient>
+
+                  {/* Scrollable Body */}
+                  <ScrollView
+                    style={styles.modalBody}
+                    contentContainerStyle={{ paddingBottom: 24 }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {/* Quick Actions */}
+                    <View style={styles.actionsRow}>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#D1FAE5' }]}
+                        onPress={() => handleCall(item.phoneNumber)}
+                      >
+                        <Ionicons name="call" size={20} color="#10B981" />
+                        <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Call</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#DBEAFE' }]}
+                        onPress={() => handleDirections(item)}
+                      >
+                        <Ionicons name="navigate" size={20} color={colors.primary} />
+                        <Text style={[styles.actionBtnText, { color: colors.primary }]}>Directions</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(139,92,246,0.15)' : '#EDE9FE' }]}
+                        onPress={() => handleChat(item)}
+                      >
+                        <Ionicons name="chatbubble-ellipses" size={20} color="#7C3AED" />
+                        <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Chat</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Contact & Location */}
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>📍 Contact & Location</Text>
+                      <View style={styles.infoCard}>
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoIcon}>
+                            <Ionicons name="location" size={18} color={colors.primary} />
+                          </View>
+                          <View style={styles.infoContent}>
+                            <Text style={styles.infoLabel}>Address</Text>
+                            <Text style={styles.infoValue}>{item.address || 'Not provided'}</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoIcon}>
+                            <Ionicons name="call" size={18} color={colors.primary} />
+                          </View>
+                          <View style={styles.infoContent}>
+                            <Text style={styles.infoLabel}>Phone</Text>
+                            <Text style={[styles.infoValue, { color: colors.primary }]}>
+                              {item.phoneNumber && item.phoneNumber !== 'Not provided'
+                                ? item.phoneNumber
+                                : 'Not available'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {item.operatingHours && (
+                          <View style={styles.infoRow}>
+                            <View style={styles.infoIcon}>
+                              <Ionicons name="time" size={18} color={colors.primary} />
+                            </View>
+                            <View style={styles.infoContent}>
+                              <Text style={styles.infoLabel}>Hours</Text>
+                              <Text style={styles.infoValue}>
+                                {item.operatingHours.open} – {item.operatingHours.close}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {item.location?.latitude && item.location?.longitude && (
+                          <View style={styles.infoRow}>
+                            <View style={styles.infoIcon}>
+                              <Ionicons name="compass" size={18} color={colors.primary} />
+                            </View>
+                            <View style={[styles.infoContent, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+                              <View>
+                                <Text style={styles.infoLabel}>GPS Coordinates</Text>
+                                <Text style={[styles.infoValue, { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 12 }]}>
+                                  {item.location.latitude.toFixed(5)}, {item.location.longitude.toFixed(5)}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                onPress={() => handleDirections(item)}
+                                style={{ padding: 8, borderRadius: 10, backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#DBEAFE' }}
+                              >
+                                <Ionicons name="open-outline" size={16} color={colors.primary} />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Blood Inventory */}
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>🩸 Blood Stock</Text>
+                      <View style={styles.infoCard}>
+                        <View style={styles.inventoryGrid}>
+                          {BLOOD_TYPES.map(type => {
+                            const units = item.inventory?.[type]?.units ?? 0;
+                            const { color, bg } = getInventoryStatus(units);
+                            return (
+                              <View key={type} style={[styles.invItem, { backgroundColor: bg + '40', borderColor: color + '30' }]}>
+                                <Text style={styles.invType}>{type}</Text>
+                                <Text style={[styles.invUnits, { color }]}>{units} units</Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+
+                        {/* Legend */}
+                        <View style={styles.legendRow}>
+                          {[
+                            { color: '#10B981', label: '≥5 units — Good' },
+                            { color: '#F59E0B', label: '1–4 units — Low' },
+                            { color: '#EF4444', label: '0 units — Empty' },
+                          ].map(l => (
+                            <View key={l.label} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <View style={[styles.legendDot, { backgroundColor: l.color }]} />
+                              <Text style={styles.legendText}>{l.label}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                  </ScrollView>
+                </View>
+              </KeyboardAvoidingView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    );
+  };
+
+  const renderEmpty = () => (
+    <View style={styles.emptyWrap}>
+      <LinearGradient colors={isDark ? ['#1E293B', '#334155'] : ['#DBEAFE', '#EFF6FF']} style={styles.emptyIconWrap}>
+        <Ionicons name={searched ? 'file-tray-outline' : 'business-outline'} size={48} color={colors.primary} />
       </LinearGradient>
-      <Text style={st.emptyTitle}>
-        {searched ? 'No Blood Banks Found' : 'No Blood Banks Available'}
-      </Text>
-      <Text style={st.emptyText}>
+      <Text style={styles.emptyTitle}>{searched ? 'No Blood Banks Found' : 'No Blood Banks Available'}</Text>
+      <Text style={styles.emptyText}>
         {searched
-          ? `No blood banks have ${selectedBloodType} blood available at the moment. Try a different blood type.`
-          : 'Blood banks will appear here once they are registered in the system.'
-        }
+          ? `No blood banks have ${selectedBloodType} blood available. Try a different type.`
+          : 'Blood banks will appear here once registered.'}
       </Text>
     </View>
   );
 
+  // ─── Main Render ─────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={st.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
-      <LinearGradient colors={[colors.primary, '#60A5FA']} style={st.header}>
-        <View style={st.headerTop}>
-          <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
+
+      {/* Header */}
+      <LinearGradient colors={[colors.primary, '#60A5FA']} style={styles.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
-          <View style={st.headerCenter}>
-            <Text style={st.headerTitle}>Find Blood</Text>
-            <Text style={st.headerSub}>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Find Blood</Text>
+            <Text style={styles.headerSub}>
               {searched
                 ? `${bloodBanks.length} result${bloodBanks.length !== 1 ? 's' : ''} for ${selectedBloodType}`
-                : `${allBloodBanks.length} blood bank${allBloodBanks.length !== 1 ? 's' : ''} available`
-              }
+                : `${allBloodBanks.length} bank${allBloodBanks.length !== 1 ? 's' : ''} available`}
             </Text>
           </View>
-          <View style={{ width: 38 }} />
+          <View style={{ width: 40 }} />
         </View>
 
-        <View style={st.searchControls}>
-          <View style={st.pickerBlock}>
-            <Text style={st.pickerBlockLabel}>Blood Type</Text>
+        {/* Blood type picker */}
+        <View style={styles.searchControls}>
+          <View style={styles.pickerBlock}>
+            <Text style={styles.pickerBlockLabel}>Blood Type</Text>
             <TouchableOpacity
-              style={[st.pickerTrigger, isBloodTypeExpanded && st.pickerTriggerExpanded]}
-              onPress={() => setIsBloodTypeExpanded(!isBloodTypeExpanded)}
+              style={[styles.pickerTrigger, isBloodTypeExpanded && styles.pickerTriggerExpanded]}
+              onPress={() => setIsBloodTypeExpanded(v => !v)}
               disabled={loading || loadingLocation}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="water" size={18} color={colors.primary} />
-                <Text style={{ fontWeight: '700', color: colors.primary }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Ionicons name="water" size={20} color={colors.primary} />
+                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 15 }}>
                   {selectedBloodType === 'all' ? 'All Blood Types' : selectedBloodType}
                 </Text>
               </View>
-              <Ionicons name={isBloodTypeExpanded ? "chevron-up" : "chevron-down"} size={20} color={colors.primary} />
+              <Ionicons name={isBloodTypeExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.primary} />
             </TouchableOpacity>
 
             {isBloodTypeExpanded && (
-              <View style={st.inlineSelectionContainer}>
+              <View style={styles.inlineSelectionContainer}>
                 <TouchableOpacity
-                  style={[st.allTypeItem, selectedBloodType === 'all' && st.selectionItemActive]}
-                  onPress={() => {
-                    setSelectedBloodType('all');
-                    setIsBloodTypeExpanded(false);
-                  }}
+                  style={[styles.allTypeItem, selectedBloodType === 'all' && styles.selectionItemActive]}
+                  onPress={() => { setSelectedBloodType('all'); setIsBloodTypeExpanded(false); }}
                 >
-                  <Text style={[st.selectionText, { marginTop: 0 }, selectedBloodType === 'all' && st.selectionTextActive]}>
+                  <Text style={[styles.selectionText, { marginTop: 0 }, selectedBloodType === 'all' && styles.selectionTextActive]}>
                     ALL BLOOD TYPES
                   </Text>
                 </TouchableOpacity>
-                <View style={st.selectionGrid}>
-                  {BLOOD_TYPES.map((type) => (
+                <View style={styles.selectionGrid}>
+                  {BLOOD_TYPES.map(type => (
                     <TouchableOpacity
                       key={type}
-                      style={[st.selectionItem, selectedBloodType === type && st.selectionItemActive]}
-                      onPress={() => {
-                        setSelectedBloodType(type);
-                        setIsBloodTypeExpanded(false);
-                      }}
+                      style={[styles.selectionItem, selectedBloodType === type && styles.selectionItemActive]}
+                      onPress={() => { setSelectedBloodType(type); setIsBloodTypeExpanded(false); }}
                     >
-                      <Ionicons
-                        name="water"
-                        size={16}
-                        color={selectedBloodType === type ? colors.primary : colors.textSecondary}
-                      />
-                      <Text style={[st.selectionText, selectedBloodType === type && st.selectionTextActive]}>
-                        {type}
-                      </Text>
+                      <Ionicons name="water" size={18} color={selectedBloodType === type ? colors.primary : '#64748B'} />
+                      <Text style={[styles.selectionText, selectedBloodType === type && styles.selectionTextActive]}>{type}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -814,58 +797,144 @@ const FindBloodScreen: React.FC = () => {
             )}
           </View>
 
-          <View style={st.searchBtnRow}>
+          <View style={styles.pickerBlock}>
+            <Text style={styles.pickerBlockLabel}>County</Text>
+            <TouchableOpacity
+              style={[styles.pickerTrigger, isCountyExpanded && styles.pickerTriggerExpanded]}
+              onPress={() => {
+                setIsCountyExpanded(!isCountyExpanded);
+                setIsSubCountyExpanded(false);
+                setIsBloodTypeExpanded(false);
+              }}
+              disabled={loading || loadingLocation}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Ionicons name="location" size={20} color={colors.primary} />
+                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 15 }}>
+                  {selectedCounty || 'All Counties'}
+                </Text>
+              </View>
+              <Ionicons name={isCountyExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.primary} />
+            </TouchableOpacity>
+
+            {isCountyExpanded && (
+              <View style={styles.inlineSelectionContainer}>
+                <TouchableOpacity
+                  style={[styles.allTypeItem, !selectedCounty && styles.selectionItemActive]}
+                  onPress={() => { setSelectedCounty(''); setSelectedSubCounty(''); setIsCountyExpanded(false); }}
+                >
+                  <Text style={[styles.selectionText, { marginTop: 0 }, !selectedCounty && styles.selectionTextActive]}>
+                    ALL COUNTIES
+                  </Text>
+                </TouchableOpacity>
+                <ScrollView contentContainerStyle={styles.selectionGrid} style={{ maxHeight: 200 }} nestedScrollEnabled>
+                  {KENYA_COUNTIES.map(c => (
+                    <TouchableOpacity
+                      key={c}
+                      style={[styles.selectionItem, selectedCounty === c && styles.selectionItemActive, { width: '45%', aspectRatio: undefined, paddingVertical: 12 }]}
+                      onPress={() => { setSelectedCounty(c); setSelectedSubCounty(''); setIsCountyExpanded(false); }}
+                    >
+                      <Text style={[styles.selectionText, { marginTop: 0 }, selectedCounty === c && styles.selectionTextActive]}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.pickerBlock}>
+            <Text style={styles.pickerBlockLabel}>Sub-County</Text>
+            <TouchableOpacity
+              style={[styles.pickerTrigger, isSubCountyExpanded && styles.pickerTriggerExpanded]}
+              onPress={() => {
+                if (!selectedCounty) {
+                  Alert.alert('Notice', 'Please select a county first');
+                  return;
+                }
+                setIsSubCountyExpanded(!isSubCountyExpanded);
+                setIsCountyExpanded(false);
+                setIsBloodTypeExpanded(false);
+              }}
+              disabled={loading || loadingLocation}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Ionicons name="map" size={20} color={colors.primary} />
+                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 15 }}>
+                  {selectedSubCounty || 'All Sub-Counties'}
+                </Text>
+              </View>
+              <Ionicons name={isSubCountyExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.primary} />
+            </TouchableOpacity>
+
+            {isSubCountyExpanded && (
+              <View style={styles.inlineSelectionContainer}>
+                <TouchableOpacity
+                  style={[styles.allTypeItem, !selectedSubCounty && styles.selectionItemActive]}
+                  onPress={() => { setSelectedSubCounty(''); setIsSubCountyExpanded(false); }}
+                >
+                  <Text style={[styles.selectionText, { marginTop: 0 }, !selectedSubCounty && styles.selectionTextActive]}>
+                    ALL SUB-COUNTIES
+                  </Text>
+                </TouchableOpacity>
+                <ScrollView contentContainerStyle={styles.selectionGrid} style={{ maxHeight: 200 }} nestedScrollEnabled>
+                  {getSubCountiesByCounty(selectedCounty).map(sc => (
+                    <TouchableOpacity
+                      key={sc}
+                      style={[styles.selectionItem, selectedSubCounty === sc && styles.selectionItemActive, { width: '45%', aspectRatio: undefined, paddingVertical: 12 }]}
+                      onPress={() => { setSelectedSubCounty(sc); setIsSubCountyExpanded(false); }}
+                    >
+                      <Text style={[styles.selectionText, { marginTop: 0 }, selectedSubCounty === sc && styles.selectionTextActive]}>{sc}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.searchBtnRow}>
             {searched && (
-              <TouchableOpacity
-                style={st.clearBtn}
-                onPress={handleClearSearch}
-                disabled={loading || loadingLocation}
-              >
-                <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.7)" />
-                <Text style={st.clearBtnText}>Clear</Text>
+              <TouchableOpacity style={styles.clearBtn} onPress={handleClearSearch} disabled={loading || loadingLocation}>
+                <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.clearBtnText}>Clear</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[st.searchBtn, (loading || loadingLocation) && st.searchBtnDisabled]}
+              style={[styles.searchBtn, (loading || loadingLocation) && styles.searchBtnDisabled]}
               onPress={handleSearch}
               disabled={loading || loadingLocation}
             >
-              {loading || loadingLocation ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <>
-                  <Ionicons name="search" size={18} color="#FFFFFF" />
-                  <Text style={st.searchBtnText}>Search Nearby</Text>
+              {loading || loadingLocation
+                ? <ActivityIndicator color="#FFFFFF" size="small" />
+                : <>
+                  <Ionicons name="search" size={20} color="#FFFFFF" />
+                  <Text style={styles.searchBtnText}>Search Nearby</Text>
                 </>
-              )}
+              }
             </TouchableOpacity>
           </View>
         </View>
 
         {searched && usingDefaultLocation && bloodBanks.length > 0 && (
-          <View style={st.locationNote}>
+          <View style={styles.locationNote}>
             <Ionicons name="information-circle" size={14} color="rgba(255,255,255,0.9)" />
-            <Text style={st.locationNoteText}>
-              Using Nairobi city center for distance calculation
-            </Text>
+            <Text style={styles.locationNoteText}>Using Nairobi city center for distance calculation</Text>
           </View>
         )}
       </LinearGradient>
 
+      {/* List */}
       {loading && !refreshing ? (
-        <View style={st.loadingWrap}>
+        <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={st.loadingText}>
-            {searched ? 'Searching blood banks...' : 'Loading blood banks...'}
-          </Text>
+          <Text style={styles.loadingText}>{searched ? 'Searching blood banks…' : 'Loading blood banks…'}</Text>
         </View>
       ) : (
         <FlatList
           data={bloodBanks}
-          renderItem={renderBloodBankListItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={st.listContent}
-          ListEmptyComponent={renderEmptyState}
+          renderItem={renderCard}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={renderEmpty}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -877,13 +946,8 @@ const FindBloodScreen: React.FC = () => {
         />
       )}
 
-      {viewBloodBank && (
-        <View style={StyleSheet.absoluteFill}>
-          <View style={{ flex: 1, backgroundColor: colors.drawerOverlay }}>
-            {renderBloodBankModal()}
-          </View>
-        </View>
-      )}
+      {/* Blood Bank Detail Modal */}
+      {renderModal()}
     </SafeAreaView>
   );
 };

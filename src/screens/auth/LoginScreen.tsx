@@ -1,6 +1,7 @@
 import { useUser } from '@/src/contexts/UserContext';
 import { auth, db } from '@/src/services/firebase/firebase';
 import { transformFirebaseUser } from '@/src/types/userTransform';
+import { mapErrorMessage } from '@/src/utils/errorMapper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -97,11 +98,11 @@ const LoginScreen: React.FC = () => {
         if (!value) {
           return 'Password is required';
         }
-        if (value.length < 6) {
-          return 'Password must be at least 6 characters';
+        if (value.length < 8) {
+          return 'Password must be at least 8 characters';
         }
-        if (value.length > 50) {
-          return 'Password is too long';
+        if (value.length > 10) {
+          return 'Password cannot exceed 10 characters';
         }
         break;
     }
@@ -160,6 +161,7 @@ const LoginScreen: React.FC = () => {
     return true;
   };
 
+
   const getUserData = async (userId: string): Promise<FirebaseUserData | null> => {
     try {
       const userDoc = await getDoc(doc(db, 'users', userId));
@@ -179,14 +181,13 @@ const LoginScreen: React.FC = () => {
   const signInUser = async (email: string, password: string) => {
     try {
       const normalizedEmail = email.trim().toLowerCase();
-
       const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
 
       const userData = await getUserData(user.uid);
 
       if (!userData) {
-        throw new Error('User profile not found. Please contact support.');
+        throw new Error('User profile not found. Please sign up or contact support.');
       }
 
       if (!userData.isActive) {
@@ -196,44 +197,7 @@ const LoginScreen: React.FC = () => {
       return { user, userData };
 
     } catch (error: any) {
-      console.error('Sign in error:', error);
-
-      let errorMessage = 'Login failed. Please try again.';
-
-      if (error.code) {
-        switch (error.code) {
-          case 'auth/user-not-found':
-            errorMessage = 'No account found with this email address. Please check your email or sign up.';
-            break;
-          case 'auth/wrong-password':
-            errorMessage = 'Incorrect password. Please try again or use "Forgot Password" to reset.';
-            break;
-          case 'auth/invalid-email':
-            errorMessage = 'Invalid email address format. Please check and try again.';
-            break;
-          case 'auth/user-disabled':
-            errorMessage = 'This account has been disabled. Please contact support for assistance.';
-            break;
-          case 'auth/too-many-requests':
-            errorMessage = 'Too many failed login attempts. Please wait a few minutes and try again, or reset your password.';
-            break;
-          case 'auth/network-request-failed':
-            errorMessage = 'Network error. Please check your internet connection and try again.';
-            break;
-          case 'auth/invalid-credential':
-          case 'auth/invalid-login-credentials':
-            errorMessage = 'Invalid email or password. Please check your credentials and try again.';
-            break;
-          default:
-            if (error.message && !error.message.includes('Firebase')) {
-              errorMessage = error.message;
-            }
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      throw new Error(errorMessage);
+      throw new Error(mapErrorMessage(error));
     }
   };
 
@@ -275,7 +239,7 @@ const LoginScreen: React.FC = () => {
     } catch (error: any) {
       console.log('Login error:', error);
 
-      const errorMessage = error?.message || 'Invalid email or password. Please check your credentials and try again.';
+      const errorMessage = mapErrorMessage(error);
 
       if (Platform.OS === 'web') {
         window.alert(errorMessage);
@@ -313,19 +277,7 @@ const LoginScreen: React.FC = () => {
         [{ text: 'OK', style: 'default' }]
       );
     } catch (error: any) {
-      console.error('Password reset error:', error);
-
-      let errorMessage = 'Failed to send reset email. Please try again.';
-
-      if (error?.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email address. Please check the email or sign up.';
-      } else if (error?.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address format. Please check and try again.';
-      } else if (error?.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many password reset requests. Please try again later.';
-      } else if (error?.code === 'auth/network-request-failed') {
-        errorMessage = 'Network error. Please check your internet connection.';
-      }
+      const errorMessage = mapErrorMessage(error);
 
       Alert.alert('Password Reset Failed', errorMessage);
     } finally {
@@ -355,76 +307,86 @@ const LoginScreen: React.FC = () => {
             keyboardShouldPersistTaps="handled"
           >
             {/* Header with Logo */}
-            <View style={styles.header}>
+            {/* Compact Header Section */}
+            <View style={styles.headerBranding}>
               <TouchableOpacity
                 onPress={() => router.replace('/')}
                 style={styles.backButton}
                 activeOpacity={0.7}
               >
-                <Ionicons name="chevron-back" size={26} color='#FFFFFF' />
+                <Ionicons name="chevron-back" size={24} color='#FFFFFF' />
               </TouchableOpacity>
 
-              {/* Logo */}
-              <View style={styles.logoContainer}>
-                <View style={styles.logoCard}>
+              <View style={styles.topBadgeContainer}>
+                <View style={styles.introBadge}>
+                  <Text style={styles.introBadgeText}>🇰🇪 Secure Access</Text>
+                </View>
+              </View>
 
-                  <View style={styles.logoImageContainer}>
+              <View style={styles.logoRow}>
+                <View style={styles.logoWrapper}>
+                  <View style={styles.logoCompact}>
                     <Image
                       source={require('@/assets/images/logo.jpg')}
                       style={styles.logoImage}
-                      resizeMode="contain"
+                      resizeMode="cover"
                     />
                   </View>
-
-                  {/* Verified Badge */}
-                  <View style={styles.logoBadge}>
-                    <View style={styles.badgeDot} />
-                    <Text style={styles.badgeText}>Verified</Text>
+                  <View style={styles.verifiedMiniBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
                   </View>
                 </View>
-
-                <Text style={styles.appName}>BloodLink</Text>
-                <Text style={styles.welcomeText}>Welcome back to BloodLink</Text>
-                <Text style={styles.tagline}>Every Drop Counts, Every Life Matters</Text>
+                <View style={styles.brandTitleContainer}>
+                  <Text style={styles.appNameCompact}>BloodLink</Text>
+                  <Text style={styles.appTaglineCompact}>Blood Donation Management System</Text>
+                </View>
               </View>
+              <Text style={styles.welcomeSubtext}>Every Drop Counts, Every Life Matters</Text>
             </View>
 
-            {/* Login Form */}
+            {/* Login Form - Modern Translucent Design */}
             <View style={styles.formContainer}>
-              <View style={styles.formCard}>
-                <Text style={styles.formTitle}>Login to Your Account</Text>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Email</Text>
-                  <TextInput
-                    style={[styles.input, errors.email && styles.inputError]}
-                    value={formData.email}
-                    onChangeText={(value) => handleInputChange('email', value)}
-                    onBlur={() => handleBlur('email')}
-                    placeholder="Enter your email"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    maxLength={100}
-                    editable={!loading}
-                  />
-                  {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              <View style={styles.glassFormCard}>
+                <View style={styles.formHeader}>
+                  <Text style={styles.glassFormTitle}>Welcome Back</Text>
+                  <Text style={styles.glassFormSubtitle}>Login to continue your lifesaving journey</Text>
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Password</Text>
-                  <View style={styles.passwordContainer}>
+                  <Text style={styles.glassInputLabel}>Email Address</Text>
+                  <View style={[styles.glassInputWrapper, errors.email && styles.glassInputError]}>
+                    <Ionicons name="mail-outline" size={20} color="rgba(255, 255, 255, 0.5)" style={styles.inputIcon} />
                     <TextInput
-                      style={[styles.passwordInput, errors.password && styles.inputError]}
+                      style={styles.glassTextInput}
+                      value={formData.email}
+                      onChangeText={(value) => handleInputChange('email', value)}
+                      onBlur={() => handleBlur('email')}
+                      placeholder="e.g. john@example.com"
+                      placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                      maxLength={100}
+                      editable={!loading}
+                    />
+                  </View>
+                  {errors.email && <Text style={styles.glassErrorText}>{errors.email}</Text>}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.glassInputLabel}>Password</Text>
+                  <View style={[styles.glassInputWrapper, errors.password && styles.glassInputError]}>
+                    <Ionicons name="lock-closed-outline" size={20} color="rgba(255, 255, 255, 0.5)" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.glassTextInput}
                       value={formData.password}
                       onChangeText={(value) => handleInputChange('password', value)}
                       onBlur={() => handleBlur('password')}
-                      placeholder="Enter your password"
-                      placeholderTextColor="#94A3B8"
+                      placeholder="••••••••"
+                      placeholderTextColor="rgba(255, 255, 255, 0.3)"
                       secureTextEntry={!showPassword}
                       autoComplete="password"
-                      maxLength={50}
+                      maxLength={10}
                       editable={!loading}
                     />
                     <TouchableOpacity
@@ -432,10 +394,10 @@ const LoginScreen: React.FC = () => {
                       onPress={() => setShowPassword(!showPassword)}
                       disabled={loading}
                     >
-                      <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#64748B" />
+                      <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="rgba(255, 255, 255, 0.5)" />
                     </TouchableOpacity>
                   </View>
-                  {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+                  {errors.password && <Text style={styles.glassErrorText}>{errors.password}</Text>}
                 </View>
 
                 {/* Forgot Password */}
@@ -445,22 +407,22 @@ const LoginScreen: React.FC = () => {
                   disabled={resetLoading || loading}
                 >
                   {resetLoading ? (
-                    <ActivityIndicator size="small" color="#3B82F6" />
+                    <ActivityIndicator size="small" color="#10B981" />
                   ) : (
-                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                    <Text style={styles.glassForgotPasswordText}>Forgot Password?</Text>
                   )}
                 </TouchableOpacity>
 
                 {/* Login Button */}
                 <TouchableOpacity
-                  style={[styles.loginButton, loading && styles.buttonDisabled]}
+                  style={[styles.glassLoginButton, loading && styles.buttonDisabled]}
                   onPress={handleLogin}
                   disabled={loading}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
-                    colors={['#3B82F6', '#2563EB']}
-                    style={styles.loginButtonGradient}
+                    colors={['#10B981', '#059669']}
+                    style={styles.glassLoginButtonGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                   >
@@ -468,8 +430,8 @@ const LoginScreen: React.FC = () => {
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
                       <>
-                        <Text style={styles.loginButtonText}>Login</Text>
-                        <View style={styles.buttonIconContainer}>
+                        <Text style={styles.glassLoginButtonText}>Sign In</Text>
+                        <View style={styles.glassButtonIconContainer}>
                           <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
                         </View>
                       </>
@@ -478,10 +440,10 @@ const LoginScreen: React.FC = () => {
                 </TouchableOpacity>
 
                 {/* Sign Up Link */}
-                <View style={styles.signupContainer}>
-                  <Text style={styles.signupText}>Don't have an account? </Text>
+                <View style={styles.glassSignupContainer}>
+                  <Text style={styles.glassSignupText}>New to BloodLink? </Text>
                   <TouchableOpacity onPress={handleSignup} disabled={loading}>
-                    <Text style={styles.signupLink}>Sign Up</Text>
+                    <Text style={styles.glassSignupLink}>Create Account</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -509,238 +471,214 @@ const styles = StyleSheet.create({
     paddingHorizontal: scale(20),
     paddingBottom: verticalScale(20),
   },
-  header: {
+  headerBranding: {
     paddingTop: verticalScale(12),
-    paddingBottom: verticalScale(16),
+    marginBottom: verticalScale(15),
+    alignItems: 'center',
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    alignSelf: 'flex-start',
+    marginBottom: verticalScale(10),
   },
-  logoContainer: {
-    alignItems: 'center',
+  topBadgeContainer: {
+    marginBottom: verticalScale(10),
   },
-  logoCard: {
-    position: 'relative',
-    marginBottom: verticalScale(12),
-  },
-  logoImageContainer: {
-    width: moderateScale(100),
-    height: moderateScale(120),
+  introBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(6),
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  introBadgeText: {
+    fontSize: moderateScale(10),
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  logoRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: scale(15),
+  },
+  logoWrapper: {
+    position: 'relative',
+  },
+  logoCompact: {
+    width: moderateScale(70),
+    height: moderateScale(95),
+    borderRadius: 8,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 10,
   },
-  logoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: moderateScale(50),
-  },
-  logoBadge: {
+  verifiedMiniBadge: {
     position: 'absolute',
-    bottom: -18,
-    right: -22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    bottom: -6,
+    right: -6,
     backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 16,
-    borderWidth: 3,
-    borderColor: '#144272',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#0A2647',
+    zIndex: 10,
   },
-  badgeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#FFFFFF',
-    marginRight: 4,
+  brandTitleContainer: {
+    justifyContent: 'center',
   },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: moderateScale(9),
-    fontWeight: '700',
-  },
-  appName: {
-    fontSize: moderateScale(24),
+  appNameCompact: {
+    fontSize: moderateScale(20),
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 4,
     letterSpacing: 0.5,
   },
-  welcomeText: {
-    fontSize: moderateScale(14),
-    color: 'rgba(255, 255, 255, 0.95)',
-    fontWeight: '500',
-    marginBottom: 2,
+  appTaglineCompact: {
+    fontSize: moderateScale(10),
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
   },
-  tagline: {
-    fontSize: moderateScale(12),
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontWeight: '400',
+  welcomeSubtext: {
+    fontSize: moderateScale(11),
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontStyle: 'italic',
+    marginTop: 10,
+    textAlign: 'center',
   },
+
+  // Glass Form Design
   formContainer: {
     flex: 1,
     justifyContent: 'center',
-    paddingVertical: verticalScale(16),
   },
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+  glassFormCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     padding: scale(20),
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
-      } as any
-      : {
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 4,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 5,
-      }),
   },
-  formTitle: {
-    fontSize: moderateScale(19),
-    fontWeight: '700',
-    color: '#1E293B',
-    textAlign: 'center',
+  formHeader: {
+    alignItems: 'center',
     marginBottom: verticalScale(20),
-    letterSpacing: 0.3,
+  },
+  glassFormTitle: {
+    fontSize: moderateScale(20),
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  glassFormSubtitle: {
+    fontSize: moderateScale(12),
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   inputGroup: {
-    marginBottom: verticalScale(14),
+    marginBottom: verticalScale(12),
   },
-  inputLabel: {
-    fontSize: moderateScale(14),
+  glassInputLabel: {
+    fontSize: moderateScale(13),
     fontWeight: '600',
-    color: '#1E293B',
+    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 6,
+    marginLeft: 4,
   },
-  input: {
+  glassInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: scale(14),
+  },
+  glassInputError: {
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+  },
+  inputIcon: {
+    marginRight: scale(10),
+  },
+  glassTextInput: {
+    flex: 1,
     paddingVertical: verticalScale(12),
     fontSize: moderateScale(15),
-    color: '#1E293B',
-    backgroundColor: '#F8FAFC',
-  },
-  inputError: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEF2F2',
-  },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    paddingHorizontal: scale(14),
-    paddingVertical: verticalScale(12),
-    paddingRight: scale(48),
-    fontSize: moderateScale(15),
-    color: '#1E293B',
-    backgroundColor: '#F8FAFC',
+    color: '#FFFFFF',
   },
   eyeIcon: {
-    position: 'absolute',
-    right: scale(14),
-    top: verticalScale(12),
     padding: 4,
   },
-  errorText: {
-    color: '#EF4444',
-    fontSize: moderateScale(12),
+  glassErrorText: {
+    color: '#F87171',
+    fontSize: moderateScale(11),
     marginTop: 4,
     marginLeft: 4,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: verticalScale(18),
-    minHeight: 20,
+    marginBottom: verticalScale(15),
   },
-  forgotPasswordText: {
+  glassForgotPasswordText: {
     fontSize: moderateScale(13),
-    color: '#3B82F6',
+    color: '#10B981',
     fontWeight: '600',
   },
-  loginButton: {
-    borderRadius: 12,
+  glassLoginButton: {
+    borderRadius: 14,
     overflow: 'hidden',
-    marginBottom: verticalScale(16),
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 6px 20px rgba(59, 130, 246, 0.4)',
-      } as any
-      : {
-        shadowColor: '#3B82F6',
-        shadowOffset: {
-          width: 0,
-          height: 6,
-        },
-        shadowOpacity: 0.4,
-        shadowRadius: 15,
-        elevation: 8,
-      }),
+    marginBottom: verticalScale(15),
   },
-  loginButtonGradient: {
+  glassLoginButtonGradient: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingVertical: verticalScale(14),
-    paddingHorizontal: scale(24),
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  loginButtonText: {
-    fontSize: moderateScale(17),
-    fontWeight: '700',
+  glassLoginButtonText: {
+    fontSize: moderateScale(16),
+    fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
-  buttonIconContainer: {
-    marginLeft: 8,
+  glassButtonIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
   },
-  signupContainer: {
+  glassSignupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 5,
   },
-  signupText: {
-    fontSize: moderateScale(14),
-    color: '#64748B',
+  glassSignupText: {
+    fontSize: moderateScale(13),
+    color: 'rgba(255, 255, 255, 0.5)',
   },
-  signupLink: {
-    fontSize: moderateScale(14),
-    color: '#3B82F6',
+  glassSignupLink: {
+    fontSize: moderateScale(13),
+    color: '#FFFFFF',
     fontWeight: '700',
     textDecorationLine: 'underline',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
 

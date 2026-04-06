@@ -31,7 +31,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <View style={styles.modalContainer}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
-          
+
           <View style={styles.buttonContainer}>
             <Pressable
               style={[styles.button, styles.cancelButton]}
@@ -39,7 +39,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             >
               <Text style={styles.cancelText}>{cancelText}</Text>
             </Pressable>
-            
+
             <Pressable
               style={[styles.button, styles.confirmButton]}
               onPress={onConfirm}
@@ -61,11 +61,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 24,
     width: '85%',
     maxWidth: 400,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -90,11 +90,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   button: {
+    minWidth: 80,
+    borderRadius: 8,
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
   },
   cancelButton: {
     backgroundColor: '#f0f0f0',

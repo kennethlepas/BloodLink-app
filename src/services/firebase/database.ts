@@ -1,3 +1,4 @@
+import { KENYA_COUNTIES } from '@/src/constants/kenyaLocations';
 import {
   AcceptedRequest,
   AcceptedRequestStatus,
@@ -6,13 +7,23 @@ import {
   BloodType,
   Chat,
   ChatMessage,
+  CreateTicketFormData,
   DonationRecord,
   Donor,
+  DonorBooking,
+  HospitalReferral,
   InterestedDonor,
   Location,
   NewDocument,
   Notification,
+  NotificationType,
   Post,
+  RecipientBooking,
+  RequestStatus,
+  Ticket,
+  TicketFilters,
+  TicketMessage,
+  TicketStats,
   User,
   VerificationRequest
 } from '@/src/types/types';
@@ -26,11 +37,13 @@ import {
   GeoPoint,
   getDoc,
   getDocs,
+  increment,
   limit,
   onSnapshot,
   orderBy,
   query,
   QueryConstraint,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where
@@ -49,6 +62,34 @@ const CACHE_KEY_APPROVED_REVIEWS = 'bloodlink_approved_reviews_cache';
 
 const getCurrentTimestamp = (): string => {
   return new Date().toISOString();
+};
+
+/**
+ * Normalizes Firestore timestamps or ISO strings into ISO strings
+ * for consistent usage across the app's React Native components.
+ */
+const normalizeTimestamp = (timestamp: any): string => {
+  if (!timestamp) return new Date().toISOString();
+  if (typeof timestamp === 'string') return timestamp;
+  if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+    return timestamp.toDate().toISOString();
+  }
+  if (timestamp.seconds) {
+    return new Date(timestamp.seconds * 1000).toISOString();
+  }
+  try {
+    // If it's a number that looks like seconds (< year 2100 in seconds), convert to ms
+    if (typeof timestamp === 'number' && timestamp < 4102444800) {
+      return new Date(timestamp * 1000).toISOString();
+    }
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) {
+      return new Date().toISOString();
+    }
+    return date.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
 };
 
 const locationToGeoPoint = (location: Location): GeoPoint => {
@@ -151,6 +192,50 @@ export const countAvailableCompatibleDonors = async (
   }
 };
 
+/**
+ * Get compatible recipient blood types for a donor
+ * Returns array of blood types that the given donor blood type can donate to
+ */
+export const getCompatibleRecipientBloodTypes = (donorBloodType: BloodType): BloodType[] => {
+  const compatibility: { [key: string]: BloodType[] } = {
+    'O-': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'],
+    'O+': ['O+', 'A+', 'B+', 'AB+'],
+    'A-': ['A-', 'A+', 'AB-', 'AB+'],
+    'A+': ['A+', 'AB+'],
+    'B-': ['B-', 'B+', 'AB-', 'AB+'],
+    'B+': ['B+', 'AB+'],
+    'AB-': ['AB-', 'AB+'],
+    'AB+': ['AB+'],
+  };
+
+  return compatibility[donorBloodType] || [];
+};
+
+/**
+ * Count active compatible blood requests for a donor
+ */
+export const countActiveCompatibleRequests = async (
+  donorBloodType: BloodType,
+  location?: Location
+): Promise<number> => {
+  try {
+    const compatibleRecipientTypes = getCompatibleRecipientBloodTypes(donorBloodType);
+
+    const q = query(
+      collection(db, 'bloodRequests'),
+      where('status', '==', 'pending'),
+      where('verificationStatus', '==', 'approved'),
+      where('bloodType', 'in', compatibleRecipientTypes.length > 0 ? compatibleRecipientTypes : ['AB+'])
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.size;
+  } catch (error) {
+    console.error('Error counting active compatible requests:', error);
+    return 0;
+  }
+};
+
 
 
 // USER OPERATIONS
@@ -164,6 +249,9 @@ export const createUser = async (userId: string, userData: NewDocument<User>): P
       id: userId,
       isActive: true,
       points: 0,
+      hasReviewed: false, // Add hasReviewed field
+      verificationStatus: 'unsubmitted',
+      isVerified: false,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -208,6 +296,32 @@ export const updateUser = async (userId: string, updates: Partial<User>): Promis
   } catch (error) {
     console.error('Error updating user:', error);
     throw error;
+  }
+};
+
+/**
+ * Mark user as having reviewed the app
+ */
+export const markUserAsReviewed = async (userId: string): Promise<void> => {
+  try {
+    await updateUser(userId, { hasReviewed: true });
+    console.log('User marked as reviewed:', userId);
+  } catch (error) {
+    console.error('Error marking user as reviewed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if user has already reviewed the app
+ */
+export const hasUserReviewed = async (userId: string): Promise<boolean> => {
+  try {
+    const user = await getUser(userId);
+    return user?.hasReviewed || false;
+  } catch (error) {
+    console.error('Error checking if user reviewed:', error);
+    return false;
   }
 };
 
@@ -261,6 +375,8 @@ export const createBloodRequest = async (
     const requestDoc: any = {
       ...requestData,
       status: 'pending' as const,
+      // Link to the requester's verification record (docId = userId)
+      verificationRequestId: requestData.requesterId,
       createdAt: timestamp,
       expiresAt,
     };
@@ -347,6 +463,7 @@ export const getActiveBloodRequests = async (bloodType?: BloodType): Promise<Blo
   try {
     const constraints: QueryConstraint[] = [
       where('status', '==', 'pending'),
+      where('verificationStatus', '==', 'approved'),
       orderBy('createdAt', 'desc'),
     ];
 
@@ -578,7 +695,7 @@ export const cancelAcceptedRequest = async (
 ): Promise<void> => {
   try {
     await updateAcceptedRequest(acceptedRequestId, {
-      status: 'cancelled',
+      status: 'cancel',
       cancellationReason: reason,
     });
   } catch (error) {
@@ -691,15 +808,12 @@ export const getActiveBloodRequestsForDonor = async (
       return [];
     }
 
-    // Get all active requests
-    const constraints: any[] = [
+    // Get all active requests (approved and pending)
+    const constraints: QueryConstraint[] = [
       where('status', '==', 'pending'),
+      where('verificationStatus', '==', 'approved'),
       orderBy('createdAt', 'desc'),
     ];
-
-    if (bloodType) {
-      constraints.unshift(where('bloodType', '==', bloodType));
-    }
 
     const q = query(collection(db, 'bloodRequests'), ...constraints);
     const snapshot = await getDocs(q);
@@ -718,6 +832,16 @@ export const getActiveBloodRequestsForDonor = async (
 
 
 // BLOOD BANK OPERATIONS - REALTIME DATABASE
+
+// Helper to normalize location strings to Title Case for consistent matching
+const toTitleCase = (str: string): string => {
+  if (!str) return '';
+  return str
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
 
 export const getBloodBanks = async (): Promise<BloodBank[]> => {
   try {
@@ -738,8 +862,33 @@ export const getBloodBanks = async (): Promise<BloodBank[]> => {
 
       // Ensure all required fields exist
       if (bank && bank.name && bank.location) {
+        let county = (bank.county || '').trim();
+        let subCounty = (bank.subCounty || '').trim();
+
+        // Try to infer from address if missing
+        if (!county || !subCounty) {
+          const addr = (bank.address || '').toLowerCase();
+          const parts = addr.split(',').map((p: string) => p.trim());
+
+          if (!county) {
+            // Check if any of the parts match a known county
+            const matchedCounty = KENYA_COUNTIES.find(c => addr.includes(c.toLowerCase()));
+            county = matchedCounty || 'Nairobi';
+          }
+
+          if (!subCounty) {
+            // Just take a part of the address if possible
+            subCounty = parts.length > 1 ? parts[parts.length - 2] : 'Central';
+          }
+        }
+
+        // Normalize to Title Case for consistent matching with kenyaLocations constants
+        county = toTitleCase(county);
+        subCounty = toTitleCase(subCounty);
+
         bloodBanks.push({
           id: key,
+          code: bank.code || 'HOSP-' + key.substring(0, 4).toUpperCase(),
           name: bank.name,
           address: bank.address || '',
           location: {
@@ -749,12 +898,15 @@ export const getBloodBanks = async (): Promise<BloodBank[]> => {
             city: bank.location.city,
             region: bank.location.region,
           },
+          county: county,
+          subCounty: subCounty,
           phoneNumber: bank.phoneNumber || '',
           email: bank.email || '',
           operatingHours: bank.operatingHours || { open: '00:00', close: '23:59' },
           inventory: bank.inventory || {},
           isVerified: bank.isVerified || false,
           rating: bank.rating,
+          criticalNeed: bank.criticalNeed || false,
           createdAt: bank.createdAt || new Date().toISOString(),
           updatedAt: bank.updatedAt || new Date().toISOString(),
         });
@@ -794,6 +946,7 @@ export const getBloodBankById = async (bloodBankId: string): Promise<BloodBank |
       const bank = snapshot.val();
       return {
         id: bloodBankId,
+        code: bank.code || 'HOSP-' + bloodBankId.substring(0, 4).toUpperCase(),
         name: bank.name,
         address: bank.address || '',
         location: {
@@ -803,12 +956,15 @@ export const getBloodBankById = async (bloodBankId: string): Promise<BloodBank |
           city: bank.location.city,
           region: bank.location.region,
         },
+        county: bank.county || 'Nairobi',
+        subCounty: bank.subCounty || 'Central',
         phoneNumber: bank.phoneNumber || '',
         email: bank.email || '',
         operatingHours: bank.operatingHours || { open: '08:00', close: '17:00' },
         inventory: bank.inventory || {},
         isVerified: bank.isVerified || false,
         rating: bank.rating,
+        criticalNeed: bank.criticalNeed || false,
         createdAt: bank.createdAt || new Date().toISOString(),
         updatedAt: bank.updatedAt || new Date().toISOString(),
       };
@@ -913,7 +1069,8 @@ export const createChat = async (
   participant1Name: string,
   participant2Id: string,
   participant2Name: string,
-  requestId?: string
+  requestId?: string,
+  chatRole?: 'donor' | 'requester'
 ): Promise<string> => {
   try {
     const timestamp = getCurrentTimestamp();
@@ -926,6 +1083,7 @@ export const createChat = async (
         [participant1Id]: participant1Name,
         [participant2Id]: participant2Name,
       },
+      chatRole: chatRole || null,
       lastMessage: '',
       lastMessageTime: timestamp,
       unreadCount: {
@@ -957,20 +1115,22 @@ export const sendMessage = async (
   senderId: string,
   senderName: string,
   receiverId: string,
-  message: string
+  message: string,
+  referralId?: string
 ): Promise<void> => {
   try {
-    const timestamp = getCurrentTimestamp();
+    const timestamp = serverTimestamp();
     const messageId = `${chatId}_${Date.now()}`;
 
-    const messageDoc: ChatMessage = {
+    const messageDoc = {
       id: messageId,
       chatId,
+      referralId: referralId || null,
       senderId,
       senderName,
       receiverId,
       message,
-      timestamp,
+      timestamp, // Using serverTimestamp()
       isRead: false,
       type: 'text',
     };
@@ -979,18 +1139,29 @@ export const sendMessage = async (
 
     await setDoc(doc(db, 'messages', messageId), cleanedMessageDoc);
 
+    // 🏆 New: Trigger notification for receiver
+    try {
+      await createNotification({
+        userId: receiverId,
+        type: 'new_message',
+        title: `New message from ${senderName}`,
+        message: message.length > 50 ? `${message.substring(0, 47)}...` : message,
+        data: { chatId, senderId, senderName },
+        isRead: false,
+        timestamp: timestamp as any
+      });
+    } catch (notifErr) {
+      console.warn('[Database] Failed to send message notification:', notifErr);
+    }
+
     // Update chat's last message
     const chatRef = doc(db, 'chats', chatId);
-    const chatSnap = await getDoc(chatRef);
-    if (chatSnap.exists()) {
-      const chatData = chatSnap.data() as Chat;
-      await updateDoc(chatRef, {
-        lastMessage: message,
-        lastMessageTime: timestamp,
-        updatedAt: timestamp,
-        [`unreadCount.${receiverId}`]: (chatData.unreadCount[receiverId] || 0) + 1,
-      });
-    }
+    await updateDoc(chatRef, {
+      lastMessage: message,
+      lastMessageTime: timestamp as any,
+      updatedAt: timestamp as any,
+      [`unreadCount.${receiverId}`]: increment(1),
+    });
 
     console.log('Message sent:', messageId);
   } catch (error) {
@@ -999,7 +1170,11 @@ export const sendMessage = async (
   }
 };
 
-export const getUserChats = async (userId: string): Promise<Chat[]> => {
+/**
+ * Get all chats for a user, optionally filtered by role
+ * This helps isolate donor-related chats from requester-related chats
+ */
+export const getUserChats = async (userId: string, role?: 'donor' | 'requester'): Promise<Chat[]> => {
   try {
     const q = query(
       collection(db, 'chats'),
@@ -1007,9 +1182,93 @@ export const getUserChats = async (userId: string): Promise<Chat[]> => {
       orderBy('lastMessageTime', 'desc')
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => doc.data() as Chat);
+    const chats = snapshot.docs
+      .map((doc) => {
+        const data = doc.data() as Chat;
+        return {
+          ...data,
+          id: doc.id,
+          lastMessageTime: normalizeTimestamp(data.lastMessageTime),
+          createdAt: normalizeTimestamp(data.createdAt),
+          updatedAt: normalizeTimestamp(data.updatedAt),
+        } as Chat;
+      })
+      .filter((chat: Chat) => {
+        // 1. Filter out malformed documents
+        if (!chat.id || chat.id === 'undefined' || chat.id === 'null' || !chat.participants) {
+          return false;
+        }
+
+        // 2. Filter out chats with invalid/missing lastMessageTime (these cause "Invalid Date" UI)
+        if (!chat.lastMessageTime || isNaN(new Date(chat.lastMessageTime).getTime())) {
+          return false;
+        }
+
+        // 3. Filter out stale placeholder chats
+        if (chat.lastMessage === 'Chat started' && (chat.updatedAt === chat.createdAt || !chat.updatedAt)) {
+          const createdDate = new Date(chat.createdAt || Date.now()).getTime();
+          const oneHourAgo = Date.now() - (3600 * 1000);
+          if (createdDate < oneHourAgo) return false;
+        }
+
+        return true;
+      });
+
+    // If role is provided, filter chats by chatRole
+    if (role) {
+      return chats.filter((chat: Chat) => !chat.chatRole || chat.chatRole === role);
+    }
+
+    return chats;
   } catch (error) {
     console.error('Error getting user chats:', error);
+    throw error;
+  }
+};
+
+
+
+/**
+ * Cleanup malformed chats and messages
+ */
+export const cleanupMalformedData = async (userId: string): Promise<{ deleted: number }> => {
+  let deletedCount = 0;
+  try {
+    console.log('[Database] Starting malformed data cleanup for user:', userId);
+
+    // 1. Cleanup chats
+    const q = query(
+      collection(db, 'chats'),
+      where('participants', 'array-contains', userId)
+    );
+    const snapshot = await getDocs(q);
+
+    for (const snap of snapshot.docs) {
+      const id = snap.id;
+      const data = snap.data() as Chat;
+      let shouldDelete = false;
+
+      if (id === 'undefined' || id === 'null' || id.includes('undefined') || id.includes('null')) {
+        shouldDelete = true;
+      } else if (data.participants && (data.participants.includes('undefined') || data.participants.includes('null') || data.participants.includes(null as any))) {
+        shouldDelete = true;
+      }
+
+      if (shouldDelete) {
+        console.log('[Database] Deleting malformed chat:', id);
+        await deleteDoc(snap.ref);
+        deletedCount++;
+      }
+    }
+
+    // 2. Cleanup messages where chatId is malformed
+    // Note: We can't easily query all messages globally on client due to rules,
+    // but we can try to find messages sent by or to the user that have malformed chatId.
+    // However, the "chats/undefined" error is the main one.
+
+    return { deleted: deletedCount };
+  } catch (error) {
+    console.error('[Database] Cleanup failed:', error);
     throw error;
   }
 };
@@ -1045,7 +1304,14 @@ export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> =>
       orderBy('timestamp', 'asc')
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => doc.data() as ChatMessage);
+    return snapshot.docs.map((doc) => {
+      const data = doc.data() as ChatMessage;
+      return {
+        ...data,
+        id: doc.id,
+        timestamp: normalizeTimestamp(data.timestamp),
+      } as ChatMessage;
+    });
   } catch (error) {
     console.error('Error getting chat messages:', error);
     throw error;
@@ -1217,6 +1483,7 @@ export const subscribeToBloodRequests = (
     collection(db, 'bloodRequests'),
     where('bloodType', '==', bloodType),
     where('status', '==', 'pending'),
+    where('verificationStatus', '==', 'approved'),
     orderBy('createdAt', 'desc')
   );
 
@@ -1237,8 +1504,37 @@ export const subscribeToChatMessages = (
   );
 
   return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map((doc) => doc.data() as ChatMessage);
+    const messages = snapshot.docs.map((doc) => {
+      const data = doc.data() as ChatMessage;
+      return {
+        ...data,
+        id: doc.id,
+        timestamp: normalizeTimestamp(data.timestamp),
+      } as ChatMessage;
+    });
     callback(messages);
+  });
+};
+
+export const subscribeToUserChats = (
+  userId: string,
+  callback: (chats: Chat[]) => void
+) => {
+  const q = query(
+    collection(db, 'chats'),
+    where('participants', 'array-contains', userId),
+    orderBy('lastMessageTime', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const chats = snapshot.docs.map((doc) => {
+      const data = doc.data() as Chat;
+      return {
+        ...data,
+        id: doc.id,
+      } as Chat;
+    });
+    callback(chats);
   });
 };
 
@@ -1330,6 +1626,80 @@ export const disputeDonationByRequester = async (
 };
 
 /**
+ * Requester disputes the donation AND creates a support ticket
+ * This is the enhanced version that integrates with the ticket system
+ */
+export const disputeDonationByRequesterWithTicket = async (
+  acceptedRequest: AcceptedRequest,
+  userId: string,
+  userName: string,
+  userEmail: string,
+  userPhone: string | undefined,
+  disputeReason: string,
+  additionalDetails?: string
+): Promise<{ ticketId: string }> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+
+    // Update the accepted request status
+    await updateAcceptedRequest(acceptedRequest.id, {
+      status: 'disputed',
+      requesterVerifiedAt: timestamp,
+      requesterVerificationNotes: disputeReason,
+    });
+
+    // Create a support ticket for the dispute
+    const ticketData: CreateTicketFormData = {
+      type: 'dispute',
+      priority: 'high',
+      subject: `Dispute: Donation for ${acceptedRequest.patientName}`,
+      description: `I'm disputing the donation for ${acceptedRequest.patientName} at ${acceptedRequest.hospitalName}.\n\nReason: ${disputeReason}\n\nAdditional Details: ${additionalDetails || 'No additional details provided.'}`,
+      relatedEntityId: acceptedRequest.id,
+      relatedEntityType: 'accepted_request',
+    };
+
+    const ticketId = await createTicket(
+      userId,
+      userName,
+      userEmail,
+      userPhone,
+      ticketData
+    );
+
+    console.log('Donation disputed with ticket created:', ticketId);
+    return { ticketId };
+  } catch (error) {
+    console.error('Error disputing donation with ticket:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get a ticket ID by its related entity ID and type
+ */
+export const getTicketIdByRelatedEntity = async (
+  relatedEntityId: string,
+  relatedEntityType: string
+): Promise<string | null> => {
+  try {
+    const q = query(
+      collection(db, 'tickets'),
+      where('relatedEntityId', '==', relatedEntityId),
+      where('relatedEntityType', '==', relatedEntityType),
+      limit(1)
+    );
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      return querySnapshot.docs[0].id;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting ticket ID by related entity:', error);
+    return null;
+  }
+};
+
+/**
  * Complete donation after verification (called after requester verifies)
  */
 export const completeDonationAfterVerification = async (
@@ -1373,6 +1743,10 @@ export const markMessagesAsRead = async (
   chatId: string,
   userId: string
 ): Promise<void> => {
+  if (!chatId || chatId === 'undefined' || chatId === 'null' || chatId.includes('undefined')) {
+    console.warn('[Database] Skipping markMessagesAsRead: Invalid chatId:', chatId);
+    return;
+  }
   try {
     const q = query(
       collection(db, 'messages'),
@@ -1390,9 +1764,14 @@ export const markMessagesAsRead = async (
 
     // Reset unread count in chat
     const chatRef = doc(db, 'chats', chatId);
-    await updateDoc(chatRef, {
-      [`unreadCount.${userId}`]: 0
-    });
+    const chatSnap = await getDoc(chatRef);
+    if (chatSnap.exists()) {
+      await updateDoc(chatRef, {
+        [`unreadCount.${userId}`]: 0
+      });
+    } else {
+      console.warn('[Database] Chat document does not exist, skipping unread count reset:', chatId);
+    }
   } catch (error) {
     console.error('Error marking messages as read:', error);
     throw error;
@@ -1696,6 +2075,10 @@ export const addReview = async (reviewData: {
     await updateDoc(docRef, { id: docRef.id });
 
     console.log('Review submitted:', docRef.id);
+
+    // Mark user as reviewed after successful submission
+    await markUserAsReviewed(reviewData.userId);
+
     return docRef.id;
   } catch (error) {
     console.error('Error adding review:', error);
@@ -1926,6 +2309,1398 @@ export const updateVerificationStatus = async (
     console.log(`[Verification] User ${userId} marked as ${status}`);
   } catch (error) {
     console.log('[Verification] Error updating status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Deletes all Firestore data associated with a user
+ */
+export const deleteUserCollections = async (userId: string): Promise<void> => {
+  try {
+    console.log('[Database] Starting cleanup for user:', userId);
+
+    // 1. Delete user document
+    await deleteDoc(doc(db, 'users', userId));
+
+    // 2. Delete verification request if it exists
+    const verifRef = doc(db, 'verification_requests', userId);
+    const verifSnap = await getDoc(verifRef);
+    if (verifSnap.exists()) {
+      await deleteDoc(verifRef);
+    }
+
+    // 3. Delete notifications for this user
+    const notifsQuery = query(collection(db, 'notifications'), where('userId', '==', userId));
+    const notifsSnap = await getDocs(notifsQuery);
+    const deleteNotifPromises = notifsSnap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(deleteNotifPromises);
+
+    console.log('[Database] Cleanup successful for user:', userId);
+  } catch (error) {
+    console.error('[Database] Error during user cleanup:', error);
+    throw error;
+  }
+};
+
+
+// ==================== TICKET/DISPUTE SYSTEM OPERATIONS ====================
+
+/**
+ * Create a new support/dispute ticket
+ */
+export const createTicket = async (
+  userId: string,
+  userName: string,
+  userEmail: string,
+  userPhone: string | undefined,
+  ticketData: CreateTicketFormData
+): Promise<string> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+
+    // Check for potential duplicates (same subject + type within last 24 hours)
+    const duplicateCheck = await checkDuplicateTicket(userId, ticketData.subject, ticketData.type);
+
+    const ticket: any = {
+      userId,
+      userName,
+      userEmail,
+      userPhone,
+      type: ticketData.type,
+      priority: ticketData.priority,
+      status: 'open' as const,
+      subject: ticketData.subject,
+      description: ticketData.description,
+      relatedEntityId: ticketData.relatedEntityId,
+      relatedEntityType: ticketData.relatedEntityType,
+      disputeReason: ticketData.disputeReason,
+      additionalDetails: ticketData.additionalDetails,
+      messageCount: 0,
+      attachmentCount: 0,
+      source: 'app' as const,
+      duplicateOfTicketId: duplicateCheck?.duplicateOfTicketId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    const cleanedTicket = removeUndefinedFields(ticket);
+    const docRef = await addDoc(collection(db, 'tickets'), cleanedTicket);
+    await updateDoc(docRef, { id: docRef.id });
+
+    // Create initial message from user's description
+    if (ticketData.description) {
+      await createTicketMessage(docRef.id, userId, userName, 'user', ticketData.description);
+    }
+
+    console.log('Ticket created:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating ticket:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check for duplicate tickets (same subject + type within 24 hours)
+ */
+const checkDuplicateTicket = async (
+  userId: string,
+  subject: string,
+  type: string
+): Promise<{ duplicateOfTicketId: string } | null> => {
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const q = query(
+      collection(db, 'tickets'),
+      where('userId', '==', userId),
+      where('type', '==', type),
+      where('createdAt', '>=', twentyFourHoursAgo)
+    );
+
+    const snapshot = await getDocs(q);
+
+    for (const doc of snapshot.docs) {
+      const ticket = doc.data() as Ticket;
+      // Check if subject is similar (case-insensitive)
+      if (ticket.subject.toLowerCase() === subject.toLowerCase()) {
+        return { duplicateOfTicketId: ticket.id };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error checking duplicate ticket:', error);
+    return null;
+  }
+};
+
+/**
+ * Get a single ticket by ID
+ */
+export const getTicket = async (ticketId: string): Promise<Ticket | null> => {
+  try {
+    const docSnap = await getDoc(doc(db, 'tickets', ticketId));
+    if (docSnap.exists()) {
+      return docSnap.data() as Ticket;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting ticket:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all tickets for a user
+ */
+export const getUserTickets = async (userId: string): Promise<Ticket[]> => {
+  try {
+    const q = query(
+      collection(db, 'tickets'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data() as Ticket);
+  } catch (error) {
+    console.error('Error getting user tickets:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all tickets (for admin view)
+ */
+export const getAdminTickets = async (filters?: TicketFilters): Promise<Ticket[]> => {
+  try {
+    const constraints: QueryConstraint[] = [orderBy('createdAt', 'desc')];
+
+    if (filters?.status && filters.status.length > 0) {
+      // Note: Firestore 'in' query limited to 10 values
+      if (filters.status.length === 1) {
+        constraints.unshift(where('status', '==', filters.status[0]));
+      } else {
+        // For multiple statuses, we'll need to fetch and filter client-side
+        // This is a limitation of Firestore
+      }
+    }
+
+    if (filters?.assignedToMe && filters.assignedToMe) {
+      // This requires a composite index or client-side filtering
+    }
+
+    const q = query(collection(db, 'tickets'), ...constraints);
+    const snapshot = await getDocs(q);
+    let tickets = snapshot.docs.map(doc => doc.data() as Ticket);
+
+    // Client-side filtering for complex queries
+    if (filters) {
+      if (filters.status && filters.status.length > 1) {
+        tickets = tickets.filter(t => filters.status!.includes(t.status));
+      }
+      if (filters.type && filters.type.length > 0) {
+        tickets = tickets.filter(t => filters.type!.includes(t.type));
+      }
+      if (filters.priority && filters.priority.length > 0) {
+        tickets = tickets.filter(t => filters.priority!.includes(t.priority));
+      }
+      if (filters.assignedToMe) {
+        tickets = tickets.filter(t => t.assignedAdminId === filters.assignedToMe);
+      }
+      if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        tickets = tickets.filter(t =>
+          t.subject.toLowerCase().includes(query) ||
+          t.description.toLowerCase().includes(query)
+        );
+      }
+    }
+
+    return tickets;
+  } catch (error) {
+    console.error('Error getting admin tickets:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update ticket status
+ */
+export const updateTicketStatus = async (
+  ticketId: string,
+  newStatus: Ticket['status'],
+  performedBy: string,
+  performedByType: 'user' | 'admin' | 'system'
+): Promise<void> => {
+  try {
+    const ticket = await getTicket(ticketId);
+    if (!ticket) throw new Error('Ticket not found');
+
+    const timestamp = getCurrentTimestamp();
+    const updates: any = {
+      status: newStatus,
+      updatedAt: timestamp,
+    };
+
+    // Set status-specific timestamps
+    if (newStatus === 'resolved' && !ticket.resolvedAt) {
+      updates.resolvedAt = timestamp;
+    }
+    if (newStatus === 'closed' && !ticket.closedAt) {
+      updates.closedAt = timestamp;
+    }
+
+    await updateDoc(doc(db, 'tickets', ticketId), updates);
+
+    // Create audit log entry
+    await createTicketAuditLog({
+      ticketId,
+      action: 'status_changed',
+      performedBy,
+      performedByType,
+      previousValue: ticket.status,
+      newValue: newStatus,
+    });
+
+    console.log(`Ticket ${ticketId} status updated to ${newStatus}`);
+  } catch (error) {
+    console.error('Error updating ticket status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Assign ticket to admin
+ */
+export const assignTicketToAdmin = async (
+  ticketId: string,
+  adminId: string,
+  adminName: string
+): Promise<void> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+
+    await updateDoc(doc(db, 'tickets', ticketId), {
+      assignedAdminId: adminId,
+      assignedAdminName: adminName,
+      assignedAt: timestamp,
+      status: 'under_review',
+      updatedAt: timestamp,
+    });
+
+    // Create audit log entry
+    await createTicketAuditLog({
+      ticketId,
+      action: 'assigned',
+      performedBy: adminId,
+      performedByType: 'admin',
+      newValue: `${adminName} (${adminId})`,
+    });
+
+    console.log(`Ticket ${ticketId} assigned to admin ${adminName}`);
+  } catch (error) {
+    console.error('Error assigning ticket to admin:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create a ticket message
+ */
+export const createTicketMessage = async (
+  ticketId: string,
+  senderId: string,
+  senderName: string,
+  senderType: 'user' | 'admin',
+  message: string
+): Promise<string> => {
+  try {
+    const timestamp = serverTimestamp();
+    const messageId = `${ticketId}_${Date.now()}`;
+
+    const ticketMessage = {
+      id: messageId,
+      ticketId,
+      senderId,
+      senderName,
+      senderType,
+      message,
+      createdAt: timestamp,
+    };
+
+    const cleanedMessage = removeUndefinedFields(ticketMessage);
+    await setDoc(doc(db, 'ticketMessages', messageId), cleanedMessage);
+
+    // Update ticket message count and timestamp
+    const ticket = await getTicket(ticketId);
+    if (ticket) {
+      await updateDoc(doc(db, 'tickets', ticketId), {
+        messageCount: increment(1),
+        updatedAt: timestamp as any,
+        // Set first response time if this is the first admin message
+        firstResponseAt: (senderType === 'admin' && !ticket.firstResponseAt) ? timestamp as any : ticket.firstResponseAt,
+      });
+    }
+
+    // Create audit log entry
+    await createTicketAuditLog({
+      ticketId,
+      action: 'message_added',
+      performedBy: senderId,
+      performedByType: senderType,
+      newValue: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
+    });
+
+    console.log('Ticket message created:', messageId);
+    return messageId;
+  } catch (error) {
+    console.error('Error creating ticket message:', error);
+    throw error;
+  }
+};
+
+
+
+/**
+ * Subscribe to real-time notifications for a user
+ */
+export const subscribeToUserNotifications = (
+  userId: string,
+  callback: (notifications: Notification[]) => void
+) => {
+  const q = query(
+    collection(db, 'notifications'),
+    where('userId', '==', userId),
+    orderBy('timestamp', 'desc'),
+    limit(50)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const notifications = snapshot.docs.map(d => d.data() as Notification);
+    callback(notifications);
+  });
+};
+
+
+/**
+ * Get all messages for a ticket
+ */
+export const getTicketMessages = async (ticketId: string): Promise<TicketMessage[]> => {
+  try {
+    const q = query(
+      collection(db, 'ticketMessages'),
+      where('ticketId', '==', ticketId),
+      orderBy('createdAt', 'asc')
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => {
+      const data = doc.data() as TicketMessage;
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: normalizeTimestamp(data.createdAt),
+      } as TicketMessage;
+    });
+  } catch (error) {
+    console.error('Error getting ticket messages:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create ticket audit log entry
+ */
+export const createTicketAuditLog = async (auditData: {
+  ticketId: string;
+  action: string;
+  performedBy: string;
+  performedByType: 'user' | 'admin' | 'system';
+  previousValue?: string;
+  newValue: string;
+  metadata?: Record<string, any>;
+}): Promise<string> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    const auditId = `${auditData.ticketId}_${Date.now()}`;
+
+    const auditLog = {
+      id: auditId,
+      ...auditData,
+      timestamp,
+    };
+
+    const cleanedAudit = removeUndefinedFields(auditLog);
+    await setDoc(doc(db, 'ticketAuditLogs', auditId), cleanedAudit);
+
+    return auditId;
+  } catch (error) {
+    console.error('Error creating audit log:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get audit logs for a ticket
+ */
+export const getTicketAuditLogs = async (ticketId: string): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, 'ticketAuditLogs'),
+      where('ticketId', '==', ticketId),
+      orderBy('timestamp', 'asc')
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error('Error getting ticket audit logs:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get ticket statistics for dashboard
+ */
+export const getTicketStats = async (): Promise<TicketStats> => {
+  try {
+    const allTickets = await getAdminTickets();
+
+    const stats: TicketStats = {
+      total: allTickets.length,
+      open: allTickets.filter(t => t.status === 'open').length,
+      under_review: allTickets.filter(t => t.status === 'under_review').length,
+      awaiting_user: allTickets.filter(t => t.status === 'awaiting_user').length,
+      resolved: allTickets.filter(t => t.status === 'resolved').length,
+      closed: allTickets.filter(t => t.status === 'closed').length,
+      avgResolutionTimeHours: 0,
+      avgFirstResponseTimeHours: 0,
+    };
+
+    // Calculate average resolution time
+    const resolvedTickets = allTickets.filter(t => t.resolvedAt);
+    if (resolvedTickets.length > 0) {
+      const totalResolutionTime = resolvedTickets.reduce((sum, ticket) => {
+        const created = new Date(ticket.createdAt).getTime();
+        const resolved = new Date(ticket.resolvedAt!).getTime();
+        return sum + (resolved - created);
+      }, 0);
+      stats.avgResolutionTimeHours = Math.round(totalResolutionTime / resolvedTickets.length / (1000 * 60 * 60));
+    }
+
+    // Calculate average first response time
+    const ticketsWithResponse = allTickets.filter(t => t.firstResponseAt);
+    if (ticketsWithResponse.length > 0) {
+      const totalResponseTime = ticketsWithResponse.reduce((sum, ticket) => {
+        const created = new Date(ticket.createdAt).getTime();
+        const responded = new Date(ticket.firstResponseAt!).getTime();
+        return sum + (responded - created);
+      }, 0);
+      stats.avgFirstResponseTimeHours = Math.round(totalResponseTime / ticketsWithResponse.length / (1000 * 60 * 60));
+    }
+
+    return stats;
+  } catch (error) {
+    console.error('Error getting ticket stats:', error);
+    throw error;
+  }
+};
+
+/**
+ * Subscribe to ticket updates in real-time
+ */
+export const subscribeToTicket = (
+  ticketId: string,
+  callback: (ticket: Ticket | null) => void
+) => {
+  const unsubscribe = onSnapshot(doc(db, 'tickets', ticketId), (docSnap) => {
+    if (docSnap.exists()) {
+      callback(docSnap.data() as Ticket);
+    } else {
+      callback(null);
+    }
+  });
+
+  return unsubscribe;
+};
+
+/**
+ * Subscribe to ticket messages in real-time
+ */
+export const subscribeToTicketMessages = (
+  ticketId: string,
+  callback: (messages: TicketMessage[]) => void
+) => {
+  const q = query(
+    collection(db, 'ticketMessages'),
+    where('ticketId', '==', ticketId),
+    orderBy('createdAt', 'asc')
+  );
+
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const messages = snapshot.docs.map(doc => doc.data() as TicketMessage);
+    callback(messages);
+  });
+
+  return unsubscribe;
+};
+
+/**
+ * Close a ticket (user confirmed resolution)
+ */
+export const closeTicket = async (
+  ticketId: string,
+  performedBy: string,
+  performedByType: 'user' | 'admin'
+): Promise<void> => {
+  try {
+    await updateTicketStatus(ticketId, 'closed', performedBy, performedByType);
+    console.log(`Ticket ${ticketId} closed by ${performedBy}`);
+  } catch (error) {
+    console.error('Error closing ticket:', error);
+    throw error;
+  }
+};
+
+/**
+ * Reopen a closed ticket
+ */
+export const reopenTicket = async (
+  ticketId: string,
+  performedBy: string,
+  performedByType: 'user' | 'admin'
+): Promise<void> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+
+    await updateDoc(doc(db, 'tickets', ticketId), {
+      status: 'under_review',
+      closedAt: null,
+      updatedAt: timestamp,
+    });
+
+    // Create audit log entry
+    await createTicketAuditLog({
+      ticketId,
+      action: 'reopened',
+      performedBy,
+      performedByType,
+      newValue: 'under_review',
+    });
+
+    console.log(`Ticket ${ticketId} reopened by ${performedBy}`);
+  } catch (error) {
+    console.error('Error reopening ticket:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get tickets by related entity (e.g., all disputes for a donation)
+ */
+export const getTicketsByRelatedEntity = async (
+  entityId: string,
+  entityType: string
+): Promise<Ticket[]> => {
+  try {
+    const q = query(
+      collection(db, 'tickets'),
+      where('relatedEntityId', '==', entityId),
+      where('relatedEntityType', '==', entityType),
+      orderBy('createdAt', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data() as Ticket);
+  } catch (error) {
+    console.error('Error getting tickets by related entity:', error);
+    throw error;
+  }
+};
+
+/**
+ * Book a hospital donation for a donor
+ */
+export const bookHospitalDonation = async (
+  donorId: string,
+  bloodBankId: string,
+  scheduledDate: string
+): Promise<string> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    const bookingDoc = {
+      donorId,
+      bloodBankId,
+      scheduledDate,
+      status: 'pending' as RequestStatus,
+      type: 'hospital_donation',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    const docRef = await addDoc(collection(db, 'bookings'), removeUndefinedFields(bookingDoc));
+    await updateDoc(docRef, { id: docRef.id });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error booking hospital donation:', error);
+    throw error;
+  }
+};
+
+/**
+ * Book blood from a bank for a requester
+ */
+export const bookBloodFromBank = async (
+  requesterId: string,
+  bloodBankId: string,
+  bloodType: BloodType,
+  units: number
+): Promise<string> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    const bookingDoc = {
+      requesterId,
+      bloodBankId,
+      bloodType,
+      units,
+      status: 'pending' as RequestStatus,
+      type: 'blood_booking',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    const docRef = await addDoc(collection(db, 'bookings'), removeUndefinedFields(bookingDoc));
+    await updateDoc(docRef, { id: docRef.id });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error booking blood from bank:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generic cancel action for bookings or requests
+ */
+export const cancelAction = async (
+  actionId: string,
+  collectionName: 'bookings' | 'bloodRequests' | 'acceptedRequests',
+  reason: string
+): Promise<void> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    await updateDoc(doc(db, collectionName, actionId), {
+      status: 'cancel',
+      cancellationReason: reason,
+      updatedAt: timestamp,
+    });
+  } catch (error) {
+    console.error(`Error cancelling action in ${collectionName}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Get or create a chat between two participants
+ */
+let chatRegistryCache: any[] | null = null;
+let lastRegistryFetch: number = 0;
+const CACHE_TTL = 30000; // 30 seconds
+
+export const getOrCreateChat = async (
+  participant1Id: string,
+  participant1Name: string,
+  participant2Id: string,
+  participant2Name: string,
+  requestId?: string,
+  referralId?: string,
+  participantTypes?: { [key: string]: 'hospital' | 'user' },
+  chatRole?: 'donor' | 'requester'
+): Promise<string> => {
+  try {
+    // Guard against empty IDs
+    if (!participant1Id || !participant2Id) {
+      console.warn('[database] getOrCreateChat called with empty participant ID', { participant1Id, participant2Id });
+      throw new Error('Invalid participant ID');
+    }
+
+    // Role-isolated chatId format: ID1___ID2___ROLE
+    const sortedIds = [participant1Id, participant2Id].sort();
+    const baseId = sortedIds.join('___');
+    const chatId = chatRole ? `${baseId}___${chatRole}` : baseId;
+
+    // 1. Direct lookup for deterministic ID (Fastest & most reliable)
+    const directRef = doc(db, 'chats', chatId);
+    const directSnap = await getDoc(directRef);
+
+    if (directSnap.exists()) {
+      const data = directSnap.data();
+      // Ensure it matches optional filters if they are critical
+      if ((!requestId || data.requestId === requestId) &&
+        (!referralId || data.referralId === referralId)) {
+        return directSnap.id;
+      }
+    }
+
+    // 2. Search for existing chat (Legacy or multi-role support)
+    // If we're looking for a specific role, we shouldn't fallback to a different role
+    const chatsRef = collection(db, 'chats');
+    const q = query(
+      chatsRef,
+      where('participants', 'array-contains', participant1Id)
+    );
+
+    const snapshot = await getDocs(q);
+    const existingChat = snapshot.docs.find(doc => {
+      const data = doc.data();
+      return doc.id !== 'undefined' && doc.id !== 'null' &&
+        data.participants && data.participants.includes(participant2Id) &&
+        (!requestId || data.requestId === requestId) &&
+        (!referralId || data.referralId === referralId) &&
+        (chatRole ? data.chatRole === chatRole : !data.chatRole); // Strict role matching
+    });
+
+    if (existingChat) {
+      return existingChat.id;
+    }
+
+    // 3. Create new chat if not found
+    const timestamp = serverTimestamp();
+    const newChat = {
+      id: chatId,
+      participants: [participant1Id, participant2Id],
+      participantNames: {
+        [participant1Id]: participant1Name,
+        [participant2Id]: participant2Name,
+      },
+      participantTypes: participantTypes || {},
+      chatRole: chatRole || null,
+      lastMessage: 'Chat started',
+      lastMessageTime: timestamp,
+      unreadCount: {
+        [participant1Id]: 0,
+        [participant2Id]: 0,
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      requestId: requestId || null,
+      referralId: referralId || null,
+    };
+
+    await setDoc(doc(db, 'chats', chatId), removeUndefinedFields(newChat));
+    return chatId;
+  } catch (error) {
+    console.error('Error in getOrCreateChat:', error);
+    throw error;
+  }
+};
+
+/**
+ * Patch participantTypes on an existing chat document
+ * Used to backfill type info on legacy chats that were created before participantTypes was tracked
+ */
+export const patchChatParticipantTypes = async (
+  chatId: string,
+  participantId: string,
+  participantType: 'hospital' | 'user'
+): Promise<void> => {
+  try {
+    const chatRef = doc(db, 'chats', chatId);
+    await updateDoc(chatRef, {
+      [`participantTypes.${participantId}`]: participantType,
+    });
+    console.log(`[Database] Patched participantTypes for chat ${chatId}: ${participantId} => ${participantType}`);
+  } catch (error) {
+    console.error('[Database] Error patching participantTypes:', error);
+  }
+};
+
+/**
+ * Universal Chat Registry
+ * Fetches both Blood Banks and Users (Donors/Requesters) for the new chat picker
+ * Includes caching to avoid redundant fetches
+ */
+export const getChatRegistry = async (currentUserId: string, forceRefresh = false): Promise<{ id: string; name: string; type: 'hospital' | 'user'; bloodType?: BloodType; location?: string; }[]> => {
+  const now = Date.now();
+  if (!forceRefresh && chatRegistryCache && (now - lastRegistryFetch < CACHE_TTL)) {
+    console.log('[Database] Returning cached chat registry');
+    return chatRegistryCache;
+  }
+
+  try {
+    console.log('[Database] Fetching fresh chat registry');
+    const registry: any[] = [];
+
+    // 1. Fetch Hospitals from users collection (Primary)
+    const hospitalsPromise = getDocs(query(collection(db, 'users'), where('userType', '==', 'hospital')));
+    const usersPromise = getDocs(query(collection(db, 'users'), where('userType', '!=', 'hospital'), where('isActive', '==', true)));
+    // 2. Fetch Blood Banks from RTDB (Fallback/Legacy)
+    const banksPromise = getBloodBanks();
+
+    const [hospitalsSnap, usersSnap, banks] = await Promise.all([hospitalsPromise, usersPromise, banksPromise]);
+
+    // Process Hospitals from Firestore
+    hospitalsSnap.forEach(doc => {
+      const data = doc.data();
+      registry.push({
+        id: doc.id,
+        name: data.hospitalName || data.name || 'Unknown Hospital',
+        type: 'hospital',
+        location: data.location?.city || data.location?.address
+      });
+    });
+
+    // Process Users from Firestore
+    usersSnap.forEach(doc => {
+      const data = doc.data() as User;
+      if (data.id !== currentUserId) {
+        registry.push({
+          id: data.id,
+          name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.email,
+          type: 'user',
+          bloodType: data.bloodType,
+          location: data.location?.city || data.location?.address
+        });
+      }
+    });
+
+    // Add RTDB banks ONLY if not already present from Firestore
+    const knownIds = new Set(registry.map(r => r.id));
+    banks.forEach(bank => {
+      if (!knownIds.has(bank.id)) {
+        registry.push({
+          id: bank.id,
+          name: bank.name,
+          type: 'hospital',
+          location: bank.address
+        });
+      }
+    });
+
+    chatRegistryCache = registry;
+    lastRegistryFetch = now;
+    return registry;
+  } catch (error) {
+    console.error('Error fetching chat registry:', error);
+    return chatRegistryCache || [];
+  }
+};
+
+// ==================== DONOR BOOKING FUNCTIONS ====================
+
+/**
+ * Creates a new donor booking in Firestore
+ */
+export const createBooking = async (
+  bookingData: Omit<DonorBooking, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<string> => {
+  try {
+    console.log('[Database] Creating booking for donor:', bookingData.donorId);
+
+    const bookingsRef = collection(db, 'donorBookings');
+    const bookingDoc = {
+      ...bookingData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    // Remove any undefined fields
+    const cleanedData = removeUndefinedFields(bookingDoc);
+    const docRef = await addDoc(bookingsRef, cleanedData);
+
+    // Update doc with its own ID
+    await updateDoc(docRef, { id: docRef.id });
+
+    // 🏆 New: Notify the hospital
+    try {
+      await createNotification({
+        userId: bookingData.hospitalId,
+        type: 'system_alert',
+        title: 'New Donation Appointment',
+        message: `Donor ${bookingData.donorName} has booked a ${bookingData.bloodType} donation for ${bookingData.scheduledDate} at ${bookingData.scheduledTime}.`,
+        data: { bookingId: docRef.id, hospitalId: bookingData.hospitalId },
+        isRead: false,
+        timestamp: getCurrentTimestamp()
+      });
+    } catch (notifErr) {
+      console.warn('[Database] Failed to notify hospital of new booking:', notifErr);
+    }
+
+    console.log('[Database] Booking created successfully:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('[Database] Error creating booking:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all donor bookings for a specific donor
+ */
+export const getDonorBookings = async (donorId: string): Promise<DonorBooking[]> => {
+  try {
+    console.log('[Database] Fetching bookings for donor:', donorId);
+
+    const q = query(
+      collection(db, 'donorBookings'),
+      where('donorId', '==', donorId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+
+    const bookings = snapshot.docs.map(doc => {
+      const data = doc.data();
+
+      // Convert Firestore timestamps to ISO strings for consistent handling
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || new Date().toISOString(),
+        scheduledDate: data.scheduledDate || '',
+        scheduledTime: data.scheduledTime || '',
+      } as DonorBooking;
+    });
+
+    console.log('[Database] Found bookings:', bookings.length);
+    return bookings;
+  } catch (error) {
+    console.error('[Database] Error getting donor bookings:', error);
+    return [];
+  }
+};
+
+/**
+ * Get donor bookings with real-time updates
+ */
+export const subscribeToDonorBookings = (
+  donorId: string,
+  callback: (bookings: DonorBooking[]) => void
+) => {
+  console.log('[Database] Subscribing to bookings for donor:', donorId);
+
+  const q = query(
+    collection(db, 'donorBookings'),
+    where('donorId', '==', donorId),
+    orderBy('createdAt', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const bookings = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || new Date().toISOString(),
+        scheduledDate: data.scheduledDate || '',
+        scheduledTime: data.scheduledTime || '',
+      } as DonorBooking;
+    });
+    callback(bookings);
+  });
+};
+
+/**
+ * Get a single donor booking by ID
+ */
+export const getDonorBookingById = async (bookingId: string): Promise<DonorBooking | null> => {
+  try {
+    const docSnap = await getDoc(doc(db, 'donorBookings', bookingId));
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || new Date().toISOString(),
+      } as DonorBooking;
+    }
+    return null;
+  } catch (error) {
+    console.error('[Database] Error getting donor booking:', error);
+    return null;
+  }
+};
+
+/**
+ * Update a donor booking status (used by admin verification)
+ */
+export const updateDonorBookingStatus = async (
+  bookingId: string,
+  status: string,
+  extras?: { rejectionReason?: string; screeningNotes?: string; verifiedBy?: string; donationRecordId?: string }
+): Promise<void> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    const updates: any = {
+      status,
+      updatedAt: serverTimestamp(),
+    };
+    if (status === 'confirmed') updates.confirmedAt = serverTimestamp();
+    if (status === 'completed') updates.completedAt = serverTimestamp();
+    if (status === 'confirmed' || status === 'completed') updates.verifiedAt = serverTimestamp();
+    if (extras) Object.assign(updates, removeUndefinedFields(extras));
+
+    await updateDoc(doc(db, 'donorBookings', bookingId), updates);
+
+    // 🏆 New: Notify the donor of status updates
+    try {
+      const booking = await getDonorBookingById(bookingId);
+      if (booking) {
+        let title = '';
+        let message = '';
+        let type: NotificationType = 'system_alert';
+
+        if (status === 'confirmed') {
+          title = 'Booking Confirmed! ✅';
+          message = `Your donation appointment at ${booking.hospitalName} for ${booking.scheduledDate} has been confirmed.`;
+          type = 'booking_confirmed';
+        } else if (status === 'completed') {
+          title = 'Donation Completed! 🏆';
+          message = `Thank you for donating blood at ${booking.hospitalName}. You've earned points for saving lives!`;
+          type = 'booking_completed';
+        } else if (status === 'rejected') {
+          title = 'Booking Update';
+          message = `Your appointment at ${booking.hospitalName} was not approved. ${extras?.rejectionReason ? `Reason: ${extras.rejectionReason}` : ''}`;
+          type = 'booking_rejected';
+        } else if (status === 'no_show') {
+          title = 'Appointment Missed';
+          message = `It seems you missed your appointment at ${booking.hospitalName}. You can re-book when available.`;
+        } else if (status === 'deferred') {
+          title = 'Donation Deferred';
+          message = `Your donation was deferred at ${booking.hospitalName}. ${extras?.screeningNotes ? `Notes: ${extras.screeningNotes}` : ''}`;
+        } else if (status === 'cancel') {
+          // If user cancelled, notify hospital. If hospital cancelled, notify user.
+          // For now, if status is 'cancel', we notify the hospital as per existing logic
+          await createNotification({
+            userId: booking.hospitalId,
+            type: 'system_alert',
+            title: 'Donation Booking Cancelled',
+            message: `Donor ${booking.donorName} has cancelled their booking (ID: ${booking.bookingId}).`,
+            data: { bookingId: booking.id, hospitalId: booking.hospitalId },
+            isRead: false,
+            timestamp: timestamp
+          });
+          return; // Skip the user notification for self-cancellation
+        }
+
+        if (title && message) {
+          await createNotification({
+            userId: booking.donorId,
+            type,
+            title,
+            message,
+            data: { bookingId: booking.id, status },
+            isRead: false,
+            timestamp: timestamp
+          });
+        }
+      }
+    } catch (notifyError) {
+      console.error('[Database] Error sending donor booking notification:', notifyError);
+    }
+
+    console.log('[Database] Donor booking updated:', bookingId, status);
+  } catch (error) {
+    console.error('[Database] Error updating donor booking status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Subscribe to real-time updates on a donor booking
+ */
+export const subscribeToDonorBooking = (
+  bookingId: string,
+  callback: (booking: DonorBooking | null) => void
+) => {
+  return onSnapshot(doc(db, 'donorBookings', bookingId), (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      callback({
+        id: docSnap.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || new Date().toISOString(),
+      } as DonorBooking);
+    } else {
+      callback(null);
+    }
+  });
+};
+
+// ==================== RECIPIENT BOOKING FUNCTIONS ====================
+
+/**
+ * Creates a new recipient booking in Firestore
+ */
+export const createRecipientBooking = async (
+  bookingData: Omit<RecipientBooking, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<string> => {
+  try {
+    console.log('[Database] Creating recipient booking for:', bookingData.requesterId);
+
+    const bookingsRef = collection(db, 'recipientBookings');
+    const bookingDoc = {
+      ...bookingData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    const cleanedData = removeUndefinedFields(bookingDoc);
+    const docRef = await addDoc(bookingsRef, cleanedData);
+    await updateDoc(docRef, { id: docRef.id });
+
+    // 🏆 New: Notify the hospital
+    try {
+      await createNotification({
+        userId: bookingData.hospitalId,
+        type: 'system_alert',
+        title: 'New Transfusion Request',
+        message: `A new transfusion booking for ${bookingData.bloodType} has been requested by ${bookingData.requesterName} for ${bookingData.scheduledDate}.`,
+        data: { bookingId: docRef.id, hospitalId: bookingData.hospitalId },
+        isRead: false,
+        timestamp: getCurrentTimestamp()
+      });
+    } catch (notifErr) {
+      console.warn('[Database] Failed to notify hospital of new recipient booking:', notifErr);
+    }
+
+    console.log('[Database] Recipient booking created:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('[Database] Error creating recipient booking:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all recipient bookings for a specific requester
+ */
+export const getRecipientBookings = async (requesterId: string): Promise<RecipientBooking[]> => {
+  try {
+    const q = query(
+      collection(db, 'recipientBookings'),
+      where('requesterId', '==', requesterId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || new Date().toISOString(),
+      } as RecipientBooking;
+    });
+  } catch (error) {
+    console.error('[Database] Error getting recipient bookings:', error);
+    return [];
+  }
+};
+
+/**
+ * Subscribe to recipient bookings in real-time
+ */
+export const subscribeToRecipientBookings = (
+  requesterId: string,
+  callback: (bookings: RecipientBooking[]) => void
+) => {
+  const q = query(
+    collection(db, 'recipientBookings'),
+    where('requesterId', '==', requesterId),
+    orderBy('createdAt', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const bookings = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || new Date().toISOString(),
+      } as RecipientBooking;
+    });
+    callback(bookings);
+  });
+};
+
+/**
+ * Update a recipient booking status
+ */
+export const updateRecipientBookingStatus = async (
+  bookingId: string,
+  status: string,
+  extras?: { rejectionReason?: string; verifiedBy?: string; donationRecordId?: string }
+): Promise<void> => {
+  try {
+    const updates: any = {
+      status,
+      updatedAt: serverTimestamp(),
+    };
+    if (status === 'confirmed') updates.confirmedAt = serverTimestamp();
+    if (status === 'completed' || status === 'fulfilled') updates.completedAt = serverTimestamp();
+    if (extras) Object.assign(updates, removeUndefinedFields(extras));
+
+    await updateDoc(doc(db, 'recipientBookings', bookingId), updates);
+
+    // 🏆 New: Notify the requester of status updates
+    try {
+      const bookingSnap = await getDoc(doc(db, 'recipientBookings', bookingId));
+      if (bookingSnap.exists()) {
+        const b = bookingSnap.data();
+        let title = '';
+        let message = '';
+        let type: NotificationType = 'system_alert';
+
+        if (status === 'confirmed') {
+          title = 'Transfusion Confirmed ✅';
+          message = `Your request for ${b.bloodType} at ${b.hospitalName} has been confirmed for ${b.scheduledDate}.`;
+          type = 'booking_confirmed';
+        } else if (status === 'processing') {
+          title = 'Blood Prep in Progress ⏳';
+          message = `${b.hospitalName} is preparing the blood units for your transfusion.`;
+        } else if (status === 'ready') {
+          title = 'Blood Ready for Transfusion! 🩸';
+          message = `The requested blood is ready at ${b.hospitalName}. Please proceed as scheduled.`;
+          type = 'booking_fulfilled';
+        } else if (status === 'fulfilled' || status === 'completed') {
+          title = 'Transfusion Completed! ✨';
+          message = `Your transfusion process at ${b.hospitalName} has been marked as complete.`;
+          type = 'booking_completed';
+        } else if (status === 'rejected') {
+          title = 'Request Not Approved';
+          message = `Your transfusion request at ${b.hospitalName} was not approved. ${extras?.rejectionReason ? `Reason: ${extras.rejectionReason}` : ''}`;
+          type = 'booking_rejected';
+        } else if (status === 'cancel') {
+          // Notify hospital of cancellation
+          await createNotification({
+            userId: b.hospitalId,
+            type: 'system_alert',
+            title: 'Transfusion Booking Cancelled',
+            message: `Patient/Requester ${b.requesterName} has cancelled their booking (ID: ${b.bookingId}).`,
+            data: { bookingId, hospitalId: b.hospitalId },
+            isRead: false,
+            timestamp: getCurrentTimestamp()
+          });
+          return;
+        }
+
+        if (title && message) {
+          await createNotification({
+            userId: b.requesterId,
+            type,
+            title,
+            message,
+            data: { bookingId, status },
+            isRead: false,
+            timestamp: getCurrentTimestamp()
+          });
+        }
+      }
+    } catch (notifyError) {
+      console.error('[Database] Error sending recipient booking notification:', notifyError);
+    }
+
+    console.log('[Database] Recipient booking updated:', bookingId, status);
+  } catch (error) {
+    console.error('[Database] Error updating recipient booking status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all hospital referrals for a user (as patient)
+ */
+export const getHospitalReferrals = async (userId: string): Promise<HospitalReferral[]> => {
+  try {
+    const user = await getUser(userId);
+    if (!user) return [];
+
+    const fullName = `${user.firstName} ${user.lastName}`.trim();
+
+    // Query for referrals matching patient name or other identifiers
+    const q = query(
+      collection(db, 'hospital_referrals'),
+      where('patientName', 'in', [fullName, user.firstName, user.lastName, user.id, user.phoneNumber].filter(Boolean))
+    );
+
+    const snapshot = await getDocs(q);
+    let list = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as HospitalReferral));
+
+    // Client-side filter for extra safety
+    list = list.filter(ref =>
+      ref.patientName === fullName ||
+      (ref as any).userId === user.id ||
+      (ref as any).patientPhone === user.phoneNumber
+    );
+
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (error) {
+    console.error('Error fetching hospital referrals:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update hospital referral status and trigger notification
+ * Typically called by Admin, but added here for consistency and manual triggers
+ */
+export const updateHospitalReferralStatus = async (
+  referralId: string,
+  status: 'pending' | 'accepted' | 'declined' | 'completed',
+  patientId: string
+): Promise<void> => {
+  try {
+    const timestamp = getCurrentTimestamp();
+    await updateDoc(doc(db, 'hospital_referrals', referralId), {
+      status,
+      updatedAt: timestamp,
+    });
+
+    // Trigger notification for the patient
+    const referralSnap = await getDoc(doc(db, 'hospital_referrals', referralId));
+    if (referralSnap.exists()) {
+      const data = referralSnap.data() as HospitalReferral;
+      let title = '';
+      let message = '';
+
+      if (status === 'accepted') {
+        title = 'Referral Accepted 🏥';
+        message = `${data.targetHospital} has accepted your referral from ${data.fromHospitalName}.`;
+      } else if (status === 'completed') {
+        title = 'Referral Completed ✅';
+        message = `Your referral to ${data.targetHospital} has been marked as complete.`;
+      } else if (status === 'declined') {
+        title = 'Referral Not Accepted';
+        message = `Your referral to ${data.targetHospital} could not be processed at this time.`;
+      }
+
+      if (title && message) {
+        await createNotification({
+          userId: patientId,
+          type: 'system_alert',
+          title,
+          message,
+          data: { referralId, status },
+          isRead: false,
+          timestamp: timestamp
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error updating hospital referral status:', error);
     throw error;
   }
 };

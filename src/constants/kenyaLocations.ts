@@ -1,5 +1,5 @@
 export const KENYA_COUNTIES = [
-    "Mombasa", "Kwale", "Kilifi", "Tana River", "Lamu", "Taita–Taveta",
+    "Mombasa", "Kwale", "Kilifi", "Tana River", "Lamu", "Taita-Taveta",
     "Garissa", "Wajir", "Mandera", "Marsabit", "Isiolo", "Meru",
     "Tharaka-Nithi", "Embu", "Kitui", "Machakos", "Makueni", "Nyandarua",
     "Nyeri", "Kirinyaga", "Murang'a", "Kiambu", "Turkana", "West Pokot",
@@ -9,20 +9,56 @@ export const KENYA_COUNTIES = [
     "Kisumu", "Homa Bay", "Migori", "Kisii", "Nyamira", "Nairobi"
 ].sort();
 
-export const COUNTY_TOWNS: Record<string, string[]> = {
-    "Mombasa": ["Mombasa City", "Nyali", "Changamwe", "Likoni", "Mtongwe"],
-    "Nairobi": ["Nairobi City", "Westlands", "Kasarani", "Dagoretti", "Lang'ata", "Embakasi"],
-    "Kisumu": ["Kisumu City", "Ahero", "Kondele", "Maseno", "Muhoroni"],
-    "Nakuru": ["Nakuru City", "Naivasha", "Molo", "Gilgil", "Njoro"],
-    "Uasin Gishu": ["Eldoret Town", "Burnt Forest", "Turbo", "Ziwa"],
-    "Kiambu": ["Kiambu Town", "Thika", "Ruiru", "Limuru", "Kikuyu", "Gatundu"],
-    "Machakos": ["Machakos Town", "Athi River", "Kangundo", "Tala", "Masii"],
-    "Kajiado": ["Kajiado Town", "Ngong", "Kitengela", "Namanga", "Loitokitok"],
-    "Mombasa City": ["Mombasa Town", "Mtwapa", "Mariakani"], // Handling sub-cities if needed
-    // ... Add more as needed or use a generic list for others
+export const COUNTY_SUB_COUNTIES: Record<string, string[]> = {
+    "Mombasa": ["Changamwe", "Jomvu", "Kisauni", "Nyali", "Likoni", "Mvita"],
+    "Kwale": ["Msambweni", "Lungalunga", "Kwale", "Kinango"],
+    "Kilifi": ["Kilifi North", "Kilifi South", "Kaloleni", "Rabai", "Ganze", "Malindi", "Magarini"],
+    "Tana River": ["Tana Delta", "Tana River", "Tana North"],
+    "Lamu": ["Lamu East", "Lamu West"],
+    "Taita-Taveta": ["Taveta", "Wundanyi", "Mwatate", "Voi"],
+    "Garissa": ["Garissa Township", "Balambala", "Lagdera", "Dadaab", "Fafi", "Ijara"],
+    "Wajir": ["Wajir North", "Wajir East", "Wajir South", "Wajir West", "Eldas", "Tarbaj"],
+    "Mandera": ["Mandera West", "Mandera North", "Mandera Central", "Mandera East", "Lafey", "Banissa"],
+    "Marsabit": ["Moyale", "North Horr", "Saku", "Laisamis"],
+    "Isiolo": ["Isiolo", "Garbatulla", "Merti"],
+    "Meru": ["Igembe South", "Igembe Central", "Igembe North", "Tigania West", "Tigania East", "North Imenti", "Buuri", "Central Imenti", "South Imenti"],
+    "Tharaka-Nithi": ["Maara", "Chuka/Igambang'ombe", "Tharaka"],
+    "Embu": ["Manyatta", "Runyenjes", "Mbeere North", "Mbeere South"],
+    "Kitui": ["Mwingi North", "Mwingi Central", "Mwingi South", "Kitui West", "Kitui Rural", "Kitui Central", "Kitui South", "Kitui East"],
+    "Machakos": ["Masinga", "Matungulu", "Kangundo", "Kathiani", "Machakos Town", "Mwala", "Yatta", "Mavoko"],
+    "Makueni": ["Mbooni", "Kilome", "Kaiti", "Makueni", "Kibwezi West", "Kibwezi East"],
+    "Nyandarua": ["Kinangop", "Kipipiri", "Ol Kalou", "Ol Joro Orok", "Ndaragwa"],
+    "Nyeri": ["Tetu", "Kieni", "Mathira", "Othaya", "Mukurweini", "Nyeri Town"],
+    "Kirinyaga": ["Mwea", "Gichugu", "Ndia", "Kirinyaga Central"],
+    "Murang'a": ["Kangema", "Mathioya", "Kiharu", "Kigumo", "Maragua", "Kandara", "Gatanga"],
+    "Kiambu": ["Gatundu South", "Gatundu North", "Juja", "Thika Town", "Ruiru", "Githunguri", "Kiambu", "Limuru", "Kikuyu", "Kabete", "Lari", "Kiambaa"],
+    "Turkana": ["Turkana North", "Turkana West", "Turkana Central", "Loima", "Turkana South", "Turkana East"],
+    "West Pokot": ["Kapenguria", "Sigor", "Pokot South", "Kacheliba"],
+    "Samburu": ["Samburu West", "Samburu North", "Samburu East"],
+    "Trans-Nzoia": ["Kwanza", "Endebess", "Saboti", "Kiminini", "Cherangany"],
+    "Uasin Gishu": ["Soy", "Turbo", "Moiben", "Ainabkoi", "Kapseret", "Kesses"],
+    "Elgeyo-Marakwet": ["Marakwet East", "Marakwet West", "Keiyo North", "Keiyo South"],
+    "Nandi": ["Tinderet", "Aldai", "Nandi Hills", "Chesumei", "Emgwen", "Mosop"],
+    "Baringo": ["Tiaty", "Baringo North", "Baringo Central", "Baringo South", "Mogotio", "Eldama Ravine"],
+    "Laikipia": ["Laikipia West", "Laikipia East", "Laikipia North"],
+    "Nakuru": ["Molo", "Njoro", "Naivasha", "Gilgil", "Kuresoi South", "Kuresoi North", "Subukia", "Rongai", "Bahati", "Nakuru Town West", "Nakuru Town East"],
+    "Narok": ["Narok North", "Narok South", "Narok West", "Narok East", "Kilgoris", "Emurua Dikirr"],
+    "Kajiado": ["Kajiado Central", "Kajiado North", "Kajiado South", "Kajiado East", "Kajiado West"],
+    "Kericho": ["Ainamoi", "Belgut", "Sigowet/Soin", "Kipkelion West", "Kipkelion East", "Bureti"],
+    "Bomet": ["Sotik", "Chepalungu", "Bomet East", "Bomet Central", "Konoin"],
+    "Kakamega": ["Lugari", "Likuyani", "Malava", "Lurambi", "Navakholo", "Mumias West", "Mumias East", "Matungu", "Butere", "Khwisero", "Shinyalu", "Ikolomani"],
+    "Vihiga": ["Vihiga", "Sabatia", "Hamisi", "Luanda", "Emuhaya"],
+    "Bungoma": ["Mt. Elgon", "Sirisia", "Kabuchai", "Bumula", "Kanduyi", "Webuye East", "Webuye West", "Kimilili", "Tongaren"],
+    "Busia": ["Teso North", "Teso South", "Nambale", "Matayos", "Butula", "Funyula", "Budalangi"],
+    "Siaya": ["Ugenya", "Ugunja", "Alego Usonga", "Gem", "Bondo", "Rarieda"],
+    "Kisumu": ["Kisumu East", "Kisumu West", "Kisumu Central", "Seme", "Nyando", "Muhoroni", "Nyakach"],
+    "Homa Bay": ["Kasipul", "Kabondo Kasipul", "Karachuonyo", "Rangwe", "Homa Bay Town", "Ndhiwa", "Mbita", "Suba"],
+    "Migori": ["Rongo", "Awendo", "Suna East", "Suna West", "Uriri", "Nyatike", "Kuria West", "Kuria East"],
+    "Kisii": ["Bonchari", "South Mugirango", "Bomachoge Borabu", "Bomachoge Chache", "Bobasi", "Nyaribari Masaba", "Nyaribari Chache", "Kitutu Chache North", "Kitutu Chache South"],
+    "Nyamira": ["Kitutu Masaba", "West Mugirango", "North Mugirango", "Borabu"],
+    "Nairobi": ["Westlands", "Dagoretti North", "Dagoretti South", "Lang'ata", "Kibra", "Roysambu", "Kasarani", "Ruaraka", "Embakasi North", "Embakasi Central", "Embakasi East", "Embakasi West", "Embakasi South", "Makadara", "Kamukunji", "Starehe", "Mathare"]
 };
 
-// Fallback for counties with missing town data
-export const getTownsByCounty = (county: string): string[] => {
-    return COUNTY_TOWNS[county] || ["Main Town", "Other"];
+export const getSubCountiesByCounty = (county: string): string[] => {
+    return COUNTY_SUB_COUNTIES[county] || ["Main Sub-County", "Other"];
 };

@@ -6,16 +6,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -55,7 +55,7 @@ const DonationHistoryItem: React.FC<DonationHistoryItemProps> = ({ donation }) =
       <View style={styles.donationIconContainer}>
         <Ionicons name="water" size={24} color="#DC2626" />
       </View>
-      
+
       <View style={styles.donationInfo}>
         <View style={styles.donationHeader}>
           <Text style={styles.donationBloodType}>{donation.bloodType}</Text>
@@ -64,16 +64,16 @@ const DonationHistoryItem: React.FC<DonationHistoryItemProps> = ({ donation }) =
             <Text style={styles.pointsText}>+{donation.pointsEarned}</Text>
           </View>
         </View>
-        
+
         <Text style={styles.donationDate}>{formatDate(donation.donationDate)}</Text>
-        
+
         {donation.bloodBankName && (
           <View style={styles.donationLocation}>
             <Ionicons name="location-outline" size={14} color="#64748B" />
             <Text style={styles.donationLocationText}>{donation.bloodBankName}</Text>
           </View>
         )}
-        
+
         {donation.unitsCollected && (
           <Text style={styles.donationUnits}>{donation.unitsCollected} units collected</Text>
         )}
@@ -86,7 +86,7 @@ export default function DonorProfileViewScreen() {
   const router = useRouter();
   const { user } = useUser();
   const params = useLocalSearchParams<{ donorData?: string }>();
-  
+
   const [donor, setDonor] = useState<Donor | null>(null);
   const [donationHistory, setDonationHistory] = useState<DonationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,11 +99,11 @@ export default function DonorProfileViewScreen() {
   const loadDonorData = async () => {
     try {
       setLoading(true);
-      
+
       if (params.donorData) {
         const donorData = JSON.parse(params.donorData) as Donor;
         setDonor(donorData);
-        
+
         // Load donation history
         const history = await getDonorHistory(donorData.id);
         setDonationHistory(history);
@@ -163,7 +163,7 @@ export default function DonorProfileViewScreen() {
     if (!donor) return;
 
     const availability = getAvailabilityInfo();
-    
+
     if (!availability.canDonate) {
       Alert.alert(
         'Donor Unavailable',
@@ -507,8 +507,8 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 16,
   },
@@ -540,19 +540,19 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    marginTop: -10,
     borderRadius: 20,
     padding: 24,
+    marginHorizontal: 20,
+    marginTop: -10,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 4px 16px rgba(0,0,0,0.1)' } as any
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 16,
-          elevation: 8,
-        }),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+        elevation: 8,
+      }),
   },
   profileHeader: {
     alignItems: 'center',
@@ -587,13 +587,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bloodTypeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: 20,
     backgroundColor: '#FEE2E2',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 20,
     paddingVertical: 8,
-    borderRadius: 20,
-    gap: 8,
     marginBottom: 12,
   },
   bloodTypeText: {
@@ -602,23 +603,23 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
   availabilityBadge: {
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 16,
-    gap: 6,
   },
   availabilityText: {
     fontSize: 14,
     fontWeight: '600',
   },
   contactSection: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
     gap: 12,
     marginBottom: 20,
     paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   contactItem: {
     flexDirection: 'row',
@@ -641,10 +642,10 @@ const styles = StyleSheet.create({
   },
   primaryActionGradient: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    alignItems: 'center',
     gap: 8,
+    paddingVertical: 16,
   },
   primaryActionText: {
     fontSize: 16,
@@ -653,13 +654,13 @@ const styles = StyleSheet.create({
   },
   secondaryActionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingVertical: 16,
     borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 8,
+    paddingVertical: 16,
   },
   secondaryActionText: {
     fontSize: 16,
@@ -682,19 +683,19 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
+    padding: 16,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 3,
-        }),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+      }),
   },
   statIconContainer: {
     width: 56,
@@ -722,17 +723,17 @@ const styles = StyleSheet.create({
   medicalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
     gap: 16,
+    padding: 16,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 3,
-        }),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+      }),
   },
   medicalItem: {
     flexDirection: 'row',
@@ -766,8 +767,8 @@ const styles = StyleSheet.create({
   },
   historySectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
   historyCount: {
@@ -778,20 +779,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   donationItem: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
     gap: 12,
+    padding: 16,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 3,
-        }),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+      }),
   },
   donationIconContainer: {
     width: 48,
@@ -807,8 +808,8 @@ const styles = StyleSheet.create({
   },
   donationHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
   donationBloodType: {
@@ -817,13 +818,13 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
   pointsBadge: {
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
   },
   pointsText: {
     fontSize: 13,
@@ -849,19 +850,19 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   emptyHistory: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 40,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
+    padding: 40,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 2px 8px rgba(0,0,0,0.08)' } as any
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 3,
-        }),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+      }),
   },
   emptyHistoryText: {
     fontSize: 15,
@@ -869,19 +870,19 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   impactCard: {
+    borderRadius: 16,
     marginHorizontal: 20,
     marginTop: 20,
-    borderRadius: 16,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 4px 12px rgba(220, 38, 38, 0.3)' } as any
       : {
-          shadowColor: '#DC2626',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 12,
-          elevation: 8,
-        }),
+        shadowColor: '#DC2626',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
+      }),
   },
   impactGradient: {
     padding: 24,

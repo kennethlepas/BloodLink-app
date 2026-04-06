@@ -308,8 +308,10 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
             <View style={styles.missionCard}>
               <Text style={styles.missionTitle}>Our Mission</Text>
               <Text style={styles.missionText}>
-                Connecting blood donors with those in need through a trusted,
-                real-time network that saves lives across communities
+                BloodLink is a dedicated digital health platform committed to bridging the gap between blood donors and those in need across Kenya.
+              </Text>
+              <Text style={[styles.missionText, { marginTop: 6 }]}>
+                We leverage technology to ensure reaching donors and managing blood requests is easier than ever, creating a seamless, verified, and efficient lifesaving network.
               </Text>
             </View>
 
@@ -481,20 +483,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: verticalScale(12),
-    backgroundColor: 'rgba(128, 128, 128, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(160, 160, 160, 0.4)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(59, 130, 246, 0.4)',
     overflow: 'hidden',
     ...(Platform.OS === 'web'
       ? {
         boxShadow: '0px 0px 40px rgba(128, 128, 128, 0.8), 0px 0px 20px rgba(160, 160, 160, 0.6)',
       } as any
       : {
-        shadowColor: '#A0A0A0',
+        shadowColor: '#3B82F6',
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 20,
+        shadowOpacity: 0.6,
+        shadowRadius: 25,
       }),
   },
   logoImage: {
@@ -801,28 +803,25 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   aboutButtonText: {
-    color: '#FFFFFF',
     fontSize: moderateScale(13),
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   versionText: {
-    fontSize: moderateScale(12),
-    color: 'rgba(255, 255, 255, 0.75)',
-    fontWeight: '600',
-    marginBottom: 6,
+    fontSize: moderateScale(11),
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginBottom: 4,
   },
   copyrightText: {
     fontSize: moderateScale(11),
-    color: 'rgba(255, 255, 255, 0.65)',
-    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.5)',
     marginBottom: 4,
   },
   footerTagline: {
     fontSize: moderateScale(10),
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.3)',
     fontStyle: 'italic',
-  },
+  }
 });
 
 export default LoadingScreen;

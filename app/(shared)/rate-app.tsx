@@ -23,24 +23,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─── Brand Colors ─────────────────────────────────────────────────────────
-const B_SKY    = '#1D4ED8';
-const B_LIGHT  = '#2563EB';
-const B_MID    = '#3B82F6';
-const B_SOFT   = '#60A5FA';
-const B_PALE   = '#DBEAFE';
-const B_BG     = '#EFF6FF';
-const O_DEEP   = '#C2410C';
-const O_MID    = '#EA580C';
-const O_LITE   = '#FB923C';
-const O_PALE   = '#FFF7ED';
-const SUCCESS  = '#10B981';
+const B_SKY = '#1D4ED8';
+const B_LIGHT = '#2563EB';
+const B_MID = '#3B82F6';
+const B_SOFT = '#60A5FA';
+const B_PALE = '#DBEAFE';
+const B_BG = '#EFF6FF';
+const O_DEEP = '#C2410C';
+const O_MID = '#EA580C';
+const O_LITE = '#FB923C';
+const O_PALE = '#FFF7ED';
+const SUCCESS = '#10B981';
 const SUCCESS_PALE = '#D1FAE5';
-const DANGER   = '#EF4444';
-const SURFACE  = '#FFFFFF';
+const DANGER = '#EF4444';
+const SURFACE = '#FFFFFF';
 const TEXT_DARK = '#0F172A';
-const TEXT_MID  = '#475569';
+const TEXT_MID = '#475569';
 const TEXT_SOFT = '#94A3B8';
-const BORDER   = '#E2E8F0';
+const BORDER = '#E2E8F0';
 const BG_LIGHT = '#F8FAFC';
 
 const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
@@ -58,7 +58,7 @@ const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
 export default function RateAppScreen() {
   const { user } = useUser();
   const router = useRouter();
-  
+
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [review, setReview] = useState('');
@@ -66,6 +66,7 @@ export default function RateAppScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const isDonor = user?.userType === 'donor';
+  const hasAlreadyReviewed = user?.hasReviewed === true;
 
   const feedbackCategories = [
     { id: 'easy', label: 'Easy to Use', icon: 'checkmark-circle' },
@@ -155,6 +156,53 @@ export default function RateAppScreen() {
       })}
     </View>
   );
+
+  if (hasAlreadyReviewed) {
+    return (
+      <SafeAreaView style={s.container} edges={['top']}>
+        <StatusBar barStyle="light-content" backgroundColor={B_SKY} />
+        <LinearGradient colors={[B_SKY, B_MID]} style={s.header}>
+          <TouchableOpacity style={s.backButton} onPress={() => router.back()} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle}>Review Submitted</Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </LinearGradient>
+
+        <View style={s.alreadyReviewedContainer}>
+          <View style={s.successIconBadge}>
+            <Ionicons name="checkmark-circle" size={80} color={SUCCESS} />
+          </View>
+          <Text style={s.alreadyReviewedTitle}>Feedback Received!</Text>
+          <Text style={s.alreadyReviewedText}>
+            You have already shared your experience with BloodLink. To ensure fair and authentic ratings, each user can only submit one review.
+          </Text>
+          <Text style={s.alreadyReviewedSubText}>
+            Thank you for being part of our community and helping us save lives!
+          </Text>
+
+          <TouchableOpacity
+            style={s.viewAllBtn}
+            onPress={() => router.push('/(shared)/allreviews-screen')}
+            activeOpacity={0.7}
+          >
+            <Text style={s.viewAllBtnText}>View All Community Reviews</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.goBackBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={18} color={B_MID} />
+            <Text style={s.goBackBtnText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
@@ -295,7 +343,7 @@ export default function RateAppScreen() {
               />
               <View style={s.charCountRow}>
                 <View style={[s.charProgressBar]}>
-                  <View style={[s.charProgressFill, { 
+                  <View style={[s.charProgressFill, {
                     width: `${(review.length / 500) * 100}%` as any,
                     backgroundColor: review.length >= 10 ? SUCCESS : TEXT_SOFT
                   }]} />
@@ -696,4 +744,69 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   benefitText: { fontSize: 13, color: TEXT_MID, flex: 1, fontWeight: '500' },
+  // Already Reviewed State
+  alreadyReviewedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: BG_LIGHT,
+  },
+  successIconBadge: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: SUCCESS_PALE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    ...shadow(SUCCESS, 0.15, 20, 5),
+  },
+  alreadyReviewedTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: TEXT_DARK,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  alreadyReviewedText: {
+    fontSize: 15,
+    color: TEXT_MID,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  alreadyReviewedSubText: {
+    fontSize: 14,
+    color: TEXT_SOFT,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 32,
+  },
+  viewAllBtn: {
+    backgroundColor: B_SKY,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 16,
+    ...shadow(B_SKY, 0.3, 10, 4),
+  },
+  viewAllBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  goBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  goBackBtnText: {
+    color: B_MID,
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });

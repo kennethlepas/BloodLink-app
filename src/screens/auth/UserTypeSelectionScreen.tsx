@@ -67,160 +67,93 @@ const UserTypeSelectionScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Logo Section */}
-          <View style={styles.logoSection}>
-            <View style={styles.logoCard}>
-
-              <View style={styles.logoImageContainer}>
-                <Image
-                  source={require('@/assets/images/logo.jpg')}
-                  style={styles.logoImage}
-                  resizeMode="contain"
-                />
-              </View>
-
-              {/* Verified Badge */}
-              <View style={styles.logoBadge}>
-                <View style={styles.badgeDot} />
-                <Text style={styles.badgeText}>Verified</Text>
+          {/* Compact Header Section */}
+          <View style={styles.headerBranding}>
+            <View style={styles.topBadgeContainer}>
+              <View style={styles.introBadge}>
+                <Text style={styles.introBadgeText}>🇰🇪 Kenya's Leading Network</Text>
               </View>
             </View>
 
-            <Text style={styles.appName}>BloodLink</Text>
-            <Text style={styles.title}>Choose Your Role</Text>
-            <Text style={styles.subtitle}>Select how you'd like to help save lives</Text>
+            <View style={styles.logoRow}>
+              <View style={styles.logoWrapper}>
+                <View style={styles.logoCompact}>
+                  <Image
+                    source={require('@/assets/images/logo.jpg')}
+                    style={styles.logoImage}
+                    resizeMode="cover"
+                  />
+                </View>
+                <View style={styles.verifiedMiniBadge}>
+                  <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
+                </View>
+              </View>
+              <View style={styles.brandTitleContainer}>
+                <Text style={styles.appNameCompact}>BloodLink</Text>
+                <Text style={styles.appTaglineCompact}>Blood Donation Management System</Text>
+              </View>
+            </View>
           </View>
 
-          {/* Type Selection Cards - Compact Design */}
-          <View style={styles.cardsContainer}>
+          <View style={styles.selectionPrompt}>
+            <Text style={styles.titleText}>Choose Your Role</Text>
+            <Text style={styles.subtitleText}>Select how you'll help save lives today</Text>
+          </View>
+
+          {/* Type Selection Cards - Modern Translucent Design */}
+          <View style={styles.cardsGrid}>
             {/* Donor Card */}
             <TouchableOpacity
               style={[
-                styles.typeCard,
-                selectedType === 'donor' && styles.typeCardSelected,
+                styles.glassCard,
+                selectedType === 'donor' && styles.glassCardSelected,
               ]}
               onPress={() => handleSelectType('donor')}
               activeOpacity={0.7}
             >
-              <View style={styles.cardContent}>
-                <View style={styles.cardLeft}>
-                  <LinearGradient
-                    colors={selectedType === 'donor' ? ['#EF4444', '#DC2626'] : ['#FEE2E2', '#FCA5A5']}
-                    style={styles.iconBadge}
-                  >
-                    <Ionicons
-                      name="heart"
-                      size={moderateScale(28)}
-                      color={selectedType === 'donor' ? '#FFFFFF' : '#DC2626'}
-                    />
-                  </LinearGradient>
+              <View style={styles.glassCardContent}>
+                <View style={[styles.iconGlow, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                  <Ionicons name="heart" size={moderateScale(28)} color="#EF4444" />
                 </View>
-
-                <View style={styles.cardCenter}>
-                  <Text style={styles.cardTitle}>Blood Donor</Text>
-                  <Text style={styles.cardDescription}>
-                    Donate blood and help save lives in your community
-                  </Text>
-
-                  <View style={styles.quickFeatures}>
-                    <View style={styles.quickFeature}>
-                      <Ionicons name="notifications-outline" size={14} color="#64748B" />
-                      <Text style={styles.quickFeatureText}>Urgent alerts</Text>
-                    </View>
-                    <View style={styles.quickFeature}>
-                      <Ionicons name="bar-chart-outline" size={14} color="#64748B" />
-                      <Text style={styles.quickFeatureText}>Track history</Text>
-                    </View>
-                    <View style={styles.quickFeature}>
-                      <Ionicons name="star-outline" size={14} color="#64748B" />
-                      <Text style={styles.quickFeatureText}>Earn points</Text>
-                    </View>
-                  </View>
+                <View style={styles.glassCardText}>
+                  <Text style={styles.glassCardTitle}>Blood Donor</Text>
+                  <Text style={styles.glassCardDesc}>Donate & help save lives locally</Text>
                 </View>
-
-                <View style={styles.cardRight}>
-                  {selectedType === 'donor' && (
-                    <View style={styles.checkmarkCircle}>
-                      <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                    </View>
-                  )}
-                  {selectedType !== 'donor' && (
-                    <View style={styles.emptyCircle} />
+                <View style={styles.selectorContainer}>
+                  {selectedType === 'donor' ? (
+                    <View style={styles.activeDot} />
+                  ) : (
+                    <View style={styles.inactiveDot} />
                   )}
                 </View>
               </View>
-
-              {selectedType === 'donor' && (
-                <View style={styles.requirementBanner}>
-                  <Ionicons name="information-circle" size={16} color="#F59E0B" />
-                  <Text style={styles.requirementText}>Must be 18+ and weigh at least 50kg</Text>
-                </View>
-              )}
             </TouchableOpacity>
 
             {/* Requester Card */}
             <TouchableOpacity
               style={[
-                styles.typeCard,
-                selectedType === 'requester' && styles.typeCardSelected,
+                styles.glassCard,
+                selectedType === 'requester' && styles.glassCardSelected,
               ]}
               onPress={() => handleSelectType('requester')}
               activeOpacity={0.7}
             >
-              <View style={styles.cardContent}>
-                <View style={styles.cardLeft}>
-                  <LinearGradient
-                    colors={selectedType === 'requester' ? ['#3B82F6', '#2563EB'] : ['#DBEAFE', '#93C5FD']}
-                    style={styles.iconBadge}
-                  >
-                    <Ionicons
-                      name="medkit"
-                      size={moderateScale(28)}
-                      color={selectedType === 'requester' ? '#FFFFFF' : '#3B82F6'}
-                    />
-                  </LinearGradient>
+              <View style={styles.glassCardContent}>
+                <View style={[styles.iconGlow, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                  <Ionicons name="medkit" size={moderateScale(28)} color="#3B82F6" />
                 </View>
-
-                <View style={styles.cardCenter}>
-                  <Text style={styles.cardTitle}>Blood Requester</Text>
-                  <Text style={styles.cardDescription}>
-                    Find donors quickly for patients in need of blood
-                  </Text>
-
-                  <View style={styles.quickFeatures}>
-                    <View style={styles.quickFeature}>
-                      <Ionicons name="add-circle-outline" size={14} color="#64748B" />
-                      <Text style={styles.quickFeatureText}>Create requests</Text>
-                    </View>
-                    <View style={styles.quickFeature}>
-                      <Ionicons name="location-outline" size={14} color="#64748B" />
-                      <Text style={styles.quickFeatureText}>Find donors</Text>
-                    </View>
-                    <View style={styles.quickFeature}>
-                      <Ionicons name="business-outline" size={14} color="#64748B" />
-                      <Text style={styles.quickFeatureText}>Blood banks</Text>
-                    </View>
-                  </View>
+                <View style={styles.glassCardText}>
+                  <Text style={styles.glassCardTitle}>Blood Requester</Text>
+                  <Text style={styles.glassCardDesc}>Find donors for patients in need</Text>
                 </View>
-
-                <View style={styles.cardRight}>
-                  {selectedType === 'requester' && (
-                    <View style={styles.checkmarkCircle}>
-                      <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                    </View>
-                  )}
-                  {selectedType !== 'requester' && (
-                    <View style={styles.emptyCircle} />
+                <View style={styles.selectorContainer}>
+                  {selectedType === 'requester' ? (
+                    <View style={styles.activeDot} />
+                  ) : (
+                    <View style={styles.inactiveDot} />
                   )}
                 </View>
               </View>
-
-              {selectedType === 'requester' && (
-                <View style={styles.requirementBanner}>
-                  <Ionicons name="information-circle" size={16} color="#3B82F6" />
-                  <Text style={styles.requirementText}>For patients, family members, or caregivers</Text>
-                </View>
-              )}
             </TouchableOpacity>
           </View>
 
@@ -303,238 +236,173 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: scale(20),
-    paddingBottom: verticalScale(24),
+    paddingBottom: verticalScale(20),
     flexGrow: 1,
   },
 
-  // Logo Section
-  logoSection: {
+  // Compact Header branding
+  headerBranding: {
     alignItems: 'center',
-    marginBottom: verticalScale(24),
+    marginBottom: verticalScale(20),
   },
-  logoCard: {
-    position: 'relative',
+  topBadgeContainer: {
     marginBottom: verticalScale(12),
   },
-  logoImageContainer: {
-    width: moderateScale(100),
-    height: moderateScale(120),
+  introBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(6),
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  introBadgeText: {
+    fontSize: moderateScale(10),
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  logoRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: scale(15),
+  },
+  logoWrapper: {
+    position: 'relative',
+  },
+  logoCompact: {
+    width: moderateScale(70),
+    height: moderateScale(95),
+    borderRadius: 8,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 10,
   },
-  logoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: moderateScale(50),
-  },
-  logoBadge: {
+  verifiedMiniBadge: {
     position: 'absolute',
-    bottom: -18,
-    right: -22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    bottom: -8,
+    right: -8,
     backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 16,
-    borderWidth: 3,
-    borderColor: '#144272',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#0A2647',
+    zIndex: 10,
   },
-  badgeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#FFFFFF',
-    marginRight: 4,
+  brandTitleContainer: {
+    justifyContent: 'center',
   },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: moderateScale(9),
-    fontWeight: '700',
-  },
-  appName: {
-    fontSize: moderateScale(24),
+  appNameCompact: {
+    fontSize: moderateScale(22),
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 8,
     letterSpacing: 0.5,
   },
-  title: {
-    fontSize: moderateScale(22),
+  appTaglineCompact: {
+    fontSize: moderateScale(11),
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  selectionPrompt: {
+    marginBottom: verticalScale(15),
+    alignItems: 'center',
+  },
+  titleText: {
+    fontSize: moderateScale(18),
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: moderateScale(14),
-    color: 'rgba(255, 255, 255, 0.85)',
-    textAlign: 'center',
-    lineHeight: moderateScale(20),
-  },
-
-  // Cards Container
-  cardsContainer: {
-    gap: verticalScale(14),
-    marginBottom: verticalScale(20),
-  },
-  typeCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 18,
-    padding: scale(16),
-    borderWidth: 2,
-    borderColor: 'rgba(226, 232, 240, 0.5)',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 4px 12px rgba(0,0,0,0.08)',
-      } as any
-      : {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 3,
-      }),
-  },
-  typeCardSelected: {
-    borderColor: '#10B981',
-    borderWidth: 3,
-    backgroundColor: '#FFFFFF',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 8px 24px rgba(16, 185, 129, 0.25)',
-      } as any
-      : {
-        shadowColor: '#10B981',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        elevation: 8,
-      }),
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(12),
-  },
-  cardLeft: {
-    width: moderateScale(60),
-    height: moderateScale(60),
-  },
-  iconBadge: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardCenter: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: moderateScale(17),
-    fontWeight: '700',
-    color: '#1E293B',
     marginBottom: 4,
   },
-  cardDescription: {
+  subtitleText: {
     fontSize: moderateScale(13),
-    color: '#64748B',
-    lineHeight: moderateScale(18),
-    marginBottom: 8,
-  },
-  quickFeatures: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  quickFeature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  quickFeatureText: {
-    fontSize: moderateScale(11),
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  cardRight: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkmarkCircle: {
-    width: moderateScale(32),
-    height: moderateScale(32),
-    borderRadius: moderateScale(16),
-    backgroundColor: '#10B981',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyCircle: {
-    width: moderateScale(32),
-    height: moderateScale(32),
-    borderRadius: moderateScale(16),
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    backgroundColor: 'transparent',
-  },
-  requirementBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    padding: scale(10),
-    borderRadius: 12,
-    gap: 8,
-    marginTop: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#F59E0B',
-  },
-  requirementText: {
-    fontSize: moderateScale(12),
-    color: '#92400E',
-    flex: 1,
-    fontWeight: '500',
-    lineHeight: moderateScale(16),
+    color: 'rgba(255, 255, 255, 0.6)',
   },
 
-  // Info Card
-  infoCard: {
+  // Glass Cards
+  cardsGrid: {
+    gap: verticalScale(12),
+    marginBottom: verticalScale(15),
+  },
+  glassCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    padding: scale(16),
+  },
+  glassCardSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: '#10B981',
+    borderWidth: 2,
+  },
+  glassCardContent: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: scale(14),
-    borderRadius: 14,
-    marginBottom: verticalScale(20),
+    alignItems: 'center',
+    gap: scale(15),
+  },
+  iconGlow: {
+    width: moderateScale(56),
+    height: moderateScale(56),
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  glassCardText: {
+    flex: 1,
+  },
+  glassCardTitle: {
+    fontSize: moderateScale(16),
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  glassCardDesc: {
+    fontSize: moderateScale(12),
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  selectorContainer: {
+    paddingLeft: scale(10),
+  },
+  activeDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#10B981',
+    borderWidth: 3,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  inactiveDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+
+  // Info Card (Compact)
+  infoCard: {
+    borderRadius: 18,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: scale(12),
     gap: 12,
-    alignItems: 'flex-start',
-    ...(Platform.OS === 'web'
-      ? {
-        boxShadow: '0px 4px 12px rgba(0,0,0,0.08)',
-      } as any
-      : {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 3,
-      }),
+    marginBottom: verticalScale(15),
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
   infoIconContainer: {
-    width: moderateScale(40),
-    height: moderateScale(40),
-    borderRadius: 12,
-    backgroundColor: '#D1FAE5',
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -542,15 +410,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoTitle: {
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(13),
     fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4,
+    color: '#FFFFFF',
   },
   infoDescription: {
-    fontSize: moderateScale(12),
-    color: '#64748B',
-    lineHeight: moderateScale(17),
+    fontSize: moderateScale(11),
+    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: moderateScale(15),
   },
 
   // Continue Button
@@ -599,8 +466,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   buttonIconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     padding: 6,
   },
 

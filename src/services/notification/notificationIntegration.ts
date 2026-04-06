@@ -1,10 +1,11 @@
 import {
   notifyDonorOfDispute,
+  notifyDonorOfDisputeWithTicket,
   notifyDonorOfVerification,
   notifyEligibleDonorsOfNewRequest,
   notifyRequesterOfAcceptance,
   notifyRequesterOfDonationCompletion,
-  notifyUserOfNewMessage
+  notifyUserOfNewMessage,
 } from './notificationService';
 
 import {
@@ -14,6 +15,7 @@ import {
   createChat,
   createRejectedRequest,
   disputeDonationByRequester,
+  disputeDonationByRequesterWithTicket,
   getUsersByBloodType,
   markDonationPendingVerification,
   sendMessage,
@@ -178,8 +180,47 @@ export const handleRequesterVerifyDonation = async (
 };
 
 // 6. WHEN REQUESTER DISPUTES DONATION (REQUESTER SIDE)
+// Enhanced version that creates a support ticket
 
 export const handleRequesterDisputeDonation = async (
+  acceptedRequest: any,
+  user: { id: string; firstName: string; lastName: string; email: string; phoneNumber: string },
+  disputeReason: string,
+  additionalDetails?: string
+) => {
+  try {
+    // Mark as disputed and create ticket
+    const { ticketId } = await disputeDonationByRequesterWithTicket(
+      acceptedRequest,
+      user.id,
+      `${user.firstName} ${user.lastName}`,
+      user.email,
+      user.phoneNumber,
+      disputeReason,
+      additionalDetails
+    );
+
+    // Notify the donor about the dispute with ticket info
+    await notifyDonorOfDisputeWithTicket(
+      acceptedRequest.donorId,
+      acceptedRequest.id,
+      ticketId,
+      {
+        requesterName: acceptedRequest.requesterName,
+        disputeReason,
+      }
+    );
+
+    console.log('✅ Donation disputed with ticket created:', ticketId);
+    return { ticketId };
+  } catch (error) {
+    console.error('Error disputing donation:', error);
+    throw error;
+  }
+};
+
+// Legacy version without ticket (for backward compatibility)
+export const handleRequesterDisputeDonationLegacy = async (
   acceptedRequest: any,
   disputeReason: string
 ) => {

@@ -123,12 +123,12 @@ const styles = StyleSheet.create({
   bubble: {
     maxWidth: '75%',
     borderRadius: 18,
-    padding: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
+    padding: 12,
   },
   ownBubble: {
     borderTopRightRadius: 2, // Bubble effect
@@ -152,11 +152,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   locationContainer: {
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     padding: 8,
-    borderRadius: 8,
+    gap: 8,
     marginBottom: 8,
   },
   locationText: {

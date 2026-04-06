@@ -62,17 +62,17 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status, type = 'status', size
 
 const styles = StyleSheet.create({
     badge: {
+        borderRadius: 12,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 10,
         paddingVertical: 5,
-        borderRadius: 12,
         gap: 4,
     },
     badgeSmall: {
+        borderRadius: 10,
         paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: 10,
     },
     label: {
         fontSize: 13,

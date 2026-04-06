@@ -1,4 +1,4 @@
-import { useAppTheme } from '@/src/contexts/ThemeContext';
+import { useAppTheme, type ThemeColors } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,19 +19,9 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getOrCreateChat } from '../../services/firebase/database';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-
-const B_SKY = '#2563EB';
-const B_LIGHT = '#3B82F6';
-const B_SOFT = '#60A5FA';
-const B_PALE = '#DBEAFE';
-const O_DEEP = '#C2410C';
-const O_MID = '#EA580C';
-const O_LITE = '#FB923C';
-const O_PALE = '#FFF7ED';
-
 
 const shadow = (color = '#000', opacity = 0.08, radius = 10, elevation = 3) =>
     Platform.select({
@@ -100,7 +90,7 @@ const FAQ_DATA: FAQItem[] = [
 ];
 
 // Accordion FAQ Component 
-const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: any; isDark: boolean; styles: any }> = ({
+const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: ThemeColors; isDark: boolean; styles: any }> = ({
     item,
     index,
     colors,
@@ -127,25 +117,25 @@ const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: any; isDark
 
     const iconBg =
         index % 2 === 0
-            ? isDark ? 'rgba(37, 99, 235, 0.15)' : B_PALE
-            : isDark ? 'rgba(234, 88, 12, 0.15)' : O_PALE;
+            ? isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE'
+            : isDark ? 'rgba(234, 88, 12, 0.15)' : '#FFF7ED';
 
     return (
         <TouchableOpacity
             style={[
                 styles.faqCard,
                 { backgroundColor: colors.surface, borderColor: colors.surfaceBorder },
-                expanded && { borderColor: B_SOFT, borderWidth: 1.5 },
+                expanded && { borderColor: colors.primary, borderWidth: 1.5 },
             ]}
             onPress={toggle}
             activeOpacity={0.75}
         >
             <View style={styles.faqHeader}>
                 <View style={[styles.faqIconWrap, { backgroundColor: iconBg }]}>
-                    <Ionicons name={item.icon} size={18} color={index % 2 === 0 ? B_SKY : O_MID} />
+                    <Ionicons name={item.icon} size={18} color={index % 2 === 0 ? colors.primary : '#EA580C'} />
                 </View>
                 <View style={styles.faqTextWrap}>
-                    <Text style={styles.faqCategory}>{item.category}</Text>
+                    <Text style={[styles.faqCategory, { color: colors.primary }]}>{item.category}</Text>
                     <Text style={[styles.faqQuestion, { color: colors.text }]}>{item.q}</Text>
                 </View>
                 <Animated.View style={{ transform: [{ rotateZ }] }}>
@@ -154,7 +144,7 @@ const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: any; isDark
             </View>
             {expanded && (
                 <View style={styles.faqAnswer}>
-                    <View style={styles.faqAnswerBar} />
+                    <View style={[styles.faqAnswerBar, { backgroundColor: colors.primary + '80' }]} />
                     <Text style={[styles.faqAnswerText, { color: colors.textSecondary }]}>{item.a}</Text>
                 </View>
             )}
@@ -162,278 +152,165 @@ const FAQAccordion: React.FC<{ item: FAQItem; index: number; colors: any; isDark
     );
 };
 
+const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bg },
+    scrollView: { flex: 1 },
+    scrollContent: { paddingBottom: 20 },
+
+    // HEADER
+    header: {
+        position: 'relative',
+        borderBottomLeftRadius: 28,
+        borderBottomRightRadius: 28,
+        overflow: 'hidden',
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingBottom: 22,
+    },
+    hCircle1: { width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.05)', position: 'absolute', top: -50, right: -40 },
+    hCircle2: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.06)', position: 'absolute', bottom: 10, left: -25 },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+    },
+    backBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center' },
+    headerCenter: { alignItems: 'center', flex: 1 },
+    headerTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF' },
+    headerSub: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.8)',
+        marginTop: 2,
+        fontWeight: '600',
+    },
+
+    heroCard: { borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.25)', backgroundColor: 'rgba(255,255,255,0.18)', flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
+    heroIconWrap: { width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    heroTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+    heroSub: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.85)',
+        lineHeight: 18,
+        fontWeight: '500',
+    },
+
+    searchSection: { paddingHorizontal: 20, marginTop: 18, marginBottom: 4 },
+    searchBox: { borderRadius: 14, borderWidth: 1.5, borderColor: colors.surfaceBorder, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, ...shadow(colors.primary, 0.07, 8, 2) },
+    searchInput: {
+        flex: 1,
+        fontSize: 15,
+        fontWeight: '500',
+        paddingVertical: 0,
+        color: colors.text
+    },
+
+    section: { marginTop: 22, paddingHorizontal: 20 },
+    sectionHdr: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    sectionBar: { width: 4, height: 20, borderRadius: 2, marginRight: 8 },
+    sectionTitle: { fontSize: 17, fontWeight: '800', flex: 1, color: colors.text },
+
+    contactGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    contactCard: {
+        width: (SCREEN_WIDTH - 40 - 12) / 2,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: colors.surfaceBorder,
+        backgroundColor: colors.surface,
+        alignItems: 'center',
+        padding: 16,
+        ...shadow(colors.primary, 0.07, 8, 2),
+    },
+    contactIconGrad: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+    contactTitle: { fontSize: 13, fontWeight: '700', marginBottom: 3, color: colors.text },
+    contactSubtitle: { fontSize: 11, fontWeight: '500', textAlign: 'center', color: colors.textSecondary },
+
+    faqCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: colors.surfaceBorder,
+        backgroundColor: colors.surface,
+        marginBottom: 10,
+        overflow: 'hidden',
+        ...shadow('#000', 0.05, 6, 2),
+    },
+    faqHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        padding: 14,
+    },
+    faqIconWrap: { width: 38, height: 38, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+    faqTextWrap: { flex: 1 },
+    faqCategory: {
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+        marginBottom: 3,
+    },
+    faqQuestion: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
+    faqAnswer: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingHorizontal: 14,
+        paddingBottom: 16,
+        paddingTop: 4,
+    },
+    faqAnswerBar: { width: 3, borderRadius: 2, alignSelf: 'stretch', marginLeft: 18 },
+    faqAnswerText: { flex: 1, fontSize: 13, lineHeight: 21, fontWeight: '500' },
+
+    quickLinksCard: {
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: colors.surfaceBorder,
+        backgroundColor: colors.surface,
+        overflow: 'hidden',
+        ...shadow(colors.primary, 0.07, 8, 2),
+    },
+    quickLinkItem: { borderBottomWidth: 1, borderBottomColor: colors.divider, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
+    quickLinkIcon: { width: 38, height: 38, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+    quickLinkLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.text },
+
+    emergencyBanner: { borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, ...shadow(colors.danger, 0.2, 10, 4) },
+    emergencyIconWrap: { width: 44, height: 44, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    emergencyTitle: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', marginBottom: 3 },
+    emergencySub: {
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.85)',
+        lineHeight: 16,
+        fontWeight: '500',
+    },
+    emergencyCallBtn: { borderRadius: 12, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 10 },
+    emergencyCallText: { fontSize: 14, fontWeight: '800', color: colors.danger },
+
+    emptyState: { alignItems: 'center', padding: 30 },
+    emptyIconBox: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+    emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6, color: colors.text },
+    emptySub: { fontSize: 13, textAlign: 'center', color: colors.textSecondary },
+
+    appInfoCard: {
+        alignItems: 'center',
+        marginTop: 24,
+        paddingVertical: 20,
+    },
+    appInfoLogoWrap: { width: 72, height: 86, borderRadius: 20, marginBottom: 12, overflow: 'hidden', ...shadow('#000', 0.12, 10, 4) },
+    appInfoLogoImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 20,
+    },
+    appInfoName: { fontSize: 18, fontWeight: '900', marginBottom: 2, color: colors.text },
+    appInfoVersion: { fontSize: 12, fontWeight: '600', marginBottom: 4, color: colors.textSecondary },
+    appInfoTagline: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
+});
+
 export default function HelpSupportScreen() {
     const router = useRouter();
     const { user } = useUser();
     const { colors, isDark } = useAppTheme();
     const [searchQuery, setSearchQuery] = useState('');
 
-    const styles = StyleSheet.create({
-        container: { flex: 1, backgroundColor: colors.bg },
-        scrollView: { flex: 1 },
-        scrollContent: { paddingBottom: 20 },
-
-        // HEADER
-        header: {
-            paddingHorizontal: 20,
-            paddingTop: 10,
-            paddingBottom: 22,
-            borderBottomLeftRadius: 28,
-            borderBottomRightRadius: 28,
-            overflow: 'hidden',
-            position: 'relative',
-        },
-        hCircle1: {
-            position: 'absolute',
-            width: 160,
-            height: 160,
-            borderRadius: 80,
-            backgroundColor: 'rgba(255,255,255,0.05)',
-            top: -50,
-            right: -40,
-        },
-        hCircle2: {
-            position: 'absolute',
-            width: 100,
-            height: 100,
-            borderRadius: 50,
-            backgroundColor: 'rgba(255,255,255,0.06)',
-            bottom: 10,
-            left: -25,
-        },
-        headerRow: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 16,
-        },
-        backBtn: {
-            width: 42,
-            height: 42,
-            borderRadius: 12,
-            backgroundColor: 'rgba(0,0,0,0.18)',
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-        headerCenter: { alignItems: 'center', flex: 1 },
-        headerTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF' },
-        headerSub: {
-            fontSize: 12,
-            color: 'rgba(255,255,255,0.8)',
-            marginTop: 2,
-            fontWeight: '600',
-        },
-
-        heroCard: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 14,
-            backgroundColor: 'rgba(255,255,255,0.18)',
-            borderRadius: 16,
-            padding: 14,
-            borderWidth: 1.5,
-            borderColor: 'rgba(255,255,255,0.25)',
-        },
-        heroIconWrap: {
-            width: 52,
-            height: 52,
-            borderRadius: 16,
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-        heroTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-        heroSub: {
-            fontSize: 12,
-            color: 'rgba(255,255,255,0.85)',
-            lineHeight: 18,
-            fontWeight: '500',
-        },
-
-        searchSection: { paddingHorizontal: 20, marginTop: 18, marginBottom: 4 },
-        searchBox: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            borderRadius: 14,
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            borderWidth: 1.5,
-            ...shadow(B_SKY, 0.07, 8, 2),
-            backgroundColor: colors.surface, borderColor: colors.surfaceBorder
-        },
-        searchInput: {
-            flex: 1,
-            fontSize: 15,
-            fontWeight: '500',
-            paddingVertical: 0,
-            color: colors.text
-        },
-
-        section: { marginTop: 22, paddingHorizontal: 20 },
-        sectionHdr: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-        sectionBar: { width: 4, height: 20, borderRadius: 2, marginRight: 8 },
-        sectionTitle: { fontSize: 17, fontWeight: '800', flex: 1, color: colors.text },
-
-        contactGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-        contactCard: {
-            width: (SCREEN_WIDTH - 40 - 12) / 2,
-            borderRadius: 16,
-            padding: 16,
-            alignItems: 'center',
-            borderWidth: 1,
-            ...shadow(B_SKY, 0.07, 8, 2),
-            backgroundColor: colors.surface, borderColor: colors.surfaceBorder
-        },
-        contactIconGrad: {
-            width: 48,
-            height: 48,
-            borderRadius: 14,
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 10,
-        },
-        contactTitle: { fontSize: 13, fontWeight: '700', marginBottom: 3, color: colors.text },
-        contactSubtitle: { fontSize: 11, fontWeight: '500', textAlign: 'center', color: colors.textSecondary },
-
-        faqCard: {
-            borderRadius: 16,
-            marginBottom: 10,
-            borderWidth: 1,
-            overflow: 'hidden',
-            ...shadow('#000', 0.05, 6, 2),
-        },
-        faqHeader: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            padding: 14,
-        },
-        faqIconWrap: {
-            width: 38,
-            height: 38,
-            borderRadius: 11,
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-        faqTextWrap: { flex: 1 },
-        faqCategory: {
-            fontSize: 10,
-            fontWeight: '700',
-            color: B_SKY,
-            letterSpacing: 0.5,
-            marginBottom: 3,
-        },
-        faqQuestion: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
-        faqAnswer: {
-            flexDirection: 'row',
-            gap: 12,
-            paddingHorizontal: 14,
-            paddingBottom: 16,
-            paddingTop: 4,
-        },
-        faqAnswerBar: {
-            width: 3,
-            borderRadius: 2,
-            backgroundColor: B_SOFT,
-            marginLeft: 18,
-            alignSelf: 'stretch',
-        },
-        faqAnswerText: { flex: 1, fontSize: 13, lineHeight: 21, fontWeight: '500' },
-
-        quickLinksCard: {
-            borderRadius: 18,
-            borderWidth: 1,
-            overflow: 'hidden',
-            ...shadow(B_SKY, 0.07, 8, 2),
-            backgroundColor: colors.surface, borderColor: colors.surfaceBorder
-        },
-        quickLinkItem: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            paddingVertical: 14,
-            paddingHorizontal: 16,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.divider
-        },
-        quickLinkIcon: {
-            width: 38,
-            height: 38,
-            borderRadius: 11,
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-        quickLinkLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.text },
-
-        emergencyBanner: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            borderRadius: 18,
-            padding: 16,
-            ...shadow('#DC2626', 0.2, 10, 4),
-        },
-        emergencyIconWrap: {
-            width: 44,
-            height: 44,
-            borderRadius: 13,
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-        emergencyTitle: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', marginBottom: 3 },
-        emergencySub: {
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.85)',
-            lineHeight: 16,
-            fontWeight: '500',
-        },
-        emergencyCallBtn: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 5,
-            backgroundColor: '#FFFFFF',
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            borderRadius: 12,
-        },
-        emergencyCallText: { fontSize: 14, fontWeight: '800', color: '#DC2626' },
-
-        emptyState: { alignItems: 'center', padding: 30 },
-        emptyIconBox: {
-            width: 70,
-            height: 70,
-            borderRadius: 35,
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 14,
-        },
-        emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6, color: colors.text },
-        emptySub: { fontSize: 13, textAlign: 'center', color: colors.textSecondary },
-
-        appInfoCard: {
-            alignItems: 'center',
-            marginTop: 24,
-            paddingVertical: 20,
-        },
-        appInfoLogoWrap: {
-            width: 72,
-            height: 86,
-            borderRadius: 20,
-            overflow: 'hidden',
-            marginBottom: 12,
-            ...shadow('#000', 0.12, 10, 4),
-        },
-        appInfoLogoImage: {
-            width: '100%',
-            height: '100%',
-            borderRadius: 20,
-        },
-        appInfoName: { fontSize: 18, fontWeight: '900', marginBottom: 2, color: colors.text },
-        appInfoVersion: { fontSize: 12, fontWeight: '600', marginBottom: 4, color: colors.textSecondary },
-        appInfoTagline: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
-    });
+    const s = getStyles(colors, isDark);
 
     const filteredFaqs = searchQuery.trim()
         ? FAQ_DATA.filter(
@@ -448,12 +325,34 @@ export default function HelpSupportScreen() {
         Linking.openURL(url).catch(() => { });
     };
 
+    const handleLiveSupport = async () => {
+        if (!user) return;
+        try {
+            const chatId = await getOrCreateChat(
+                user.uid,
+                user.displayName || 'Donor',
+                'admin',
+                'BloodLink Support'
+            );
+            router.push({ pathname: '/(shared)/chat' as any, params: { chatId, recipientName: 'BloodLink Support' } });
+        } catch (error) {
+            console.error('Error starting support chat:', error);
+        }
+    };
+
     const contactMethods = [
+        {
+            icon: 'chatbubbles' as keyof typeof Ionicons.glyphMap,
+            title: 'Live Support',
+            subtitle: 'Chat with our team',
+            gradient: ['#F59E0B', '#D97706'] as [string, string],
+            onPress: handleLiveSupport,
+        },
         {
             icon: 'mail' as keyof typeof Ionicons.glyphMap,
             title: 'Email Us',
             subtitle: 'support@bloodlink.co.ke',
-            gradient: [B_SKY, B_LIGHT] as [string, string],
+            gradient: [colors.primary, '#60A5FA'] as [string, string],
             onPress: () => openLink('mailto:support@bloodlink.co.ke'),
         },
         {
@@ -463,36 +362,22 @@ export default function HelpSupportScreen() {
             gradient: ['#25D366', '#128C7E'] as [string, string],
             onPress: () => openLink('https://wa.me/254700000000'),
         },
-        {
-            icon: 'call' as keyof typeof Ionicons.glyphMap,
-            title: 'Call Us',
-            subtitle: '+254 700 000 000',
-            gradient: ['#8B5CF6', '#7C3AED'] as [string, string],
-            onPress: () => openLink('tel:+254700000000'),
-        },
-        {
-            icon: 'logo-twitter' as keyof typeof Ionicons.glyphMap,
-            title: 'X / Twitter',
-            subtitle: '@bloodlinkapp',
-            gradient: ['#1DA1F2', '#0D8BD9'] as [string, string],
-            onPress: () => openLink('https://twitter.com/bloodlinkapp'),
-        },
     ];
 
     const quickLinks = [
         {
             icon: 'document-text-outline' as keyof typeof Ionicons.glyphMap,
             label: 'Terms & Conditions',
-            color: B_SKY,
-            bg: isDark ? 'rgba(37, 99, 235, 0.15)' : B_PALE,
-            onPress: () => router.push('/(auth)/terms-and-conditions' as any),
+            color: colors.primary,
+            bg: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE',
+            onPress: () => router.push('/(shared)/terms-and-conditions' as any),
         },
         {
             icon: 'shield-outline' as keyof typeof Ionicons.glyphMap,
             label: 'Privacy Policy',
             color: '#8B5CF6',
             bg: isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF',
-            onPress: () => router.push('/(auth)/privacy-policy' as any),
+            onPress: () => router.push('/(shared)/privacy-policy' as any),
         },
         {
             icon: 'star-outline' as keyof typeof Ionicons.glyphMap,
@@ -511,36 +396,36 @@ export default function HelpSupportScreen() {
     ];
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <StatusBar barStyle="light-content" backgroundColor={B_SKY} />
+        <SafeAreaView style={s.container} edges={['top']}>
+            <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
 
             <LinearGradient
-                colors={[B_SKY, B_LIGHT]}
+                colors={[colors.primary, '#3B82F6']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.header}
+                style={s.header}
             >
-                <View style={styles.hCircle1} />
-                <View style={styles.hCircle2} />
+                <View style={s.hCircle1} />
+                <View style={s.hCircle2} />
 
-                <View style={styles.headerRow}>
-                    <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+                <View style={s.headerRow}>
+                    <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
                         <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <View style={styles.headerCenter}>
-                        <Text style={styles.headerTitle}>Help & Support</Text>
-                        <Text style={styles.headerSub}>We're here to help you</Text>
+                    <View style={s.headerCenter}>
+                        <Text style={s.headerTitle}>Help & Support</Text>
+                        <Text style={s.headerSub}>We're here to help you</Text>
                     </View>
                     <View style={{ width: 42 }} />
                 </View>
 
-                <View style={styles.heroCard}>
-                    <View style={[styles.heroIconWrap, { backgroundColor: 'rgba(234,88,12,0.85)' }]}>
+                <View style={s.heroCard}>
+                    <View style={[s.heroIconWrap, { backgroundColor: 'rgba(234,88,12,0.85)' }]}>
                         <Ionicons name="headset" size={28} color="#FFFFFF" />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.heroTitle}>Need Assistance?</Text>
-                        <Text style={styles.heroSub}>
+                        <Text style={s.heroTitle}>Need Assistance?</Text>
+                        <Text style={s.heroSub}>
                             Browse FAQs below or reach out to our team directly. We typically respond within 24 hours.
                         </Text>
                     </View>
@@ -548,15 +433,15 @@ export default function HelpSupportScreen() {
             </LinearGradient>
 
             <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
+                style={s.scrollView}
+                contentContainerStyle={s.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={styles.searchSection}>
-                    <View style={styles.searchBox}>
+                <View style={s.searchSection}>
+                    <View style={s.searchBox}>
                         <Ionicons name="search" size={20} color={colors.textMuted} />
                         <TextInput
-                            style={styles.searchInput}
+                            style={s.searchInput}
                             placeholder="Search FAQs..."
                             placeholderTextColor={colors.textMuted}
                             value={searchQuery}
@@ -571,25 +456,25 @@ export default function HelpSupportScreen() {
                     </View>
                 </View>
 
-                <View style={styles.section}>
-                    <View style={styles.sectionHdr}>
-                        <View style={[styles.sectionBar, { backgroundColor: O_MID }]} />
-                        <Ionicons name="chatbubbles-outline" size={16} color={O_MID} style={{ marginRight: 6 }} />
-                        <Text style={styles.sectionTitle}>Contact Us</Text>
+                <View style={s.section}>
+                    <View style={s.sectionHdr}>
+                        <View style={[s.sectionBar, { backgroundColor: '#EA580C' }]} />
+                        <Ionicons name="chatbubbles-outline" size={16} color="#EA580C" style={{ marginRight: 6 }} />
+                        <Text style={s.sectionTitle}>Contact Us</Text>
                     </View>
-                    <View style={styles.contactGrid}>
+                    <View style={s.contactGrid}>
                         {contactMethods.map((method, i) => (
                             <TouchableOpacity
                                 key={i}
-                                style={styles.contactCard}
+                                style={s.contactCard}
                                 onPress={method.onPress}
                                 activeOpacity={0.75}
                             >
-                                <LinearGradient colors={method.gradient} style={styles.contactIconGrad}>
+                                <LinearGradient colors={method.gradient} style={s.contactIconGrad}>
                                     <Ionicons name={method.icon} size={22} color="#FFFFFF" />
                                 </LinearGradient>
-                                <Text style={styles.contactTitle}>{method.title}</Text>
-                                <Text style={styles.contactSubtitle} numberOfLines={1}>
+                                <Text style={s.contactTitle}>{method.title}</Text>
+                                <Text style={s.contactSubtitle} numberOfLines={1}>
                                     {method.subtitle}
                                 </Text>
                             </TouchableOpacity>
@@ -597,90 +482,103 @@ export default function HelpSupportScreen() {
                     </View>
                 </View>
 
-                <View style={styles.section}>
-                    <View style={styles.sectionHdr}>
-                        <View style={[styles.sectionBar, { backgroundColor: B_SKY }]} />
-                        <Ionicons name="help-circle-outline" size={16} color={B_SKY} style={{ marginRight: 6 }} />
-                        <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+                <View style={s.section}>
+                    <View style={s.sectionHdr}>
+                        <View style={[s.sectionBar, { backgroundColor: colors.primary }]} />
+                        <Ionicons name="help-circle-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                        <Text style={s.sectionTitle}>Frequently Asked Questions</Text>
                     </View>
 
                     {filteredFaqs.length > 0 ? (
                         filteredFaqs.map((faq, i) => (
-                            <FAQAccordion key={i} item={faq} index={i} colors={colors} isDark={isDark} styles={styles} />
+                            <FAQAccordion key={i} item={faq} index={i} colors={colors} isDark={isDark} styles={s} />
                         ))
                     ) : (
-                        <View style={styles.emptyState}>
-                            <LinearGradient colors={[B_PALE, '#BFDBFE']} style={styles.emptyIconBox}>
-                                <Ionicons name="search-outline" size={36} color={B_SKY} />
+                        <View style={s.emptyState}>
+                            <LinearGradient colors={['#DBEAFE', '#BFDBFE']} style={s.emptyIconBox}>
+                                <Ionicons name="search-outline" size={36} color={colors.primary} />
                             </LinearGradient>
-                            <Text style={styles.emptyTitle}>No results found</Text>
-                            <Text style={styles.emptySub}>
+                            <Text style={s.emptyTitle}>No results found</Text>
+                            <Text style={s.emptySub}>
                                 Try different keywords or contact us directly
                             </Text>
                         </View>
                     )}
                 </View>
 
-                <View style={styles.section}>
-                    <View style={styles.sectionHdr}>
-                        <View style={[styles.sectionBar, { backgroundColor: '#10B981' }]} />
+                <View style={s.section}>
+                    <View style={s.sectionHdr}>
+                        <View style={[s.sectionBar, { backgroundColor: '#10B981' }]} />
                         <Ionicons name="link-outline" size={16} color="#10B981" style={{ marginRight: 6 }} />
-                        <Text style={styles.sectionTitle}>Quick Links</Text>
+                        <Text style={s.sectionTitle}>Quick Links</Text>
                     </View>
-                    <View style={styles.quickLinksCard}>
+                    <View style={s.quickLinksCard}>
+                        <TouchableOpacity
+                            style={[
+                                s.quickLinkItem,
+                            ]}
+                            onPress={() => router.push('/(shared)/tickets' as any)}
+                            activeOpacity={0.65}
+                        >
+                            <View style={[s.quickLinkIcon, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE' }]}>
+                                <Ionicons name="ticket" size={18} color={colors.primary} />
+                            </View>
+                            <Text style={s.quickLinkLabel}>My Support Tickets</Text>
+                            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                        </TouchableOpacity>
                         {quickLinks.map((link, i) => (
                             <TouchableOpacity
                                 key={i}
                                 style={[
-                                    styles.quickLinkItem,
+                                    s.quickLinkItem,
                                     i === quickLinks.length - 1 && { borderBottomWidth: 0 },
                                 ]}
                                 onPress={link.onPress}
                                 activeOpacity={0.65}
                             >
-                                <View style={[styles.quickLinkIcon, { backgroundColor: link.bg }]}>
+                                <View style={[s.quickLinkIcon, { backgroundColor: link.bg }]}>
                                     <Ionicons name={link.icon} size={18} color={link.color} />
                                 </View>
-                                <Text style={styles.quickLinkLabel}>{link.label}</Text>
+                                <Text style={s.quickLinkLabel}>{link.label}</Text>
                                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                             </TouchableOpacity>
                         ))}
                     </View>
                 </View>
 
-                <View style={styles.section}>
-                    <LinearGradient colors={['#DC2626', '#B91C1C']} style={styles.emergencyBanner}>
-                        <View style={styles.emergencyIconWrap}>
+                <View style={s.section}>
+                    <LinearGradient colors={['#DC2626', '#B91C1C']} style={s.emergencyBanner}>
+                        <View style={s.emergencyIconWrap}>
                             <Ionicons name="warning" size={24} color="#FFFFFF" />
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.emergencyTitle}>Medical Emergency?</Text>
-                            <Text style={styles.emergencySub}>
+                            <Text style={s.emergencyTitle}>Medical Emergency?</Text>
+                            <Text style={s.emergencySub}>
                                 If you or someone needs urgent blood, please call emergency services immediately.
                             </Text>
                         </View>
                         <TouchableOpacity
-                            style={styles.emergencyCallBtn}
+                            style={s.emergencyCallBtn}
                             onPress={() => openLink('tel:999')}
                             activeOpacity={0.8}
                         >
                             <Ionicons name="call" size={18} color="#DC2626" />
-                            <Text style={styles.emergencyCallText}>999</Text>
+                            <Text style={s.emergencyCallText}>999</Text>
                         </TouchableOpacity>
                     </LinearGradient>
                 </View>
 
-                <View style={styles.appInfoCard}>
-                    <View style={styles.appInfoLogoWrap}>
+                <View style={s.appInfoCard}>
+                    <View style={s.appInfoLogoWrap}>
                         <Image
                             source={require('@/assets/images/logo.jpg')}
-                            style={styles.appInfoLogoImage}
+                            style={s.appInfoLogoImage}
                             resizeMode="contain"
                         />
                     </View>
-                    <Text style={styles.appInfoName}>BloodLink</Text>
-                    <Text style={styles.appInfoVersion}>Version 2.1.0</Text>
-                    <Text style={styles.appInfoTagline}>We Save Lives 🇰🇪</Text>
+                    <Text style={s.appInfoName}>BloodLink</Text>
+                    <Text style={s.appInfoVersion}>Version 2.1.0</Text>
+                    <Text style={s.appInfoTagline}>We Save Lives 🇰🇪</Text>
                 </View>
 
                 <View style={{ height: 30 }} />
