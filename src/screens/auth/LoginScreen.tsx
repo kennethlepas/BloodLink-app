@@ -338,7 +338,7 @@ const LoginScreen: React.FC = () => {
                 </View>
                 <View style={styles.brandTitleContainer}>
                   <Text style={styles.appNameCompact}>BloodLink</Text>
-                  <Text style={styles.appTaglineCompact}>Blood Donation Management System</Text>
+                  <Text style={styles.appTaglineCompact}>Integrated Online Blood Bank Platform</Text>
                 </View>
               </View>
               <Text style={styles.welcomeSubtext}>Every Drop Counts, Every Life Matters</Text>

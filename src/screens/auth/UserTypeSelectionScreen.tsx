@@ -90,7 +90,7 @@ const UserTypeSelectionScreen: React.FC = () => {
               </View>
               <View style={styles.brandTitleContainer}>
                 <Text style={styles.appNameCompact}>BloodLink</Text>
-                <Text style={styles.appTaglineCompact}>Blood Donation Management System</Text>
+                <Text style={styles.appTaglineCompact}>Integrated Online Blood Bank Platform</Text>
               </View>
             </View>
           </View>

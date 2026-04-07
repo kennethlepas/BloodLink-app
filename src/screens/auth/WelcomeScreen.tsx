@@ -237,7 +237,7 @@ export default function WelcomeScreen() {
               </View>
               <View style={styles.brandTitleContainer}>
                 <Text style={styles.appNameCompact}>BloodLink</Text>
-                <Text style={styles.appTaglineCompact}>Blood Donation Management System</Text>
+                <Text style={styles.appTaglineCompact}>Integrated Online Blood Bank Platform</Text>
               </View>
             </View>
             <Text style={styles.welcomeSubtext}>Every Drop Counts, Every Life Matters</Text>
@@ -304,7 +304,7 @@ export default function WelcomeScreen() {
             </View>
             <View style={styles.aboutContent}>
               <Text style={styles.aboutText}>
-                BloodLink is a dedicated digital health platform committed to bridging the gap between blood donors and those in need across Kenya.
+                BloodLink is an integrated online blood bank platform committed to bridging the gap between blood donors and those in need across Kenya.
               </Text>
               <Text style={styles.aboutText}>
                 We leverage technology to ensure reaching donors and managing blood requests is easier than ever, creating a seamless, verified, and efficient lifesaving network.

@@ -308,7 +308,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
             <View style={styles.missionCard}>
               <Text style={styles.missionTitle}>Our Mission</Text>
               <Text style={styles.missionText}>
-                BloodLink is a dedicated digital health platform committed to bridging the gap between blood donors and those in need across Kenya.
+                BloodLink is an integrated online blood bank platform committed to bridging the gap between blood donors and those in need across Kenya.
               </Text>
               <Text style={[styles.missionText, { marginTop: 6 }]}>
                 We leverage technology to ensure reaching donors and managing blood requests is easier than ever, creating a seamless, verified, and efficient lifesaving network.
