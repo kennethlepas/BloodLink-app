@@ -367,6 +367,8 @@ const LoginScreen: React.FC = () => {
                       autoCapitalize="none"
                       autoComplete="email"
                       maxLength={100}
+                      cursorColor="#FFFFFF"
+                      selectionColor="rgba(255, 255, 255, 0.3)"
                       editable={!loading}
                     />
                   </View>
@@ -387,6 +389,8 @@ const LoginScreen: React.FC = () => {
                       secureTextEntry={!showPassword}
                       autoComplete="password"
                       maxLength={10}
+                      cursorColor="#FFFFFF"
+                      selectionColor="rgba(255, 255, 255, 0.3)"
                       editable={!loading}
                     />
                     <TouchableOpacity

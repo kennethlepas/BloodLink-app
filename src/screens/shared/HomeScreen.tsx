@@ -661,7 +661,7 @@ export default function HomeScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={false}
+        scrollEnabled={true}
         persistentScrollbar={true}
         indicatorStyle="default"
         refreshControl={
