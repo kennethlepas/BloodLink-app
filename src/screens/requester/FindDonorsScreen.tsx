@@ -1,6 +1,7 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import { getUsersByBloodType } from '@/src/services/firebase/database';
 import { BloodType, Donor } from '@/src/types/types';
 import { canDonateTo } from '@/src/utils/bloodCompatibility';
@@ -50,16 +51,13 @@ const shadow = (c = '#000', o = 0.08, r = 10, e = 3) =>
 const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: colors.text },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
 
   filtersWrap: { borderBottomWidth: 1, borderBottomColor: colors.surfaceBorder, backgroundColor: colors.surface, paddingHorizontal: 16, paddingVertical: 14 },
   searchBar: { borderRadius: 12, borderWidth: 1, borderColor: colors.surfaceBorder, backgroundColor: colors.surfaceAlt, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, paddingHorizontal: 14, paddingVertical: 10 },
@@ -384,6 +382,7 @@ export default function FindDonorsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBloodType, setSelectedBloodType] = useState<BloodType | 'all' | 'compatible'>('compatible');
   const [isBloodTypeExpanded, setIsBloodTypeExpanded] = useState(false);
+  const { onScroll } = useTabBarAnimation();
 
   const {
     data: donorsData,
@@ -458,18 +457,18 @@ export default function FindDonorsScreen() {
 
   return (
     <SafeAreaView style={fd.container} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.surface} />
-      <View style={fd.header}>
+      <StatusBar barStyle="light-content" backgroundColor="#0A2647" />
+      <LinearGradient colors={['#3B82F6', '#2563EB']} style={fd.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
         <View style={fd.headerRow}>
           <TouchableOpacity style={fd.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={TEXT_DARK} />
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={fd.headerCenter}>
             <Text style={fd.headerTitle}>Find Donors</Text>
           </View>
           <View style={{ width: 40 }} />
         </View>
-      </View>
+      </LinearGradient>
 
       <View style={fd.filtersWrap}>
         <View style={fd.searchBar}>
@@ -547,7 +546,11 @@ export default function FindDonorsScreen() {
 
       {loadingDonors
         ? <View style={fd.loadingWrap}><ActivityIndicator size="large" color={BLUE} /><Text style={fd.loadingText}>Loading donors…</Text></View>
-        : <FlatList data={filteredDonors} keyExtractor={i => i.id}
+        : <FlatList
+          data={filteredDonors}
+          keyExtractor={i => i.id}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           renderItem={({ item }) => <DonorListItem donor={item} onPress={() => setViewDonor(item)} />}
           contentContainerStyle={fd.listContent} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[BLUE]} tintColor={BLUE} />}

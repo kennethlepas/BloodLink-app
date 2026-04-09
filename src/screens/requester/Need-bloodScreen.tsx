@@ -1,4 +1,5 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
+import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
 import {
@@ -450,7 +451,7 @@ const NeedBloodScreen: React.FC = () => {
             })));
 
             Alert.alert('Success!', 'Blood request created successfully', [
-              { text: 'View Requests', onPress: () => router.replace('/(tabs)/requests' as any) },
+              { text: 'View Requests', onPress: () => router.replace('/(requester)/my-requests' as any) },
               { text: 'OK', onPress: () => { if (user?.id) showRatingPrompt(router, user.id); router.back(); } }
             ]);
           } catch (err) { Alert.alert('Error', mapErrorMessage(err)); } finally { setLoading(false); }

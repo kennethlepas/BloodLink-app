@@ -192,6 +192,7 @@ const ChatScreen: React.FC = () => {
     }
   };
 
+
   // ── Delete entire conversation ──
   const handleDeleteConversation = () => {
     setShowMenu(false);
@@ -265,40 +266,42 @@ const ChatScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.headerBg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.chatBg }} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={C.headerBg} />
 
       {/* ── HEADER — Dark warm brown like Samsung KCB thread ── */}
-      <View style={st.header}>
-        {/* Back */}
-        <TouchableOpacity style={st.hBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={C.headerText} />
-        </TouchableOpacity>
+      <View style={{ backgroundColor: C.headerBg }}>
+        <View style={st.header}>
+          {/* Back */}
+          <TouchableOpacity style={st.hBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color={C.headerText} />
+          </TouchableOpacity>
 
-        {/* Avatar */}
-        <View style={st.hAvatar}>
-          <Ionicons name="person" size={20} color="rgba(255,255,255,0.6)" />
+          {/* Avatar */}
+          <View style={st.hAvatar}>
+            <Ionicons name="person" size={20} color="rgba(255,255,255,0.6)" />
+          </View>
+
+          {/* Name + status */}
+          <View style={st.hMeta}>
+            <Text style={st.hName} numberOfLines={1}>{getOtherName()}</Text>
+            <Text style={st.hStatus}>{getStatusLabel()}</Text>
+          </View>
+
+          {/* Delete (trash icon on right — visible from header like Samsung screenshot) */}
+          <TouchableOpacity
+            style={st.hBtn}
+            onPress={handleDeleteConversation}
+          >
+            <Ionicons name="trash-outline" size={20} color="rgba(255,255,255,0.75)" />
+          </TouchableOpacity>
         </View>
-
-        {/* Name + status */}
-        <View style={st.hMeta}>
-          <Text style={st.hName} numberOfLines={1}>{getOtherName()}</Text>
-          <Text style={st.hStatus}>{getStatusLabel()}</Text>
-        </View>
-
-        {/* Delete (trash icon on right — visible from header like Samsung screenshot) */}
-        <TouchableOpacity
-          style={st.hBtn}
-          onPress={handleDeleteConversation}
-        >
-          <Ionicons name="trash-outline" size={20} color="rgba(255,255,255,0.75)" />
-        </TouchableOpacity>
       </View>
 
       {/* ── CHAT BODY ── */}
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: C.chatBg }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={90}
       >
         {loading ? (

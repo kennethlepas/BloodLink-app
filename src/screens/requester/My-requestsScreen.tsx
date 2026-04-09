@@ -1,6 +1,7 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import {
   completeBloodRequest,
   completeDonationAfterVerification,
@@ -59,7 +60,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
   // Header
-  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 18, backgroundColor: colors.primary },
+  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 18, backgroundColor: '#2C2418' },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   headerCenter: { alignItems: 'center', flex: 1 },
@@ -181,6 +182,24 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   modalVerifyBtn: { flex: 1.5, borderRadius: 14, overflow: 'hidden' },
   modalVerifyGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14 },
   modalVerifyText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  searchBarBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    marginHorizontal: 16,
+    marginVertical: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  searchBarInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 14,
+    color: colors.text,
+  },
 });
 
 const MyRequestsScreen: React.FC = () => {
@@ -211,6 +230,8 @@ const MyRequestsScreen: React.FC = () => {
   const [selectedVerification, setSelectedVerification] = useState<AcceptedRequest | null>(null);
   const [verificationNotes, setVerificationNotes] = useState('');
   const [viewRequest, setViewRequest] = useState<BloodRequest | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const { onScroll } = useTabBarAnimation();
   const [activeTab, setActiveTab] = useState<'requests' | 'bookings'>('requests');
 
   // Fetch user requests
@@ -394,10 +415,17 @@ const MyRequestsScreen: React.FC = () => {
     }
   };
 
-  const filteredRequests = useMemo(() =>
-    filter === 'all' ? requests : requests.filter(r => r.status === filter),
-    [filter, requests]
-  );
+  const filteredRequests = useMemo(() => {
+    let f = filter === 'all' ? requests : requests.filter(r => r.status === filter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      f = f.filter(r =>
+        r.patientName.toLowerCase().includes(q) ||
+        r.hospitalName.toLowerCase().includes(q)
+      );
+    }
+    return f;
+  }, [filter, requests, searchQuery]);
 
   const filterTabs = useMemo(() => [
     { key: 'all', label: 'All', count: requests.length },
@@ -494,34 +522,6 @@ const MyRequestsScreen: React.FC = () => {
 
   const ListHeader = () => (
     <>
-      <LinearGradient colors={[colors.primary, colors.primary + 'E6']} style={st.header}>
-        <View style={st.headerTop}>
-          <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-          <View style={st.headerCenter}>
-            <Text style={st.headerTitle}>My Requests</Text>
-            <Text style={st.headerSub}>{requests.length} total request{requests.length !== 1 ? 's' : ''}</Text>
-          </View>
-          <TouchableOpacity style={st.addBtn} onPress={() => router.push('/(requester)/needblood' as any)}>
-            <Ionicons name="add" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={st.summaryRow}>
-          {[
-            { icon: 'time', label: 'Pending', val: requests.filter(r => r.status === 'pending').length, clr: colors.warning },
-            { icon: 'checkmark-circle', label: 'Accepted', val: requests.filter(r => r.status === 'accepted').length, clr: colors.success },
-            { icon: 'checkmark-done-circle', label: 'Done', val: requests.filter(r => r.status === 'completed').length, clr: '#93C5FD' },
-          ].map((s, i) => (
-            <View key={i} style={st.summaryChip}>
-              <Ionicons name={s.icon as any} size={16} color={s.clr} />
-              <Text style={st.summaryChipVal}>{s.val}</Text>
-              <Text style={st.summaryChipLabel}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-      </LinearGradient>
 
       {pendingVerifications.length > 0 && (
         <View style={[st.verifyBanner, { backgroundColor: '#FEF3C7', borderBottomColor: colors.warning }]}>
@@ -563,6 +563,22 @@ const MyRequestsScreen: React.FC = () => {
           ))}
         </View>
       )}
+
+      <View style={st.searchBarBox}>
+        <Ionicons name="search" size={16} color={TEXT_SOFT} />
+        <TextInput
+          placeholder="Search requests, patient, hospital..."
+          style={st.searchBarInput}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholderTextColor={TEXT_SOFT}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={16} color={TEXT_SOFT} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       <View style={[st.filterBar, { backgroundColor: SURFACE, borderBottomColor: BORDER }]}>
         {filterTabs.map(tab => {
@@ -661,8 +677,36 @@ const MyRequestsScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={st.container} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.primary} />
+    <SafeAreaView style={[st.container, { backgroundColor: '#FDFBF7' }]} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor="#0A2647" />
+      <LinearGradient colors={['#3B82F6', '#2563EB']} style={st.header}>
+        <View style={st.headerTop}>
+          <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={st.headerCenter}>
+            <Text style={st.headerTitle}>My Requests</Text>
+            <Text style={st.headerSub}>{requests.length} total request{requests.length !== 1 ? 's' : ''}</Text>
+          </View>
+          <TouchableOpacity style={st.addBtn} onPress={() => router.push('/(requester)/needblood' as any)}>
+            <Ionicons name="add" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={st.summaryRow}>
+          {[
+            { icon: 'time', label: 'Pending', val: requests.filter(r => r.status === 'pending').length, clr: colors.warning },
+            { icon: 'checkmark-circle', label: 'Accepted', val: requests.filter(r => r.status === 'accepted').length, clr: colors.success },
+            { icon: 'checkmark-done-circle', label: 'Done', val: requests.filter(r => r.status === 'completed').length, clr: '#93C5FD' },
+          ].map((s, i) => (
+            <View key={i} style={st.summaryChip}>
+              <Ionicons name={s.icon as any} size={16} color={s.clr} />
+              <Text style={st.summaryChipVal}>{s.val}</Text>
+              <Text style={st.summaryChipLabel}>{s.label}</Text>
+            </View>
+          ))}
+        </View>
+      </LinearGradient>
 
       {loading ? (
         <View style={st.loadingWrap}>
@@ -675,6 +719,8 @@ const MyRequestsScreen: React.FC = () => {
           renderItem={renderRequestListItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={st.listContent}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           ListHeaderComponent={ListHeader}
           ListEmptyComponent={activeTab === 'requests' ? renderEmptyState : null}
           ListFooterComponent={activeTab === 'bookings' ? (

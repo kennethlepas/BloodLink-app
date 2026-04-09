@@ -1,6 +1,7 @@
 import { KENYA_COUNTIES, getSubCountiesByCounty } from '@/src/constants/kenyaLocations';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import { createBooking, getBloodBanks, getDonorBookings } from '@/src/services/firebase/database';
 import { getCurrentLocation } from '@/src/services/location/locationService';
 import { sendLocalNotification } from '@/src/services/notifications';
@@ -58,6 +59,9 @@ export default function BookDonationScreen() {
     const [selectedSubCounty, setSelectedSubCounty] = useState('');
     const [isCountyFilterExpanded, setIsCountyFilterExpanded] = useState(false);
     const [isSubCountyFilterExpanded, setIsSubCountyFilterExpanded] = useState(false);
+    const [countySearch, setCountySearch] = useState('');
+    const [subCountySearch, setSubCountySearch] = useState('');
+    const { onScroll } = useTabBarAnimation();
 
     // Booking selection
     const [selectedHospital, setSelectedHospital] = useState<BloodBank | null>(null);
@@ -105,7 +109,9 @@ export default function BookDonationScreen() {
             const q = searchQuery.toLowerCase();
             filtered = filtered.filter(h =>
                 h.name.toLowerCase().includes(q) ||
-                h.address.toLowerCase().includes(q)
+                h.address.toLowerCase().includes(q) ||
+                (h.county || '').toLowerCase().includes(q) ||
+                (h.subCounty || '').toLowerCase().includes(q)
             );
         }
 
@@ -233,11 +239,11 @@ export default function BookDonationScreen() {
                 <View style={styles.searchContainer}>
                     <Ionicons name="search" size={20} color="rgba(255,255,255,0.6)" />
                     <TextInput
-                        placeholder="Search hospital name or location..."
-                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        placeholder="Search hospital, county or sub-county..."
                         style={styles.searchInput}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
+                        placeholderTextColor="rgba(255,255,255,0.4)"
                     />
                 </View>
             </LinearGradient>
@@ -278,6 +284,15 @@ export default function BookDonationScreen() {
 
                 {isCountyFilterExpanded && (
                     <View style={styles.filterDropdownList}>
+                        <View style={styles.filterSearchBox}>
+                            <Ionicons name="search" size={14} color={colors.textSecondary} />
+                            <TextInput
+                                placeholder="Search county..."
+                                style={styles.filterSearchInput}
+                                value={countySearch}
+                                onChangeText={setCountySearch}
+                            />
+                        </View>
                         <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
                             <TouchableOpacity
                                 style={[styles.filterListItem, !selectedCounty && styles.filterListItemSelected]}
@@ -290,7 +305,7 @@ export default function BookDonationScreen() {
                                 <Text style={[styles.filterListItemText, !selectedCounty && styles.filterListItemTextSelected]}>All Counties</Text>
                                 {!selectedCounty && <Ionicons name="checkmark" size={16} color="#FFF" />}
                             </TouchableOpacity>
-                            {KENYA_COUNTIES.map(c => (
+                            {KENYA_COUNTIES.filter(c => c.toLowerCase().includes(countySearch.toLowerCase())).map(c => (
                                 <TouchableOpacity
                                     key={c}
                                     style={[styles.filterListItem, selectedCounty === c && styles.filterListItemSelected]}
@@ -310,6 +325,15 @@ export default function BookDonationScreen() {
 
                 {isSubCountyFilterExpanded && (
                     <View style={styles.filterDropdownList}>
+                        <View style={styles.filterSearchBox}>
+                            <Ionicons name="search" size={14} color={colors.textSecondary} />
+                            <TextInput
+                                placeholder="Search sub-county..."
+                                style={styles.filterSearchInput}
+                                value={subCountySearch}
+                                onChangeText={setSubCountySearch}
+                            />
+                        </View>
                         <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
                             <TouchableOpacity
                                 style={[styles.filterListItem, !selectedSubCounty && styles.filterListItemSelected]}
@@ -321,7 +345,7 @@ export default function BookDonationScreen() {
                                 <Text style={[styles.filterListItemText, !selectedSubCounty && styles.filterListItemTextSelected]}>All Sub-Counties</Text>
                                 {!selectedSubCounty && <Ionicons name="checkmark" size={16} color="#FFF" />}
                             </TouchableOpacity>
-                            {getSubCountiesByCounty(selectedCounty).map(sc => (
+                            {getSubCountiesByCounty(selectedCounty).filter(sc => sc.toLowerCase().includes(subCountySearch.toLowerCase())).map(sc => (
                                 <TouchableOpacity
                                     key={sc}
                                     style={[styles.filterListItem, selectedSubCounty === sc && styles.filterListItemSelected]}
@@ -339,81 +363,85 @@ export default function BookDonationScreen() {
                 )}
             </View>
 
-            {loading ? (
-                <View style={styles.center}>
-                    <ActivityIndicator size="large" color="#3B82F6" />
-                </View>
-            ) : (
-                <FlatList
-                    data={filteredHospitals}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.listContent}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={[
-                                styles.hospitalCard,
-                                { backgroundColor: colors.surface },
-                                selectedHospital?.id === item.id && styles.hospitalCardSelected
-                            ]}
-                            onPress={() => setSelectedHospital(item)}
-                        >
-                            <View style={styles.hospitalInfo}>
-                                <View style={styles.hospitalHeader}>
-                                    <Text style={[styles.hospitalName, { color: colors.text }]}>{item.name}</Text>
-                                    {sortByDistance && userLocation && (
-                                        <View style={styles.distanceBadge}>
-                                            <Ionicons name="location" size={10} color="#3B82F6" />
-                                            <Text style={styles.distanceText}>
-                                                {calculateDistance(
-                                                    userLocation.coords.latitude,
-                                                    userLocation.coords.longitude,
-                                                    item.location.latitude,
-                                                    item.location.longitude
-                                                ).toFixed(1)} km
+            {
+                loading ? (
+                    <View style={styles.center}>
+                        <ActivityIndicator size="large" color="#3B82F6" />
+                    </View>
+                ) : (
+                    <FlatList
+                        data={filteredHospitals}
+                        keyExtractor={(item) => item.id}
+                        onScroll={onScroll}
+                        scrollEventThrottle={16}
+                        contentContainerStyle={styles.listContent}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity
+                                style={[
+                                    styles.hospitalCard,
+                                    { backgroundColor: colors.surface },
+                                    selectedHospital?.id === item.id && styles.hospitalCardSelected
+                                ]}
+                                onPress={() => setSelectedHospital(item)}
+                            >
+                                <View style={styles.hospitalInfo}>
+                                    <View style={styles.hospitalHeader}>
+                                        <Text style={[styles.hospitalName, { color: colors.text }]}>{item.name}</Text>
+                                        {sortByDistance && userLocation && (
+                                            <View style={styles.distanceBadge}>
+                                                <Ionicons name="location" size={10} color="#3B82F6" />
+                                                <Text style={styles.distanceText}>
+                                                    {calculateDistance(
+                                                        userLocation.coords.latitude,
+                                                        userLocation.coords.longitude,
+                                                        item.location.latitude,
+                                                        item.location.longitude
+                                                    ).toFixed(1)} km
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    <Text style={styles.hospitalType}>{item.facilityType || 'Blood Bank'}</Text>
+                                    <Text style={[styles.hospitalAddress, { color: colors.textSecondary }]} numberOfLines={1}>
+                                        {item.address}
+                                    </Text>
+
+                                    <View style={styles.hospitalMeta}>
+                                        <View style={styles.metaItem}>
+                                            <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
+                                            <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                                                {item.operatingHours?.open} - {item.operatingHours?.close}
                                             </Text>
                                         </View>
-                                    )}
-                                </View>
-                                <Text style={styles.hospitalType}>{item.facilityType || 'Blood Bank'}</Text>
-                                <Text style={[styles.hospitalAddress, { color: colors.textSecondary }]} numberOfLines={1}>
-                                    {item.address}
-                                </Text>
-
-                                <View style={styles.hospitalMeta}>
-                                    <View style={styles.metaItem}>
-                                        <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
-                                        <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                                            {item.operatingHours?.open} - {item.operatingHours?.close}
-                                        </Text>
+                                        {item.phoneNumber && (
+                                            <View style={styles.metaItem}>
+                                                <Ionicons name="call-outline" size={12} color={colors.textSecondary} />
+                                                <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.phoneNumber}</Text>
+                                            </View>
+                                        )}
                                     </View>
-                                    {item.phoneNumber && (
-                                        <View style={styles.metaItem}>
-                                            <Ionicons name="call-outline" size={12} color={colors.textSecondary} />
-                                            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.phoneNumber}</Text>
-                                        </View>
-                                    )}
                                 </View>
+                                {item.criticalNeed && (
+                                    <View style={styles.criticalBadge}>
+                                        <Text style={styles.criticalText}>CRITICAL</Text>
+                                    </View>
+                                )}
+                                {selectedHospital?.id === item.id && (
+                                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                                )}
+                            </TouchableOpacity>
+                        )}
+                        ListEmptyComponent={
+                            <View style={styles.emptyState}>
+                                <Ionicons name="business-outline" size={64} color={colors.textSecondary + '40'} />
+                                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                                    No hospitals found.
+                                </Text>
                             </View>
-                            {item.criticalNeed && (
-                                <View style={styles.criticalBadge}>
-                                    <Text style={styles.criticalText}>CRITICAL</Text>
-                                </View>
-                            )}
-                            {selectedHospital?.id === item.id && (
-                                <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                            )}
-                        </TouchableOpacity>
-                    )}
-                    ListEmptyComponent={
-                        <View style={styles.emptyState}>
-                            <Ionicons name="business-outline" size={64} color={colors.textSecondary + '40'} />
-                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                                No hospitals found.
-                            </Text>
-                        </View>
-                    }
-                />
-            )}
+                        }
+                    />
+                )
+            }
 
             {/* Booking Modal - Centered */}
             <Modal
@@ -513,7 +541,7 @@ export default function BookDonationScreen() {
                     </View>
                 </TouchableWithoutFeedback>
             </Modal>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }
 
@@ -742,5 +770,21 @@ const styles = StyleSheet.create({
     },
     filterListItemTextSelected: {
         color: '#FFF',
+    },
+    filterSearchBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.02)',
+    },
+    filterSearchInput: {
+        flex: 1,
+        fontSize: 13,
+        marginLeft: 8,
+        height: 30,
+        padding: 0,
     },
 });

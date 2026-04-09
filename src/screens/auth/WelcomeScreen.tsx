@@ -248,6 +248,23 @@ export default function WelcomeScreen() {
             <WelcomeSlider />
           </View>
 
+          {/* About Us Section */}
+          <View style={styles.aboutSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLine} />
+              <Text style={styles.sectionTitle}>Our Mission</Text>
+              <View style={styles.sectionHeaderLine} />
+            </View>
+            <View style={styles.aboutContent}>
+              <Text style={styles.aboutText}>
+                BloodLink is an integrated online blood bank platform committed to bridging the gap between blood donors and those in need across Kenya.
+              </Text>
+              <Text style={styles.aboutText}>
+                We leverage technology to ensure reaching donors and managing blood requests is easier than ever, creating a seamless, verified, and efficient lifesaving network.
+              </Text>
+            </View>
+          </View>
+
           {/* Stats Section - Dashboard Style (No Cards) */}
           <View style={styles.statsSection}>
             <View style={styles.sectionHeader}>
@@ -292,23 +309,6 @@ export default function WelcomeScreen() {
                   <Text style={styles.statLabelDashboard}>Emergency Care</Text>
                 </View>
               </View>
-            </View>
-          </View>
-
-          {/* About Us Section */}
-          <View style={styles.aboutSection}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderLine} />
-              <Text style={styles.sectionTitle}>Our Mission</Text>
-              <View style={styles.sectionHeaderLine} />
-            </View>
-            <View style={styles.aboutContent}>
-              <Text style={styles.aboutText}>
-                BloodLink is an integrated online blood bank platform committed to bridging the gap between blood donors and those in need across Kenya.
-              </Text>
-              <Text style={styles.aboutText}>
-                We leverage technology to ensure reaching donors and managing blood requests is easier than ever, creating a seamless, verified, and efficient lifesaving network.
-              </Text>
             </View>
           </View>
 

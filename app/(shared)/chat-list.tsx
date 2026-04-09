@@ -14,6 +14,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -26,14 +27,14 @@ const C = {
   card: '#FFFFFF',          // white rows
   cardUnread: '#FFF8F2',    // very light peach for unread
 
-  // Blue header (as requested in previous update)
-  headerBg: '#1A6FD4',
-  headerDark: '#1255A8',
+  // Blue header
+  headerBg: '#3B82F6',
+  headerDark: '#0A2647',
 
-  // Amber/warm orange accent — matches "Messages" title + tab underline
-  accent: '#C67C2A',
-  accentLight: '#F5A623',
-  accentBg: '#FFF3E0',
+  // Blue accent
+  accent: '#3B82F6',
+  accentLight: '#60A5FA',
+  accentBg: '#EFF6FF',
 
   textPrimary: '#1A1A1A',
   textSecondary: '#666666',
@@ -60,6 +61,7 @@ const ChatListScreen: React.FC = () => {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedChats, setSelectedChats] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useFocusEffect(
     useCallback(() => {
@@ -308,10 +310,12 @@ const ChatListScreen: React.FC = () => {
   );
 
   const sorted = useMemo(() =>
-    [...chats].sort((a, b) =>
-      (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0) -
-      (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0)
-    ), [chats]);
+    [...chats]
+      .filter(c => getOtherName(c).toLowerCase().includes(searchQuery.toLowerCase()))
+      .sort((a, b) =>
+        (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0) -
+        (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0)
+      ), [chats, searchQuery]);
 
   if (!user) {
     return (
@@ -324,7 +328,7 @@ const ChatListScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={C.headerDark} />
 
       {/* ── Header ── */}
@@ -372,6 +376,21 @@ const ChatListScreen: React.FC = () => {
         <TouchableOpacity style={styles.tabPlus} onPress={goToNewChat}>
           <Ionicons name="add" size={20} color={C.textSecondary} />
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.searchBarBox}>
+        <Ionicons name="search" size={16} color={C.textSecondary} />
+        <TextInput
+          placeholder="Search conversations..."
+          style={styles.searchBarInput}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={16} color={C.textTertiary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── List ── */}
@@ -622,6 +641,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
+  },
+  searchBarBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.card,
+    marginHorizontal: 16,
+    marginVertical: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  searchBarInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 14,
+    color: C.textPrimary,
   },
 });
 

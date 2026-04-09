@@ -5,6 +5,7 @@ import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { BloodRequest, Donor, Notification } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -27,6 +28,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DashboardInsights } from '../../components/insights/DashboardInsights';
+import { useTabBarAnimation } from '../../hooks/useTabBarAnimation';
 import {
   countActiveCompatibleRequests,
   countAvailableCompatibleDonors,
@@ -40,7 +42,11 @@ import {
   updateUser
 } from '../../services/firebase/database';
 import { getDonorEligibilityStatus } from '../../services/firebase/donationEligibilityService';
-import { initNotifications } from '../../services/notifications';
+import {
+  addNotificationResponseListener,
+  initNotifications
+} from '../../services/notifications';
+import { moderateScale, scale, verticalScale } from '../../utils/scaling';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const REQUEST_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2.05;
@@ -118,6 +124,7 @@ export default function HomeScreen() {
   const { colors, isDark } = useAppTheme();
   const brand = getBrandColors(colors, isDark);
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const styles = getStyles(colors, insets, isDark, brand);
 
@@ -141,6 +148,9 @@ export default function HomeScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const drawerAnim = useState(new Animated.Value(-DRAWER_WIDTH))[0];
 
+  // Tab Bar Animation
+  const { onScroll } = useTabBarAnimation();
+
   const [totalRequests, setTotalRequests] = useState(0);
   const [fulfilledRequests, setFulfilledRequests] = useState(0);
   const [pendingRequests, setPendingRequests] = useState(0);
@@ -159,6 +169,7 @@ export default function HomeScreen() {
   const [hasActiveCommitment, setHasActiveCommitment] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState(0);
 
+
   const isDonor = user?.userType === 'donor';
   const isRequester = user?.userType === 'requester';
 
@@ -175,6 +186,25 @@ export default function HomeScreen() {
 
       // Initialize notifications once user reaches home
       initNotifications();
+
+      // Notification Response listener for deep-linking
+      const responseListener = addNotificationResponseListener((response) => {
+        const data = response.notification.request.content.data;
+        if (data?.targetScreen) {
+          router.push(data.targetScreen as any);
+        } else if (data?.type === 'chat') {
+          router.push({
+            pathname: '/(shared)/chat',
+            params: { chatId: data.chatId }
+          } as any);
+        } else if (data?.type === 'request') {
+          router.push(user.userType === 'donor' ? '/(donor)/requests' : '/(requester)/my-requests' as any);
+        }
+      });
+
+      return () => {
+        responseListener.remove();
+      };
     }
   }, [isDonor, isRequester, user?.id]);
 
@@ -407,6 +437,7 @@ export default function HomeScreen() {
       setTimeout(() => setRefreshing(false), 800);
     }
   }, [isDonor, isRequester, user]);
+
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -664,6 +695,8 @@ export default function HomeScreen() {
         scrollEnabled={true}
         persistentScrollbar={true}
         indicatorStyle="default"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[brand.sky]} tintColor={brand.sky} />
         }
@@ -729,7 +762,7 @@ export default function HomeScreen() {
           <View style={styles.bloodCard}>
             <View style={styles.bloodCardLeft}>
               <View style={styles.bloodTypeCircle}>
-                <Ionicons name="water" size={16} color={brand.orange} />
+                <Ionicons name="water" size={scale(16)} color={brand.orange} />
                 <Text style={styles.bloodType}>{user.bloodType}</Text>
               </View>
               <Text style={styles.bloodTypeLabel}>Blood Type</Text>
@@ -1411,7 +1444,7 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   drawerToggleStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   drawerStatusDot: { width: 7, height: 7, borderRadius: 3.5 },
   drawerToggleLbl: { fontSize: 11, color: '#FFFFFF', fontWeight: '600', flex: 1 },
-  drawerMenu: { flex: 1, marginTop: 16, paddingHorizontal: 10 },
+  drawerMenu: { flex: 1, marginTop: 16, paddingHorizontal: 10, justifyContent: 'space-between', paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
   drawerMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1461,16 +1494,16 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   actionBadge: { position: 'absolute', top: 5, right: 5, backgroundColor: '#DC2626', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 10, borderWidth: 1.5, borderColor: colors.surface, minWidth: 18, alignItems: 'center' },
   actionBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
 
-  header: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 12, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden', position: 'relative' },
-  hCircle1: { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.05)', top: -50, right: -40 },
-  hCircle2: { position: 'absolute', width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.06)', bottom: 10, left: -25 },
+  header: { paddingHorizontal: moderateScale(18), paddingTop: verticalScale(4), paddingBottom: verticalScale(12), borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden', position: 'relative' },
+  hCircle1: { position: 'absolute', width: scale(160), height: scale(160), borderRadius: scale(80), backgroundColor: 'rgba(255,255,255,0.05)', top: -50, right: -40 },
+  hCircle2: { position: 'absolute', width: scale(100), height: scale(100), borderRadius: scale(50), backgroundColor: 'rgba(255,255,255,0.06)', bottom: 10, left: -25 },
   hTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  menuBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: 12 },
+  menuBtn: { width: scale(42), height: scale(42), borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: 12 },
   menuLine: { height: 2.5, borderRadius: 2, backgroundColor: '#FFFFFF' },
   hBrand: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, justifyContent: 'center' },
   hBrandIcon: {
-    width: 48,
-    height: 62,
+    width: scale(48),
+    height: scale(62),
     borderRadius: 8,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
@@ -1486,15 +1519,15 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
       }),
   },
   hBrandTextContainer: { alignItems: 'center' },
-  hAppName: { fontSize: 18, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 },
-  hTagline: { fontSize: 8, fontWeight: '700', color: 'rgba(255,255,255,0.88)', letterSpacing: 1.6, marginTop: 0 },
-  hNotifBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center' },
+  hAppName: { fontSize: moderateScale(18), fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 },
+  hTagline: { fontSize: moderateScale(8), fontWeight: '700', color: 'rgba(255,255,255,0.88)', letterSpacing: 1.6, marginTop: 0 },
+  hNotifBtn: { width: scale(44), height: scale(44), borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center' },
   hGreetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  hAvatarSmall: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)', overflow: 'hidden' },
+  hAvatarSmall: { width: scale(36), height: scale(36), borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)', overflow: 'hidden' },
   hAvatarImg: { width: '100%', height: '100%' },
-  hAvatarInitial: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
-  hGreeting: { fontSize: 14, fontWeight: '800', color: '#FFFFFF', marginBottom: 1 },
-  hRole: { fontSize: 10, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  hAvatarInitial: { fontSize: moderateScale(14), fontWeight: '800', color: '#FFFFFF' },
+  hGreeting: { fontSize: moderateScale(14), fontWeight: '800', color: '#FFFFFF', marginBottom: 1 },
+  hRole: { fontSize: moderateScale(10), color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)' },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusPillText: { fontSize: 10, fontWeight: '700' },

@@ -44,9 +44,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      style={{ backgroundColor: colors.bg }} // Add background to KeyboardAvoidingView
+      style={{ backgroundColor: 'transparent' }}
     >
       <View style={[styles.container, { backgroundColor: colors.surface, borderTopColor: colors.surfaceBorder }]}>
         {onAttachment && (

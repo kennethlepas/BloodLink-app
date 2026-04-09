@@ -1,12 +1,13 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import { BloodBank, BloodType, Location } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ExpoLocation from 'expo-location';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +21,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View
@@ -39,6 +41,7 @@ const FindBloodScreen: React.FC = () => {
   const router = useRouter();
   const { colors, isDark } = useAppTheme();
   const { user } = useUser();
+  const { onScroll } = useTabBarAnimation();
 
   const [selectedBloodType, setSelectedBloodType] = useState<BloodType | 'all'>('all');
   const [isBloodTypeExpanded, setIsBloodTypeExpanded] = useState(false);
@@ -55,6 +58,7 @@ const FindBloodScreen: React.FC = () => {
   const [selectedSubCounty, setSelectedSubCounty] = useState('');
   const [isCountyExpanded, setIsCountyExpanded] = useState(false);
   const [isSubCountyExpanded, setIsSubCountyExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const {
     data: allBanksData,
@@ -74,6 +78,16 @@ const FindBloodScreen: React.FC = () => {
   );
 
   const loading = loadingAll || searching;
+
+  // Memoized filter for manual text search
+  const filteredBloodBanks = useMemo(() => {
+    if (!searchQuery.trim()) return bloodBanks;
+    const q = searchQuery.toLowerCase();
+    return bloodBanks.filter(b =>
+      b.name.toLowerCase().includes(q) ||
+      b.address.toLowerCase().includes(q)
+    );
+  }, [bloodBanks, searchQuery]);
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
   const isBloodBankOpen = (hours?: { open: string; close: string }) => {
@@ -145,6 +159,7 @@ const FindBloodScreen: React.FC = () => {
   const handleClearSearch = () => {
     setSearched(false);
     setBloodBanks(allBloodBanks);
+    setSearchQuery('');
     setUserLocation(null);
     setUsingDefaultLocation(false);
     setSelectedCounty('');
@@ -593,11 +608,11 @@ const FindBloodScreen: React.FC = () => {
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#DBEAFE' }]}
+                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#EDE9E3' }]}
                         onPress={() => handleDirections(item)}
                       >
-                        <Ionicons name="navigate" size={20} color={colors.primary} />
-                        <Text style={[styles.actionBtnText, { color: colors.primary }]}>Directions</Text>
+                        <Ionicons name="navigate" size={20} color="#2C2418" />
+                        <Text style={[styles.actionBtnText, { color: '#2C2418' }]}>Directions</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -734,10 +749,10 @@ const FindBloodScreen: React.FC = () => {
   // ─── Main Render ─────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor="#0A2647" />
 
       {/* Header */}
-      <LinearGradient colors={[colors.primary, '#60A5FA']} style={styles.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+      <LinearGradient colors={['#3B82F6', '#2563EB']} style={styles.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
@@ -751,6 +766,31 @@ const FindBloodScreen: React.FC = () => {
             </Text>
           </View>
           <View style={{ width: 40 }} />
+        </View>
+
+        {/* Name Search Bar */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          height: 44,
+          marginBottom: 12
+        }}>
+          <Ionicons name="search" size={16} color="#64748B" />
+          <TextInput
+            placeholder="Search blood bank by name..."
+            style={{ flex: 1, marginLeft: 8, fontSize: 14, color: '#0F172A' }}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor="#94A3B8"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Blood type picker */}
@@ -930,10 +970,12 @@ const FindBloodScreen: React.FC = () => {
         </View>
       ) : (
         <FlatList
-          data={bloodBanks}
+          data={filteredBloodBanks}
           renderItem={renderCard}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           ListEmptyComponent={renderEmpty}
           refreshControl={
             <RefreshControl
