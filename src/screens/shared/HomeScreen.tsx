@@ -516,7 +516,7 @@ export default function HomeScreen() {
     { icon: 'location', bg: ['#0EA5E9', '#0284C7'] as [string, string], title: 'Location-Aware', desc: 'GPS-powered discovery shows the nearest donors, cutting emergency response time.' },
     { icon: 'trophy', bg: ['#F59E0B', '#D97706'] as [string, string], title: 'Reward System', desc: 'Donors earn points per verified donation. Redeem rewards and unlock community badges.' },
     { icon: 'chatbubbles', bg: ['#8B5CF6', '#7C3AED'] as [string, string], title: 'Direct Messaging', desc: 'Secure in-app chat lets donors and requesters coordinate without any middlemen.' },
-    { icon: 'heart', bg: [brand.orangeLite, brand.orange] as [string, string], title: 'Community Impact', desc: 'Join thousands of active donors. Every contribution builds a national blood safety net.' },
+    { icon: 'book', bg: [brand.orangeLite, brand.orange] as [string, string], title: 'User Guide', desc: 'Access full online documentation and helpful resources anytime.', onPress: () => Linking.openURL('https://blood-link-webguide.vercel.app/') },
   ];
 
   const socialLinks = [
@@ -1355,7 +1355,13 @@ export default function HomeScreen() {
 
             <View style={styles.aboutList}>
               {features.map((f, i) => (
-                <View key={i} style={styles.aboutItem}>
+                <TouchableOpacity
+                  key={i}
+                  style={styles.aboutItem}
+                  onPress={f.onPress}
+                  disabled={!f.onPress}
+                  activeOpacity={0.7}
+                >
                   <LinearGradient colors={f.bg} style={styles.aboutItemIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                     <Ionicons name={f.icon as any} size={16} color="#FFFFFF" />
                   </LinearGradient>
@@ -1363,7 +1369,7 @@ export default function HomeScreen() {
                     <Text style={styles.aboutItemTitle}>{f.title}</Text>
                     <Text style={styles.aboutItemDesc}>{f.desc}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
 

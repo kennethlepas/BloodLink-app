@@ -228,6 +228,19 @@ export default function RateAppScreen() {
           keyboardShouldPersistTaps="handled"
         >
 
+          {/* Guest View Banner */}
+          {!user && (
+            <View style={s.guestBanner}>
+              <View style={s.guestIconWrap}>
+                <Ionicons name="people" size={24} color={B_SKY} />
+              </View>
+              <View style={s.guestTextWrap}>
+                <Text style={s.guestTitle}>Join our Community</Text>
+                <Text style={s.guestSub}>Log in to share your experience or view what others are saying below.</Text>
+              </View>
+            </View>
+          )}
+
           {/* Hero Banner */}
           <LinearGradient colors={[O_PALE, '#FED7AA']} style={s.heroBanner}>
             <View style={s.heroRow}>
@@ -237,8 +250,12 @@ export default function RateAppScreen() {
                 </LinearGradient>
               </View>
               <View style={s.heroTextWrap}>
-                <Text style={s.heroTitle}>Help Us Improve!</Text>
-                <Text style={s.heroSub}>Your feedback helps us serve the community better</Text>
+                <Text style={s.heroTitle}>{user ? 'Help Us Improve!' : 'Help Us Save Lives!'}</Text>
+                <Text style={s.heroSub}>
+                  {user
+                    ? 'Your feedback helps us serve the community better'
+                    : 'Log in to leave a review and help others find life-saving blood'}
+                </Text>
               </View>
             </View>
             {/* Stats row */}
@@ -255,6 +272,20 @@ export default function RateAppScreen() {
             </View>
           </LinearGradient>
 
+          {/* View Community Reviews Action */}
+          {!user && (
+            <TouchableOpacity
+              style={s.viewCommunityBtn}
+              onPress={() => router.push('/(shared)/allreviews-screen')}
+              activeOpacity={0.7}
+            >
+              <LinearGradient colors={[B_SKY, B_MID]} style={s.viewCommunityGrad}>
+                <Ionicons name="star" size={20} color="#FFFFFF" />
+                <Text style={s.viewCommunityText}>View All Community Reviews</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
           {/* Rating Card */}
           <View style={s.card}>
             <View style={s.cardHeaderRow}>
@@ -263,16 +294,28 @@ export default function RateAppScreen() {
               </View>
               <Text style={s.cardTitle}>Overall Rating</Text>
             </View>
-            <Text style={s.cardSub}>How would you rate your experience?</Text>
-            {renderStars()}
-            <View style={[s.ratingLabelWrap, { borderColor: ratingColor + '40', backgroundColor: ratingColor + '10' }]}>
-              <Text style={[s.ratingLabel, { color: ratingColor }]}>{ratingLabel}</Text>
-              {(hoveredRating || rating) > 0 && (
-                <Text style={[s.ratingStarCount, { color: ratingColor }]}>
-                  {hoveredRating || rating}/5
-                </Text>
-              )}
-            </View>
+            <Text style={s.cardSub}>
+              {user ? 'How would you rate your experience?' : 'Log in to rate the app'}
+            </Text>
+            {user && renderStars()}
+            {user ? (
+              <View style={[s.ratingLabelWrap, { borderColor: ratingColor + '40', backgroundColor: ratingColor + '10' }]}>
+                <Text style={[s.ratingLabel, { color: ratingColor }]}>{ratingLabel}</Text>
+                {(hoveredRating || rating) > 0 && (
+                  <Text style={[s.ratingStarCount, { color: ratingColor }]}>
+                    {hoveredRating || rating}/5
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={s.loginReminderBtn}
+                onPress={() => router.push('/(auth)/login' as any)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.loginReminderText}>Sign In to Rate →</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Category Selection */}
@@ -798,6 +841,55 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+  guestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: B_PALE,
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: B_SOFT,
+  },
+  guestIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: SURFACE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  guestTextWrap: { flex: 1 },
+  guestTitle: { fontSize: 14, fontWeight: '800', color: B_SKY, marginBottom: 2 },
+  guestSub: { fontSize: 12, color: TEXT_MID, lineHeight: 16 },
+  viewCommunityBtn: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 14,
+    overflow: 'hidden',
+    ...shadow(B_SKY, 0.2, 8, 3),
+  },
+  viewCommunityGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+  },
+  viewCommunityText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  loginReminderBtn: {
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: BG_LIGHT,
+    borderRadius: 10,
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  loginReminderText: { fontSize: 13, fontWeight: '700', color: B_SKY },
   goBackBtn: {
     flexDirection: 'row',
     alignItems: 'center',

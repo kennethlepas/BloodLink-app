@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Linking,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -24,6 +25,9 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const scale = (size: number) => (SCREEN_WIDTH / 375) * size;
 const verticalScale = (size: number) => (SCREEN_HEIGHT / 812) * size;
 const moderateScale = (size: number, factor = 0.5) => size + (scale(size) - size) * factor;
+
+// Web Guide URL - Host this on Vercel as planned
+const WEB_GUIDE_URL = 'https://blood-link-webguide.vercel.app/';
 
 export default function WelcomeScreen() {
   const { loading, isAuthenticated, user } = useUser();
@@ -393,14 +397,30 @@ export default function WelcomeScreen() {
               <View style={styles.guideContent}>
                 <Text style={styles.guideTitle}>New to BloodLink?</Text>
                 <Text style={styles.guideSubtext}>
-                  Explore our comprehensive user guide to learn how everything works.
+                  Explore our comprehensive user guide or visit our help center.
                 </Text>
+                <View style={styles.guideButtonRow}>
+                  <TouchableOpacity
+                    style={styles.guideButton}
+                    onPress={() => router.push('/(shared)/guide' as any)}
+                  >
+                    <Text style={styles.guideButtonText}>Explore Guide</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.supportButton}
+                    onPress={() => router.push('/(shared)/help-support' as any)}
+                  >
+                    <Text style={styles.supportButtonText}>Help & Support</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <TouchableOpacity
-                  style={styles.guideButton}
-                  onPress={() => router.push('/(shared)/guide' as any)}
+                  style={styles.webGuideLink}
+                  onPress={() => Linking.openURL(WEB_GUIDE_URL)}
                 >
-                  <Text style={styles.guideButtonText}>Explore User Guide</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#8B5CF6" />
+                  <Text style={styles.webGuideLinkText}>View Web Guide →</Text>
                 </TouchableOpacity>
               </View>
             </LinearGradient>
@@ -914,16 +934,44 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: scale(15),
-    paddingVertical: verticalScale(8),
-    borderRadius: 12,
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(6),
+    borderRadius: 10,
     alignSelf: 'flex-start',
-    gap: 6,
+    gap: 4,
   },
   guideButtonText: {
-    fontSize: moderateScale(13),
+    fontSize: moderateScale(12),
     fontWeight: '700',
     color: '#8B5CF6',
+  },
+  guideButtonRow: {
+    flexDirection: 'row',
+    gap: scale(10),
+    marginTop: 4,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  supportButton: {
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(6),
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  supportButtonText: {
+    fontSize: moderateScale(11),
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  webGuideLink: {
+    marginTop: 4,
+  },
+  webGuideLinkText: {
+    fontSize: moderateScale(11),
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
 
   // CTA Section

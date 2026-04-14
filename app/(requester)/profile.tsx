@@ -12,6 +12,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
   Modal,
   Platform,
   RefreshControl,
@@ -195,33 +196,33 @@ interface RequestItemProps {
 const RequestListItem: React.FC<RequestItemProps> = ({ request, onPress }) => {
   const getStatusConfig = (status: string) => {
     const configs = {
-      pending: { 
-        color: COLORS.warning[600], 
-        bg: COLORS.warning[50], 
-        border: COLORS.warning[200], 
-        icon: 'time-outline' as const, 
-        label: 'Pending' 
+      pending: {
+        color: COLORS.warning[600],
+        bg: COLORS.warning[50],
+        border: COLORS.warning[200],
+        icon: 'time-outline' as const,
+        label: 'Pending'
       },
-      accepted: { 
-        color: COLORS.secondary[600], 
-        bg: COLORS.secondary[50], 
-        border: COLORS.secondary[200], 
-        icon: 'checkmark-circle-outline' as const, 
-        label: 'Accepted' 
+      accepted: {
+        color: COLORS.secondary[600],
+        bg: COLORS.secondary[50],
+        border: COLORS.secondary[200],
+        icon: 'checkmark-circle-outline' as const,
+        label: 'Accepted'
       },
-      completed: { 
-        color: COLORS.success[600], 
-        bg: COLORS.success[50], 
-        border: COLORS.success[200], 
-        icon: 'checkmark-done-circle-outline' as const, 
-        label: 'Completed' 
+      completed: {
+        color: COLORS.success[600],
+        bg: COLORS.success[50],
+        border: COLORS.success[200],
+        icon: 'checkmark-done-circle-outline' as const,
+        label: 'Completed'
       },
-      cancelled: { 
-        color: COLORS.accent[600], 
-        bg: COLORS.accent[50], 
-        border: COLORS.accent[200], 
-        icon: 'close-circle-outline' as const, 
-        label: 'Cancelled' 
+      cancelled: {
+        color: COLORS.accent[600],
+        bg: COLORS.accent[50],
+        border: COLORS.accent[200],
+        icon: 'close-circle-outline' as const,
+        label: 'Cancelled'
       },
     };
     return configs[status as keyof typeof configs] || configs.pending;
@@ -232,7 +233,7 @@ const RequestListItem: React.FC<RequestItemProps> = ({ request, onPress }) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
@@ -256,7 +257,7 @@ const RequestListItem: React.FC<RequestItemProps> = ({ request, onPress }) => {
           <Text style={[styles.requestStatusText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
         </View>
       </View>
-      
+
       <View style={styles.requestCardContent}>
         <View style={styles.requestInfo}>
           <Text style={styles.requestHospital} numberOfLines={1}>
@@ -860,6 +861,21 @@ const RequesterProfileScreen: React.FC = () => {
               <View style={styles.actionInfo}>
                 <Text style={styles.actionTitle}>My Requests</Text>
                 <Text style={styles.actionSubtitle}>View all your blood requests</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => Linking.openURL('https://blood-link-webguide.vercel.app/')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#F5F3FF' }]}>
+                <Ionicons name="book-outline" size={24} color="#8B5CF6" />
+              </View>
+              <View style={styles.actionInfo}>
+                <Text style={styles.actionTitle}>User Guide</Text>
+                <Text style={styles.actionSubtitle}>Full online documentation</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
             </TouchableOpacity>

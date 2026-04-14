@@ -380,6 +380,13 @@ export default function HelpSupportScreen() {
             onPress: () => router.push('/(shared)/privacy-policy' as any),
         },
         {
+            icon: 'book-outline' as keyof typeof Ionicons.glyphMap,
+            label: 'Web User Guide',
+            color: '#8B5CF6',
+            bg: isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF',
+            onPress: () => Linking.openURL('https://blood-link-webguide.vercel.app/'),
+        },
+        {
             icon: 'star-outline' as keyof typeof Ionicons.glyphMap,
             label: 'Rate the App',
             color: '#D97706',
@@ -513,36 +520,44 @@ export default function HelpSupportScreen() {
                         <Text style={s.sectionTitle}>Quick Links</Text>
                     </View>
                     <View style={s.quickLinksCard}>
-                        <TouchableOpacity
-                            style={[
-                                s.quickLinkItem,
-                            ]}
-                            onPress={() => router.push('/(shared)/tickets' as any)}
-                            activeOpacity={0.65}
-                        >
-                            <View style={[s.quickLinkIcon, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE' }]}>
-                                <Ionicons name="ticket" size={18} color={colors.primary} />
-                            </View>
-                            <Text style={s.quickLinkLabel}>My Support Tickets</Text>
-                            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                        </TouchableOpacity>
-                        {quickLinks.map((link, i) => (
+                        {user && (
                             <TouchableOpacity
-                                key={i}
                                 style={[
                                     s.quickLinkItem,
-                                    i === quickLinks.length - 1 && { borderBottomWidth: 0 },
                                 ]}
-                                onPress={link.onPress}
+                                onPress={() => router.push('/(shared)/tickets' as any)}
                                 activeOpacity={0.65}
                             >
-                                <View style={[s.quickLinkIcon, { backgroundColor: link.bg }]}>
-                                    <Ionicons name={link.icon} size={18} color={link.color} />
+                                <View style={[s.quickLinkIcon, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE' }]}>
+                                    <Ionicons name="ticket" size={18} color={colors.primary} />
                                 </View>
-                                <Text style={s.quickLinkLabel}>{link.label}</Text>
+                                <Text style={s.quickLinkLabel}>My Support Tickets</Text>
                                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                             </TouchableOpacity>
-                        ))}
+                        )}
+                        {quickLinks
+                            .filter(link => {
+                                // Filter out Settings for unauthenticated users
+                                if (!user && link.label === 'Settings') return false;
+                                return true;
+                            })
+                            .map((link, i, filteredList) => (
+                                <TouchableOpacity
+                                    key={i}
+                                    style={[
+                                        s.quickLinkItem,
+                                        i === filteredList.length - 1 && { borderBottomWidth: 0 },
+                                    ]}
+                                    onPress={link.onPress}
+                                    activeOpacity={0.65}
+                                >
+                                    <View style={[s.quickLinkIcon, { backgroundColor: link.bg }]}>
+                                        <Ionicons name={link.icon} size={18} color={link.color} />
+                                    </View>
+                                    <Text style={s.quickLinkLabel}>{link.label}</Text>
+                                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                                </TouchableOpacity>
+                            ))}
                     </View>
                 </View>
 

@@ -18,6 +18,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
   Modal,
   Platform,
   RefreshControl,
@@ -714,6 +715,18 @@ const DonorProfileScreen: React.FC = () => {
               </View>
               <Text style={styles.actionTitle}>Certificates</Text>
               <Text style={styles.actionSubtitle}>View achievements</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => Linking.openURL('https://blood-link-webguide.vercel.app/')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#F5F3FF' }]}>
+                <Ionicons name="book-outline" size={24} color="#8B5CF6" />
+              </View>
+              <Text style={styles.actionTitle}>User Guide</Text>
+              <Text style={styles.actionSubtitle}>Online manual</Text>
             </TouchableOpacity>
           </View>
         </View>

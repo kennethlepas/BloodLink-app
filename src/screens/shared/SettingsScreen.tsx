@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Linking,
   Platform,
   ScrollView,
   StatusBar,
@@ -757,6 +758,16 @@ export default function SettingsScreen() {
             label="Help & Support"
             subtitle="Get assistance or report an issue"
             onPress={() => router.push('/(shared)/help-support' as any)}
+            colors={colors}
+            styles={styles}
+          />
+          <SettingsItem
+            icon="book-outline"
+            iconBg={isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF'}
+            iconColor="#8B5CF6"
+            label="Web User Guide"
+            subtitle="View the full online documentation"
+            onPress={() => Linking.openURL('https://blood-link-webguide.vercel.app/')}
             colors={colors}
             styles={styles}
           />

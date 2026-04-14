@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     Animated,
     Dimensions,
+    Linking,
     Platform,
     ScrollView,
     StatusBar,
@@ -612,7 +613,14 @@ export default function GuideScreen() {
                                     : 'Everything you need to know'}
                         </Text>
                     </View>
-                    <View style={{ width: 44 }} />
+                    <TouchableOpacity
+                        onPress={() => Linking.openURL('https://blood-link-webguide.vercel.app/')}
+                        style={st.webBtn}
+                        activeOpacity={0.7}
+                    >
+                        <Ionicons name="globe-outline" size={20} color="#FFFFFF" />
+                        <Text style={st.webBtnText}>Online</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* User Type Pill */}
@@ -705,6 +713,20 @@ const st = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.2)',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    webBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 30,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+    },
+    webBtnText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#FFFFFF',
     },
     headerText: {
         flex: 1,
