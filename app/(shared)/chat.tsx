@@ -11,6 +11,7 @@ import {
   sendMessage,
   subscribeToChatMessages,
 } from '@/src/services/firebase/database';
+import { soundService } from '@/src/services/soundService';
 import { Chat, ChatMessage } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -103,8 +104,12 @@ const ChatScreen: React.FC = () => {
             params.chatRole as 'donor' | 'requester'
           );
           setChatId(activeId);
-        } catch {
-          Alert.alert('Error', 'Failed to initialize chat.');
+        } catch (err) {
+          console.error('[ChatScreen] Failed to initialize chat:', err);
+          Alert.alert(
+            'Chat Error',
+            'We couldn\'t start this conversation. Please try again later.'
+          );
           setLoading(false);
           return;
         }
@@ -132,6 +137,14 @@ const ChatScreen: React.FC = () => {
       }
 
       const unsub = subscribeToChatMessages(activeId, newMsgs => {
+        // Play sound if there is a NEW incoming message
+        if (newMsgs.length > messages.length) {
+          const lastMsg = newMsgs[newMsgs.length - 1];
+          if (lastMsg.senderId !== user.id) {
+            soundService.playNotificationSound();
+          }
+        }
+
         setMessages(newMsgs);
         if (activeId && activeId !== 'undefined') {
           markMessagesAsRead(activeId as string, user.id);
@@ -150,8 +163,10 @@ const ChatScreen: React.FC = () => {
       const data = await getChatById(id);
       setChat(data);
       return data;
-    } catch {
-      Alert.alert('Error', 'Failed to load chat.');
+    } catch (err) {
+      console.error('[ChatScreen] Failed to load chat data:', err);
+      Alert.alert('Error', 'We couldn\'t load the chat details.');
+      setLoading(false);
       return null;
     }
   };
@@ -185,8 +200,9 @@ const ChatScreen: React.FC = () => {
         params.referralId
       );
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch {
-      Alert.alert('Error', 'Failed to send message.');
+    } catch (err) {
+      console.error('[ChatScreen] Failed to send message:', err);
+      Alert.alert('Send Failed', 'Your message couldn\'t be sent. Check your connection.');
     } finally {
       setSending(false);
     }

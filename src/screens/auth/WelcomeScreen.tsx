@@ -1,4 +1,5 @@
 import WelcomeSlider from '@/src/components/WelcomeSlider';
+import AppLogo from '@/src/components/shared/AppLogo';
 import { useUser } from "@/src/contexts/UserContext";
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,7 +8,6 @@ import { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
-  Image,
   Linking,
   ScrollView,
   StatusBar,
@@ -227,24 +227,19 @@ export default function WelcomeScreen() {
             </View>
 
             <View style={styles.logoRow}>
-              <View style={styles.logoWrapper}>
-                <View style={styles.logoCompact}>
-                  <Image
-                    source={require('@/assets/images/logo.jpg')}
-                    style={styles.logoImage}
-                    resizeMode="cover"
-                  />
-                </View>
-                <View style={styles.verifiedMiniBadge}>
-                  <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
-                </View>
-              </View>
+              <AppLogo variant="compact" showBadge={true} />
               <View style={styles.brandTitleContainer}>
                 <Text style={styles.appNameCompact}>BloodLink</Text>
                 <Text style={styles.appTaglineCompact}>Integrated Online Blood Bank Platform</Text>
               </View>
             </View>
             <Text style={styles.welcomeSubtext}>Every Drop Counts, Every Life Matters</Text>
+          </View>
+
+          {/* Why Donate Section Header - Refined to feel 'infront' and not like a card */}
+          <View style={styles.whyDonateContainer}>
+            <Text style={styles.whyDonateTitle}>Why Donate Blood?</Text>
+            <View style={styles.whyDonateUnderline} />
           </View>
 
           {/* Welcome Slider */}
@@ -685,6 +680,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: verticalScale(20),
     paddingTop: verticalScale(70),
+    zIndex: 1000, // Bring to front
   },
   topBadgeContainer: {
     marginBottom: verticalScale(12),
@@ -710,34 +706,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: scale(15),
   },
-  logoWrapper: {
-    position: 'relative',
-  },
-  logoCompact: {
-    width: moderateScale(70),
-    height: moderateScale(95),
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  logoImage: {
-    width: '100%',
-    height: '100%',
-  },
-  verifiedMiniBadge: {
-    position: 'absolute',
-    bottom: -8,
-    right: -8,
-    backgroundColor: '#10B981',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#0A2647',
-    zIndex: 10,
-  },
+
   brandTitleContainer: {
     justifyContent: 'center',
   },
@@ -757,6 +726,28 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.6)',
     fontStyle: 'italic',
     marginTop: 10,
+  },
+  whyDonateContainer: {
+    alignItems: 'center',
+    marginTop: verticalScale(20),
+    marginBottom: verticalScale(5),
+    zIndex: 20,
+  },
+  whyDonateTitle: {
+    fontSize: moderateScale(22),
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: 0.5,
+  },
+  whyDonateUnderline: {
+    width: scale(40),
+    height: 3,
+    backgroundColor: '#EF4444',
+    borderRadius: 1.5,
+    marginTop: 4,
   },
 
   // Slider

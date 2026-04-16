@@ -1,4 +1,5 @@
 import { useUser } from '@/src/contexts/UserContext';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import { deleteChat, getUserChats } from '@/src/services/firebase/database';
 import { Chat } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +15,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -60,6 +62,9 @@ const ChatListScreen: React.FC = () => {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedChats, setSelectedChats] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const { onScroll } = useTabBarAnimation();
 
   useFocusEffect(
     useCallback(() => {
@@ -307,11 +312,21 @@ const ChatListScreen: React.FC = () => {
     </View>
   );
 
-  const sorted = useMemo(() =>
-    [...chats].sort((a, b) =>
+  const sorted = useMemo(() => {
+    let list = [...chats].sort((a, b) =>
       (b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0) -
       (a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0)
-    ), [chats]);
+    );
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(chat => {
+        const name = getOtherName(chat).toLowerCase();
+        const msg = (chat.lastMessage || '').toLowerCase();
+        return name.includes(q) || msg.includes(q);
+      });
+    }
+    return list;
+  }, [chats, searchQuery]);
 
   if (!user) {
     return (
@@ -352,14 +367,34 @@ const ChatListScreen: React.FC = () => {
           </TouchableOpacity>
           <Text style={styles.hTitle}>Messages</Text>
           <View style={styles.hActions}>
-            <TouchableOpacity style={styles.hBtn}>
-              <Ionicons name="search-outline" size={22} color="#FFF" />
+            <TouchableOpacity style={styles.hBtn} onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }}>
+              <Ionicons name={showSearch ? 'close' : 'search-outline'} size={22} color="#FFF" />
             </TouchableOpacity>
             {/* ── Plus / New chat button ── */}
             <TouchableOpacity style={styles.hBtn} onPress={goToNewChat}>
               <Ionicons name="create-outline" size={22} color="#FFF" />
             </TouchableOpacity>
           </View>
+        </View>
+      )}
+
+      {/* ── Search Bar ── */}
+      {showSearch && (
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={16} color={C.textTertiary} />
+          <TextInput
+            placeholder="Search conversations..."
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={C.textTertiary}
+            autoFocus
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color={C.textTertiary} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -390,6 +425,8 @@ const ChatListScreen: React.FC = () => {
             { paddingBottom: 110 }
           ]}
           ListEmptyComponent={renderEmpty}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -440,6 +477,27 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
   },
   hActions: { flexDirection: 'row' },
+
+  // Search Bar
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.card,
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: C.textPrimary,
+    padding: 0,
+  },
 
   // Tabs
   tabs: {
@@ -612,7 +670,7 @@ const styles = StyleSheet.create({
   // FAB
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 85,
     right: 20,
     width: 54,
     height: 54,

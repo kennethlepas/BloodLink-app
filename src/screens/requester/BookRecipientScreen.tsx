@@ -1,6 +1,6 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
-import { createRecipientBooking, getBloodBanks } from '@/src/services/firebase/database';
+import { createRecipientBooking, getBloodBanks, getRecipientBookings, updateRecipientBookingStatus } from '@/src/services/firebase/database';
 import { getCurrentLocation } from '@/src/services/location/locationService';
 import { sendLocalNotification } from '@/src/services/notifications';
 import { BloodBank, BloodType, RecipientBooking } from '@/src/types/types';
@@ -159,6 +159,9 @@ export default function BookRecipientScreen(): JSX.Element {
     // State
     const [loading, setLoading] = useState<boolean>(true);
     const [bookingLoading, setBookingLoading] = useState<boolean>(false);
+    const [recipientBookings, setRecipientBookings] = useState<RecipientBooking[]>([]);
+    const [historyModalVisible, setHistoryModalVisible] = useState<boolean>(false);
+    const [refreshingHistory, setRefreshingHistory] = useState<boolean>(false);
     const [hospitals, setHospitals] = useState<BloodBank[]>([]);
     const [filteredHospitals, setFilteredHospitals] = useState<BloodBank[]>([]);
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -177,11 +180,15 @@ export default function BookRecipientScreen(): JSX.Element {
     const [selectedSubCounty, setSelectedSubCounty] = useState('');
     const [isCountyExpanded, setIsCountyExpanded] = useState(false);
     const [isSubCountyExpanded, setIsSubCountyExpanded] = useState(false);
+    const [countySearch, setCountySearch] = useState('');
+    const [subCountySearch, setSubCountySearch] = useState('');
+    const [timeFilter, setTimeFilter] = useState<'all' | 'month' | '3months' | 'year'>('all');
 
     // Effects
     useEffect(() => {
         fetchHospitals();
         requestLocation();
+        fetchHistory();
     }, []);
 
     useEffect(() => {
@@ -189,6 +196,19 @@ export default function BookRecipientScreen(): JSX.Element {
     }, [searchQuery, hospitals, sortByDistance, userLocation, selectedCounty, selectedSubCounty]);
 
     // Handlers
+    const fetchHistory = useCallback(async () => {
+        if (!user?.id) return;
+        try {
+            setRefreshingHistory(true);
+            const bookings = await getRecipientBookings(user.id);
+            setRecipientBookings(bookings || []);
+        } catch (error) {
+            console.error('Error fetching booking history:', error);
+        } finally {
+            setRefreshingHistory(false);
+        }
+    }, [user?.id]);
+
     const requestLocation = async (): Promise<void> => {
         try {
             const loc = await getCurrentLocation();
@@ -261,8 +281,20 @@ export default function BookRecipientScreen(): JSX.Element {
             filtered = filtered.filter(h => (h.subCounty || '').trim().toLowerCase() === selectedSubCounty.trim().toLowerCase());
         }
 
+        // Sub-county prioritization (if no specific sub-county filter is applied)
+        if (!selectedSubCounty && user?.subCounty) {
+            const userSubCounty = user.subCounty.trim().toLowerCase();
+            filtered.sort((a, b) => {
+                const aInSubCounty = (a.subCounty || '').trim().toLowerCase() === userSubCounty;
+                const bInSubCounty = (b.subCounty || '').trim().toLowerCase() === userSubCounty;
+                if (aInSubCounty && !bInSubCounty) return -1;
+                if (!aInSubCounty && bInSubCounty) return 1;
+                return 0;
+            });
+        }
+
         setFilteredHospitals(filtered);
-    }, [hospitals, searchQuery, sortByDistance, userLocation, selectedCounty, selectedSubCounty]);
+    }, [hospitals, searchQuery, sortByDistance, userLocation, selectedCounty, selectedSubCounty, user?.subCounty]);
 
     const updateFormField = <K extends keyof BookingFormData>(
         field: K,
@@ -281,6 +313,57 @@ export default function BookRecipientScreen(): JSX.Element {
             Alert.alert('Error', 'User not found. Please log in again.');
             return;
         }
+
+        const existingBooking = recipientBookings.find(b =>
+            b.hospitalId === selectedHospital.id &&
+            b.scheduledDate === formData.scheduledDate.toISOString().split('T')[0] &&
+            (b.status === 'pending' || b.status === 'confirmed')
+        );
+
+        if (existingBooking) {
+            Alert.alert(
+                'Slot Already Booked',
+                `You already have a ${existingBooking.status} booking at ${selectedHospital.name} for this date. You can view your bookings in the History section.`,
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+
+        // Blood Stock Availability Check
+        const hospitalBloodType = user?.bloodType || 'O+';
+        const inventory = selectedHospital.inventory;
+        const availableUnits = inventory?.[hospitalBloodType]?.units || 0;
+
+        if (availableUnits <= 0) {
+            Alert.alert(
+                'Out of Stock 🩸',
+                `We apology, but ${selectedHospital.name} currently does not have ${hospitalBloodType} blood in stock. You can still schedule a consultation, but transfusion may be delayed.`,
+                [
+                    { text: 'Find Another', onPress: () => setSelectedHospital(null) },
+                    { text: 'Book Anyway', onPress: () => proceedWithBooking() }
+                ]
+            );
+            return;
+        }
+
+        if (availableUnits < formData.unitsNeeded) {
+            Alert.alert(
+                'Low Stock 🩸',
+                `${selectedHospital.name} only has ${availableUnits} units of ${hospitalBloodType} available, which is less than your requested ${formData.unitsNeeded} units.`,
+                [
+                    { text: 'Adjust Units', onPress: () => { } },
+                    { text: 'Find Another', onPress: () => setSelectedHospital(null) },
+                    { text: 'Proceed', onPress: () => proceedWithBooking() }
+                ]
+            );
+            return;
+        }
+
+        proceedWithBooking();
+    };
+
+    const proceedWithBooking = async () => {
+        if (!selectedHospital || !user?.id) return;
 
         try {
             setBookingLoading(true);
@@ -320,7 +403,7 @@ export default function BookRecipientScreen(): JSX.Element {
             Alert.alert(
                 'Booking Successful! 🏥',
                 `Your transfusion slot has been scheduled at ${selectedHospital.name}.\n\nYour Booking ID: ${bookingId}`,
-                [{ text: 'Great!', onPress: () => router.push('/(requester)') }]
+                [{ text: 'Great!', onPress: () => router.back() }]
             );
         } catch (error) {
             console.error('Booking error:', error);
@@ -475,6 +558,10 @@ export default function BookRecipientScreen(): JSX.Element {
                         </View>
                     </TouchableOpacity>
                     <Text style={dynamicStyles.headerTitle}>Book Transfusion</Text>
+                    <TouchableOpacity onPress={() => setHistoryModalVisible(true)} style={dynamicStyles.historyButton}>
+                        <Ionicons name="time" size={20} color="#FFFFFF" />
+                        <Text style={dynamicStyles.historyButtonText}>History</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <View style={dynamicStyles.searchContainer}>
@@ -544,19 +631,29 @@ export default function BookRecipientScreen(): JSX.Element {
                 </View>
 
                 {isCountyExpanded && (
-                    <View style={{ backgroundColor: colors.surface, borderRadius: 12, marginTop: 10, maxHeight: 150, overflow: 'hidden' }}>
-                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    <View style={{ backgroundColor: colors.surface, borderRadius: 12, marginTop: 10, maxHeight: 250, overflow: 'hidden', borderWidth: 1, borderColor: colors.primary }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surfaceAlt }}>
+                            <Ionicons name="search" size={16} color={colors.textSecondary} />
+                            <TextInput
+                                placeholder="Search county..."
+                                placeholderTextColor={colors.textMuted}
+                                style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colors.text, paddingVertical: 8 }}
+                                value={countySearch}
+                                onChangeText={setCountySearch}
+                            />
+                        </View>
+                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 200 }}>
                             <TouchableOpacity
                                 style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }}
-                                onPress={() => { setSelectedCounty(''); setSelectedSubCounty(''); setIsCountyExpanded(false); }}
+                                onPress={() => { setSelectedCounty(''); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
                             >
                                 <Text style={{ color: colors.text, fontWeight: '700' }}>All Counties</Text>
                             </TouchableOpacity>
-                            {KENYA_COUNTIES.map(c => (
+                            {KENYA_COUNTIES.filter(c => c.toLowerCase().includes(countySearch.toLowerCase())).map(c => (
                                 <TouchableOpacity
                                     key={c}
                                     style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: selectedCounty === c ? colors.surfaceAlt : colors.surface }}
-                                    onPress={() => { setSelectedCounty(c); setSelectedSubCounty(''); setIsCountyExpanded(false); }}
+                                    onPress={() => { setSelectedCounty(c); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
                                 >
                                     <Text style={{ color: selectedCounty === c ? colors.primary : colors.text }}>{c}</Text>
                                 </TouchableOpacity>
@@ -566,19 +663,29 @@ export default function BookRecipientScreen(): JSX.Element {
                 )}
 
                 {isSubCountyExpanded && (
-                    <View style={{ backgroundColor: colors.surface, borderRadius: 12, marginTop: 10, maxHeight: 150, overflow: 'hidden' }}>
-                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    <View style={{ backgroundColor: colors.surface, borderRadius: 12, marginTop: 10, maxHeight: 250, overflow: 'hidden', borderWidth: 1, borderColor: colors.primary }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surfaceAlt }}>
+                            <Ionicons name="search" size={16} color={colors.textSecondary} />
+                            <TextInput
+                                placeholder="Search sub-county..."
+                                placeholderTextColor={colors.textMuted}
+                                style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colors.text, paddingVertical: 8 }}
+                                value={subCountySearch}
+                                onChangeText={setSubCountySearch}
+                            />
+                        </View>
+                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 200 }}>
                             <TouchableOpacity
                                 style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }}
-                                onPress={() => { setSelectedSubCounty(''); setIsSubCountyExpanded(false); }}
+                                onPress={() => { setSelectedSubCounty(''); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
                             >
                                 <Text style={{ color: colors.text, fontWeight: '700' }}>All Sub-Counties</Text>
                             </TouchableOpacity>
-                            {getSubCountiesByCounty(selectedCounty).map(sc => (
+                            {getSubCountiesByCounty(selectedCounty).filter(sc => sc.toLowerCase().includes(subCountySearch.toLowerCase())).map(sc => (
                                 <TouchableOpacity
                                     key={sc}
                                     style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: selectedSubCounty === sc ? colors.surfaceAlt : colors.surface }}
-                                    onPress={() => { setSelectedSubCounty(sc); setIsSubCountyExpanded(false); }}
+                                    onPress={() => { setSelectedSubCounty(sc); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
                                 >
                                     <Text style={{ color: selectedSubCounty === sc ? colors.primary : colors.text }}>{sc}</Text>
                                 </TouchableOpacity>
@@ -749,6 +856,159 @@ export default function BookRecipientScreen(): JSX.Element {
                     </View>
                 </TouchableWithoutFeedback>
             </Modal>
+            {/* History Modal */}
+            <Modal visible={historyModalVisible} transparent animationType="slide">
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 30, borderTopRightRadius: 30, height: '80%', padding: 20 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <Text style={{ fontSize: 20, fontWeight: '900', color: colors.text }}>Booking History</Text>
+                            <TouchableOpacity onPress={() => setHistoryModalVisible(false)} style={{ padding: 5 }}>
+                                <Ionicons name="close" size={24} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Time Filter Chips */}
+                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                            {[
+                                { id: 'all', label: 'All' },
+                                { id: 'month', label: 'This Month' },
+                                { id: '3months', label: '3 Months' },
+                                { id: 'year', label: 'This Year' }
+                            ].map((filter) => (
+                                <TouchableOpacity
+                                    key={filter.id}
+                                    onPress={() => setTimeFilter(filter.id as any)}
+                                    style={{
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 6,
+                                        borderRadius: 20,
+                                        backgroundColor: timeFilter === filter.id ? colors.primary : colors.surfaceAlt,
+                                        borderWidth: 1,
+                                        borderColor: timeFilter === filter.id ? colors.primary : colors.surfaceBorder
+                                    }}
+                                >
+                                    <Text style={{
+                                        fontSize: 12,
+                                        fontWeight: '700',
+                                        color: timeFilter === filter.id ? '#FFF' : colors.textSecondary
+                                    }}>{filter.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {refreshingHistory && !recipientBookings.length ? (
+                            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+                        ) : recipientBookings.length === 0 ? (
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}>
+                                <Ionicons name="calendar-outline" size={60} color={colors.surfaceTint} />
+                                <Text style={{ fontSize: 18, fontWeight: '800', color: colors.textSecondary, marginTop: 20 }}>No Bookings Yet</Text>
+                                <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', marginTop: 10 }}>Your transfusion bookings will appear here.</Text>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={recipientBookings.filter(item => {
+                                    if (timeFilter === 'all') return true;
+                                    const bookingDate = new Date(item.scheduledDate);
+                                    const now = new Date();
+                                    if (timeFilter === 'month') {
+                                        return bookingDate.getMonth() === now.getMonth() && bookingDate.getFullYear() === now.getFullYear();
+                                    }
+                                    if (timeFilter === '3months') {
+                                        const threeMonthsAgo = new Date();
+                                        threeMonthsAgo.setMonth(now.getMonth() - 3);
+                                        return bookingDate >= threeMonthsAgo;
+                                    }
+                                    if (timeFilter === 'year') {
+                                        return bookingDate.getFullYear() === now.getFullYear();
+                                    }
+                                    return true;
+                                })}
+                                keyExtractor={(item) => item.id}
+                                refreshing={refreshingHistory}
+                                onRefresh={fetchHistory}
+                                renderItem={({ item }) => {
+                                    const statusColors: Record<string, string> = {
+                                        pending: colors.warning,
+                                        confirmed: colors.primary,
+                                        completed: colors.success,
+                                        cancelled: colors.danger,
+                                        cancel: colors.danger,
+                                    };
+                                    const statusColor = statusColors[item.status] || colors.textSecondary;
+
+                                    return (
+                                        <View style={{
+                                            backgroundColor: colors.surfaceAlt,
+                                            borderRadius: 18,
+                                            padding: 16,
+                                            marginBottom: 16,
+                                            borderWidth: 1,
+                                            borderColor: colors.surfaceBorder
+                                        }}>
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                                                <View>
+                                                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>{item.hospitalName}</Text>
+                                                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>ID: {item.bookingId}</Text>
+                                                </View>
+                                                <View style={{
+                                                    backgroundColor: statusColor + (isDark ? '30' : '15'),
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 4,
+                                                    borderRadius: 10,
+                                                    height: 24
+                                                }}>
+                                                    <Text style={{ fontSize: 10, fontWeight: '900', color: statusColor, textTransform: 'uppercase' }}>{item.status}</Text>
+                                                </View>
+                                            </View>
+
+                                            <View style={{ flexDirection: 'row', gap: 15, marginBottom: 12 }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                    <Ionicons name="calendar-outline" size={14} color={colors.primary} />
+                                                    <Text style={{ fontSize: 13, color: colors.text, fontWeight: '600' }}>{item.scheduledDate}</Text>
+                                                </View>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                    <Ionicons name="time-outline" size={14} color={colors.primary} />
+                                                    <Text style={{ fontSize: 13, color: colors.text, fontWeight: '600' }}>{item.scheduledTime}</Text>
+                                                </View>
+                                            </View>
+
+                                            <View style={{ height: 1, backgroundColor: colors.surfaceBorder, marginBottom: 12 }} />
+
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Text style={{ fontSize: 13, color: colors.textSecondary }}>Patient: <Text style={{ color: colors.text, fontWeight: '700' }}>{item.patientName || 'Self'}</Text></Text>
+                                                {item.status === 'pending' && (
+                                                    <TouchableOpacity
+                                                        onPress={async () => {
+                                                            Alert.alert('Cancel Booking', 'Are you sure you want to cancel this booking?', [
+                                                                { text: 'No', style: 'cancel' },
+                                                                {
+                                                                    text: 'Yes, Cancel',
+                                                                    style: 'destructive',
+                                                                    onPress: async () => {
+                                                                        try {
+                                                                            await updateRecipientBookingStatus(item.id, 'cancel');
+                                                                            fetchHistory();
+                                                                        } catch (error) {
+                                                                            Alert.alert('Error', 'Failed to cancel booking.');
+                                                                        }
+                                                                    }
+                                                                }
+                                                            ]);
+                                                        }}
+                                                    >
+                                                        <Text style={{ fontSize: 13, color: colors.danger, fontWeight: '700' }}>Cancel</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
+                                        </View>
+                                    );
+                                }}
+                                contentContainerStyle={{ paddingBottom: 40 }}
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -785,6 +1045,21 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontSize: 26,
         fontWeight: '800',
         color: '#FFFFFF',
+        flex: 1,
+    },
+    historyButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.25)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+        gap: 6,
+    },
+    historyButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
     },
     searchContainer: {
         flexDirection: 'row',

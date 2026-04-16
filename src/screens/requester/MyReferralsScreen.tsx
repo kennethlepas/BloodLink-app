@@ -1,5 +1,6 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import { db } from '@/src/services/firebase/firebase';
 import { HospitalReferral } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
@@ -330,6 +331,7 @@ export default function MyReferralsScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [referrals, setReferrals] = useState<HospitalReferral[]>([]);
+    const { onScroll } = useTabBarAnimation();
 
     // Helper function for status styling
     const getStatusStyle = (status: string) => {
@@ -440,6 +442,8 @@ export default function MyReferralsScreen() {
                         colors={[colors.primary]}
                     />
                 }
+                onScroll={onScroll}
+                scrollEventThrottle={16}
                 renderItem={({ item }) => {
                     const status = getStatusStyle(item.status);
                     const urgencyColor = getUrgencyColor(item.urgency);

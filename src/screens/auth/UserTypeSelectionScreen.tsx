@@ -1,3 +1,4 @@
+import AppLogo from '@/src/components/shared/AppLogo';
 import { UserType } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -5,13 +6,12 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Dimensions,
-  Image,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,7 +40,7 @@ const UserTypeSelectionScreen: React.FC = () => {
   };
 
   const handleBack = () => {
-    router.replace('/');
+    router.back();
   };
 
   return (
@@ -76,18 +76,7 @@ const UserTypeSelectionScreen: React.FC = () => {
             </View>
 
             <View style={styles.logoRow}>
-              <View style={styles.logoWrapper}>
-                <View style={styles.logoCompact}>
-                  <Image
-                    source={require('@/assets/images/logo.jpg')}
-                    style={styles.logoImage}
-                    resizeMode="cover"
-                  />
-                </View>
-                <View style={styles.verifiedMiniBadge}>
-                  <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
-                </View>
-              </View>
+              <AppLogo variant="compact" showBadge={true} />
               <View style={styles.brandTitleContainer}>
                 <Text style={styles.appNameCompact}>BloodLink</Text>
                 <Text style={styles.appTaglineCompact}>Integrated Online Blood Bank Platform</Text>
@@ -268,34 +257,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: scale(15),
   },
-  logoWrapper: {
-    position: 'relative',
-  },
-  logoCompact: {
-    width: moderateScale(70),
-    height: moderateScale(95),
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  logoImage: {
-    width: '100%',
-    height: '100%',
-  },
-  verifiedMiniBadge: {
-    position: 'absolute',
-    bottom: -8,
-    right: -8,
-    backgroundColor: '#10B981',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#0A2647',
-    zIndex: 10,
-  },
+
   brandTitleContainer: {
     justifyContent: 'center',
   },

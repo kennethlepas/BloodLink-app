@@ -1,5 +1,6 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { KENYA_COUNTIES, getSubCountiesByCounty } from '@/src/constants/kenyaLocations';
+import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { createUser } from '@/src/services/firebase/database';
 import { auth, db } from '@/src/services/firebase/firebase';
@@ -47,6 +48,7 @@ interface SignupScreenProps {
 const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) => {
   const router = useRouter();
   const { login } = useUser();
+  const { colors } = useAppTheme();
   const params = useLocalSearchParams<{ userType?: 'donor' | 'requester' }>();
 
   const { pickAndUploadImage, takeAndUploadPhoto, uploading: imageUploading, error: imageError } = useImagePicker();
@@ -58,6 +60,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [countySearch, setCountySearch] = useState('');
+  const [subCountySearch, setSubCountySearch] = useState('');
 
   const selectedUserType = propUserType || params.userType || 'donor';
 
@@ -600,8 +604,18 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
 
                 {isCountyExpanded && (
                   <View style={[styles.robustSelectionContainer, { marginTop: verticalScale(-8) }]}>
+                    <View style={styles.searchBox}>
+                      <Ionicons name="search" size={16} color={colors.textSecondary} />
+                      <TextInput
+                        placeholder="Search County..."
+                        style={styles.searchInput}
+                        value={countySearch}
+                        onChangeText={setCountySearch}
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </View>
                     <ScrollView nestedScrollEnabled={true} persistentScrollbar={true} style={{ maxHeight: verticalScale(200) }}>
-                      {KENYA_COUNTIES.map((county) => (
+                      {KENYA_COUNTIES.filter(c => c.toLowerCase().includes(countySearch.toLowerCase())).map((county) => (
                         <TouchableOpacity
                           key={county}
                           style={[
@@ -612,6 +626,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                             handleInputChange('county', county);
                             handleInputChange('subCounty', '');
                             setIsCountyExpanded(false);
+                            setCountySearch('');
                           }}
                         >
                           <Text style={[
@@ -632,8 +647,18 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
 
                 {isSubCountyExpanded && (
                   <View style={[styles.robustSelectionContainer, { marginTop: verticalScale(-8) }]}>
+                    <View style={styles.searchBox}>
+                      <Ionicons name="search" size={16} color={colors.textSecondary} />
+                      <TextInput
+                        placeholder="Search Sub-County..."
+                        style={styles.searchInput}
+                        value={subCountySearch}
+                        onChangeText={setSubCountySearch}
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </View>
                     <ScrollView nestedScrollEnabled={true} persistentScrollbar={true} style={{ maxHeight: verticalScale(200) }}>
-                      {getSubCountiesByCounty(formData.county || '').map((subCounty) => (
+                      {getSubCountiesByCounty(formData.county || '').filter(sc => sc.toLowerCase().includes(subCountySearch.toLowerCase())).map((subCounty) => (
                         <TouchableOpacity
                           key={subCounty}
                           style={[
@@ -643,6 +668,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                           onPress={() => {
                             handleInputChange('subCounty', subCounty);
                             setIsSubCountyExpanded(false);
+                            setSubCountySearch('');
                           }}
                         >
                           <Text style={[
@@ -687,62 +713,59 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                 </View>
               </View>
 
-              {/* Password Section */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Security</Text>
 
-                <View style={styles.row}>
-                  <View style={styles.halfInputGroup}>
-                    <Text style={styles.inputLabel}>Password *</Text>
-                    <View style={styles.passwordContainer}>
-                      <TextInput
-                        style={[styles.passwordInput, errors.password && styles.inputError]}
-                        value={formData.password}
-                        onChangeText={(value) => handleInputChange('password', value)}
-                        onBlur={() => handleBlur('password')}
-                        placeholder="••••••••"
-                        placeholderTextColor="#94A3B8"
-                        secureTextEntry={!showPassword}
-                        autoComplete="password-new"
-                        editable={!loading}
-                        maxLength={10}
-                      />
-                      <TouchableOpacity
-                        style={styles.eyeIcon}
-                        onPress={() => setShowPassword(!showPassword)}
-                        disabled={loading}
-                      >
-                        <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="#64748B" />
-                      </TouchableOpacity>
-                    </View>
-                    {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Password *</Text>
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      style={[styles.passwordInput, errors.password && styles.inputError]}
+                      value={formData.password}
+                      onChangeText={(value) => handleInputChange('password', value)}
+                      onBlur={() => handleBlur('password')}
+                      placeholder="••••••••"
+                      placeholderTextColor="#94A3B8"
+                      secureTextEntry={!showPassword}
+                      autoComplete="password-new"
+                      editable={!loading}
+                      maxLength={10}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeIcon}
+                      onPress={() => setShowPassword(!showPassword)}
+                      disabled={loading}
+                    >
+                      <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="#64748B" />
+                    </TouchableOpacity>
                   </View>
+                  {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+                </View>
 
-                  <View style={styles.halfInputGroup}>
-                    <Text style={styles.inputLabel}>Confirm *</Text>
-                    <View style={styles.passwordContainer}>
-                      <TextInput
-                        style={[styles.passwordInput, errors.confirmPassword && styles.inputError]}
-                        value={formData.confirmPassword}
-                        onChangeText={(value) => handleInputChange('confirmPassword', value)}
-                        onBlur={() => handleBlur('confirmPassword')}
-                        placeholder="••••••••"
-                        placeholderTextColor="#94A3B8"
-                        secureTextEntry={!showConfirmPassword}
-                        autoComplete="password-new"
-                        editable={!loading}
-                        maxLength={10}
-                      />
-                      <TouchableOpacity
-                        style={styles.eyeIcon}
-                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                        disabled={loading}
-                      >
-                        <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={20} color="#64748B" />
-                      </TouchableOpacity>
-                    </View>
-                    {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Confirm Password *</Text>
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      style={[styles.passwordInput, errors.confirmPassword && styles.inputError]}
+                      value={formData.confirmPassword}
+                      onChangeText={(value) => handleInputChange('confirmPassword', value)}
+                      onBlur={() => handleBlur('confirmPassword')}
+                      placeholder="••••••••"
+                      placeholderTextColor="#94A3B8"
+                      secureTextEntry={!showConfirmPassword}
+                      autoComplete="password-new"
+                      editable={!loading}
+                      maxLength={10}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeIcon}
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      disabled={loading}
+                    >
+                      <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={20} color="#64748B" />
+                    </TouchableOpacity>
                   </View>
+                  {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
                 </View>
 
                 <View style={styles.passwordRequirements}>
@@ -1249,6 +1272,24 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 6,
     textAlign: 'center',
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    height: verticalScale(40),
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: moderateScale(13),
+    color: '#1E293B',
+    marginLeft: 8,
+    paddingVertical: 0,
   },
 });
 

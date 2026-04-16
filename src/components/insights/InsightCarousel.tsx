@@ -376,15 +376,20 @@ interface InsightsCarouselProps {
  * Shows any insight cards in horizontal scroll
  */
 export const InsightsCarousel: React.FC<InsightsCarouselProps> = ({ insights }) => {
+    const INSIGHT_CARD_WIDTH = SCREEN_WIDTH - (SECTION_PADDING * 2);
+
     return (
         <HorizontalCarousel
             data={insights}
-            cardWidth={COMPACT_CARD_WIDTH + 40} // Insights need more space for content
+            cardWidth={INSIGHT_CARD_WIDTH}
             autoScroll={true}
             renderItem={(item) => (
-                <View style={{ marginRight: CARD_SPACING }}>{item}</View>
+                <View style={{ width: INSIGHT_CARD_WIDTH, marginRight: CARD_SPACING }}>
+                    {item}
+                </View>
             )}
             keyExtractor={(_, index) => index.toString()}
+            showPagination
         />
     );
 };

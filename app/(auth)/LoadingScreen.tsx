@@ -47,7 +47,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
   ];
 
   // Animation values
-  const fadeAnim = new Animated.Value(0);
+  const fadeAnim = new Animated.Value(1); // Start at 1 to avoid fading
   const scaleAnim = new Animated.Value(0.8);
   const pulseAnim = new Animated.Value(1);
   const progressAnim = new Animated.Value(0);
@@ -91,12 +91,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
     if (!imagesLoaded) return;
 
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1200,
-        easing: Easing.out(Easing.exp),
-        useNativeDriver: true,
-      }),
+      // Fading removed as per user request
       Animated.spring(scaleAnim, {
         toValue: 1,
         damping: 15,
@@ -272,7 +267,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
           style={[
             { flex: 1 },
             {
-              opacity: fadeAnim,
+              opacity: 1, // Remove fading for instant visibility
               transform: [{ scale: scaleAnim }],
             },
           ]}
@@ -488,6 +483,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(59, 130, 246, 0.4)',
     overflow: 'hidden',
+    zIndex: 1000, // Bring to front
     ...(Platform.OS === 'web'
       ? {
         boxShadow: '0px 0px 40px rgba(128, 128, 128, 0.8), 0px 0px 20px rgba(160, 160, 160, 0.6)',

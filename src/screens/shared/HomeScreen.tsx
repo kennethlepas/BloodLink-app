@@ -1,5 +1,6 @@
 import { LogoutModal } from '@/src/components/LogoutModal';
 import { NotificationBell } from '@/src/components/NotificationBell';
+import AppLogo from '@/src/components/shared/AppLogo';
 import { VerificationBanner } from '@/src/components/VerificationBanner';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
@@ -711,10 +712,9 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
             <View style={styles.hBrand}>
-              <Image
-                source={require('@/assets/images/logo.jpg')}
-                style={styles.hBrandIcon}
-                resizeMode="cover"
+              <AppLogo
+                variant="header"
+                style={styles.hBrandIconWrapper}
               />
               <View style={styles.hBrandTextContainer}>
                 <Text style={styles.hAppName}>BloodLink</Text>
@@ -1507,11 +1507,7 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   menuBtn: { width: scale(42), height: scale(42), borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: 12 },
   menuLine: { height: 2.5, borderRadius: 2, backgroundColor: '#FFFFFF' },
   hBrand: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, justifyContent: 'center' },
-  hBrandIcon: {
-    width: scale(48),
-    height: scale(62),
-    borderRadius: 8,
-    overflow: 'hidden',
+  hBrandIconWrapper: {
     ...(Platform.OS === 'web'
       ? {
         boxShadow: '0px 0px 20px rgba(128, 128, 128, 0.3), 0px 0px 10px rgba(160, 160, 160, 0.15)',

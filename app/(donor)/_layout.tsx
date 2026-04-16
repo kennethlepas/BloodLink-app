@@ -79,7 +79,7 @@ export default function DonorLayout() {
       <Tabs.Screen
         name="donation-history"
         options={{
-          title: 'Bookings',
+          title: 'History',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
           ),

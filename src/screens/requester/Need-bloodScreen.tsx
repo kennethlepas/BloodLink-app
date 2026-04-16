@@ -1,4 +1,5 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
+import { getSubCountiesByCounty, KENYA_COUNTIES } from '@/src/constants/kenyaLocations';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
@@ -309,6 +310,13 @@ const NeedBloodScreen: React.FC = () => {
   const [isBloodComponentExpanded, setIsBloodComponentExpanded] = useState(false);
   const [hospitalSearchQuery, setHospitalSearchQuery] = useState('');
 
+  const [selectedCounty, setSelectedCounty] = useState('');
+  const [selectedSubCounty, setSelectedSubCounty] = useState('');
+  const [isCountyExpanded, setIsCountyExpanded] = useState(false);
+  const [isSubCountyExpanded, setIsSubCountyExpanded] = useState(false);
+  const [countySearch, setCountySearch] = useState('');
+  const [subCountySearch, setSubCountySearch] = useState('');
+
   const [formData, setFormData] = useState({
     bloodType: 'O+' as BloodType,
     urgencyLevel: 'urgent' as UrgencyLevel,
@@ -343,18 +351,57 @@ const NeedBloodScreen: React.FC = () => {
 
   const filteredHospitals = useMemo(() => {
     let results = [...bloodBanks];
+
+    // Filter by name/search
     if (hospitalSearchQuery.trim()) {
       const q = hospitalSearchQuery.toLowerCase();
-      results = results.filter(bank => bank.name.toLowerCase().includes(q) || bank.address.toLowerCase().includes(q));
+      results = results.filter(bank =>
+        bank.name.toLowerCase().includes(q) ||
+        bank.address.toLowerCase().includes(q) ||
+        bank.subCounty.toLowerCase().includes(q) ||
+        bank.county.toLowerCase().includes(q)
+      );
     }
+
+    // Filter by County/Sub-County
+    if (selectedCounty) {
+      results = results.filter(bank => bank.county === selectedCounty);
+    }
+    if (selectedSubCounty) {
+      results = results.filter(bank => bank.subCounty === selectedSubCounty);
+    }
+
+    // Distance calculation
     if (location && location.latitude !== 0) {
       results = results.map(bank => ({
         ...bank,
         distance: calculateDistance(location.latitude, location.longitude, bank.location.latitude, bank.location.longitude)
-      })).sort((a: any, b: any) => a.distance - b.distance);
+      }));
     }
+
+    // Prioritization logic:
+    // 1. If distance available, sort by distance
+    // 2. Otherwise sort by subcounty of user
+    results.sort((a, b) => {
+      // Priority 1: Distance
+      if (a.distance !== undefined && b.distance !== undefined) {
+        return a.distance - b.distance;
+      }
+
+      // Priority 2: User's Subcounty
+      if (user?.subCounty) {
+        const aInSubCounty = a.subCounty === user.subCounty;
+        const bInSubCounty = b.subCounty === user.subCounty;
+        if (aInSubCounty && !bInSubCounty) return -1;
+        if (!aInSubCounty && bInSubCounty) return 1;
+      }
+
+      // Priority 3: Alphabetical
+      return a.name.localeCompare(b.name);
+    });
+
     return results;
-  }, [bloodBanks, hospitalSearchQuery, location]);
+  }, [bloodBanks, hospitalSearchQuery, location, selectedCounty, selectedSubCounty, user?.subCounty]);
 
   const selectHospital = (bank: BloodBank | 'other') => {
     if (bank === 'other') {
@@ -598,6 +645,122 @@ const NeedBloodScreen: React.FC = () => {
 
                 {isHospitalExpanded && (
                   <View style={nb.inlineSelectionContainer}>
+                    {/* County and Sub-County Filters */}
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: colors.surfaceAlt,
+                          borderRadius: 8,
+                          paddingHorizontal: 8,
+                          height: 36,
+                          borderWidth: isCountyExpanded ? 1 : 0,
+                          borderColor: colors.primary
+                        }}
+                        onPress={() => { setIsCountyExpanded(!isCountyExpanded); setIsSubCountyExpanded(false); }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                          {selectedCounty || 'All Counties'}
+                        </Text>
+                        <Ionicons name={isCountyExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.textSecondary} />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: colors.surfaceAlt,
+                          borderRadius: 8,
+                          paddingHorizontal: 8,
+                          height: 36,
+                          borderWidth: isSubCountyExpanded ? 1 : 0,
+                          borderColor: colors.primary
+                        }}
+                        onPress={() => {
+                          if (!selectedCounty) {
+                            Alert.alert('Notice', 'Please select a county first');
+                            return;
+                          }
+                          setIsSubCountyExpanded(!isSubCountyExpanded);
+                          setIsCountyExpanded(false);
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                          {selectedSubCounty || 'All Sub-Counties'}
+                        </Text>
+                        <Ionicons name={isSubCountyExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {isCountyExpanded && (
+                      <View style={{ backgroundColor: colors.surface, borderRadius: 10, marginBottom: 12, maxHeight: 180, overflow: 'hidden', borderWidth: 1, borderColor: colors.primary }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surfaceAlt }}>
+                          <Ionicons name="search" size={14} color={colors.textSecondary} />
+                          <TextInput
+                            placeholder="Search county..."
+                            placeholderTextColor={colors.textMuted}
+                            style={{ flex: 1, marginLeft: 6, fontSize: 12, color: colors.text, paddingVertical: 4 }}
+                            value={countySearch}
+                            onChangeText={setCountySearch}
+                          />
+                        </View>
+                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                          <TouchableOpacity
+                            style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: colors.divider }}
+                            onPress={() => { setSelectedCounty(''); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
+                          >
+                            <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }}>All Counties</Text>
+                          </TouchableOpacity>
+                          {KENYA_COUNTIES.filter(c => c.toLowerCase().includes(countySearch.toLowerCase())).map((c: string) => (
+                            <TouchableOpacity
+                              key={c}
+                              style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: selectedCounty === c ? colors.surfaceAlt : colors.surface }}
+                              onPress={() => { setSelectedCounty(c); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
+                            >
+                              <Text style={{ color: selectedCounty === c ? colors.primary : colors.text, fontSize: 13 }}>{c}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+
+                    {isSubCountyExpanded && (
+                      <View style={{ backgroundColor: colors.surface, borderRadius: 10, marginBottom: 12, maxHeight: 180, overflow: 'hidden', borderWidth: 1, borderColor: colors.primary }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surfaceAlt }}>
+                          <Ionicons name="search" size={14} color={colors.textSecondary} />
+                          <TextInput
+                            placeholder="Search sub-county..."
+                            placeholderTextColor={colors.textMuted}
+                            style={{ flex: 1, marginLeft: 6, fontSize: 12, color: colors.text, paddingVertical: 4 }}
+                            value={subCountySearch}
+                            onChangeText={setSubCountySearch}
+                          />
+                        </View>
+                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                          <TouchableOpacity
+                            style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: colors.divider }}
+                            onPress={() => { setSelectedSubCounty(''); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
+                          >
+                            <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }}>All Sub-Counties</Text>
+                          </TouchableOpacity>
+                          {getSubCountiesByCounty(selectedCounty).filter(sc => sc.toLowerCase().includes(subCountySearch.toLowerCase())).map((sc: string) => (
+                            <TouchableOpacity
+                              key={sc}
+                              style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: selectedSubCounty === sc ? colors.surfaceAlt : colors.surface }}
+                              onPress={() => { setSelectedSubCounty(sc); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
+                            >
+                              <Text style={{ color: selectedSubCounty === sc ? colors.primary : colors.text, fontSize: 13 }}>{sc}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+
                     <View style={nb.hospitalSearchBox}>
                       <Ionicons name="search" size={16} color={colors.textSecondary} />
                       <TextInput style={nb.hospitalSearchInput} placeholder="Search hospital..." value={hospitalSearchQuery} onChangeText={setHospitalSearchQuery} />

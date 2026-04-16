@@ -1,10 +1,10 @@
+import AppLogo from '@/src/components/shared/AppLogo';
 import { useAppTheme, type ThemeColors } from '@/src/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-    Image,
     Linking,
     Platform,
     ScrollView,
@@ -114,13 +114,10 @@ const AboutUsScreen: React.FC = () => {
 
                 {/* Logo + tagline in header */}
                 <View style={s.heroBadge}>
-                    <View style={s.logoWrap}>
-                        <Image
-                            source={require('@/assets/images/logo.jpg')}
-                            style={s.logoImg}
-                            resizeMode="contain"
-                        />
-                    </View>
+                    <AppLogo
+                        variant="header"
+                        style={s.logoWrap}
+                    />
                     <View style={{ flex: 1 }}>
                         <Text style={s.heroAppName}>BloodLink</Text>
                         <Text style={s.heroTagline}>Connecting Donors · Saving Lives 🇰🇪</Text>
@@ -316,10 +313,9 @@ const AboutUsScreen: React.FC = () => {
                 {/* ══ FOOTER ══ */}
                 <View style={s.footer}>
                     <View style={s.footerDivider} />
-                    <Image
-                        source={require('@/assets/images/logo.jpg')}
-                        style={s.footerLogo}
-                        resizeMode="contain"
+                    <AppLogo
+                        variant="header"
+                        style={{ width: 60, height: 72, marginBottom: 10 }}
                     />
                     <Text style={[s.footerName, { color: colors.text }]}>BloodLink</Text>
                     <Text style={[s.footerTagline, { color: colors.textMuted }]}>
@@ -357,10 +353,10 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
     headerCenter: { flex: 1, alignItems: 'center' },
     headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
     headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+    logoWrap: { width: 50, height: 65, borderRadius: 12, overflow: 'hidden' },
 
     heroBadge: { borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.25)', backgroundColor: 'rgba(255,255,255,0.15)', flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
-    logoWrap: { width: 52, height: 62, borderRadius: 14, overflow: 'hidden' },
-    logoImg: { width: '100%', height: '100%' },
+
     heroAppName: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', marginBottom: 2 },
     heroTagline: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginBottom: 6 },
     versionBadge: { borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start' },
@@ -498,7 +494,7 @@ const getStyles = (colors: ThemeColors, isDark: boolean) => StyleSheet.create({
         backgroundColor: '#E2E8F0',
         marginBottom: 20,
     },
-    footerLogo: { width: 60, height: 72, borderRadius: 16, marginBottom: 10 },
+
     footerName: { fontSize: 18, fontWeight: '900', marginBottom: 4 },
     footerTagline: { fontSize: 12, marginBottom: 6 },
     copyright: { fontSize: 11, textAlign: 'center' },

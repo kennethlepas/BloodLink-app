@@ -1,6 +1,6 @@
-// src/services/notifications.ts
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
+import { soundService } from './soundService';
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
@@ -141,7 +141,10 @@ export const addNotificationReceivedListener = (callback: (notification: any) =>
     if (!Notifications) return { remove: () => { } };
 
     try {
-        return Notifications.addNotificationReceivedListener(callback);
+        return Notifications.addNotificationReceivedListener((notification: any) => {
+            soundService.playNotificationSound();
+            if (callback) callback(notification);
+        });
     } catch (error) {
         console.log('⚠️ Could not add notification received listener');
         return { remove: () => { } };

@@ -3,16 +3,11 @@ import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import {
-  completeBloodRequest,
   completeDonationAfterVerification,
-  createNotification,
-  disputeDonationByRequesterWithTicket,
   getRecipientBookings,
   getRequesterPendingVerifications,
   getUserBloodRequests,
-  updateBloodRequest,
-  updateRecipientBookingStatus,
-  verifyDonationByRequester
+  verifyDonationByRequester,
 } from '@/src/services/firebase/database';
 import { AcceptedRequest, BloodRequest, RecipientBooking } from '@/src/types/types';
 import { showRatingPrompt } from '@/src/utils/ratingPromptHelper';
@@ -21,7 +16,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -231,8 +225,11 @@ const MyRequestsScreen: React.FC = () => {
   const [verificationNotes, setVerificationNotes] = useState('');
   const [viewRequest, setViewRequest] = useState<BloodRequest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const { onScroll } = useTabBarAnimation();
+  const [timeFilter, setTimeFilter] = useState<'all' | 'month' | '3months' | '6months' | 'year' | 'lastYear'>('all');
+  const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'requests' | 'bookings'>('requests');
+  const [bookingFilter, setBookingFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  const { onScroll } = useTabBarAnimation();
 
   // Fetch user requests
   const { data: requestsData, loading: loadingRequests, refresh: refreshRequests } = useCachedData(
@@ -248,16 +245,17 @@ const MyRequestsScreen: React.FC = () => {
     { enabled: !!user }
   );
 
-  // Fetch recipient bookings
+  // Fetch booking history
   const { data: bookingsData, loading: loadingBookings, refresh: refreshBookings } = useCachedData(
     `user_bookings_${user?.id}`,
     () => getRecipientBookings(user!.id),
     { enabled: !!user }
   );
 
+
   const requests = requestsData || [];
   const pendingVerifications = verificationsData || [];
-  const recipientBookings = bookingsData || [];
+  const recipientBookings: RecipientBooking[] = bookingsData || [];
   const loading = loadingRequests || loadingVerifications || loadingBookings;
 
   const onRefresh = useCallback(async () => {
@@ -269,15 +267,15 @@ const MyRequestsScreen: React.FC = () => {
     } finally {
       setRefreshing(false);
     }
-  }, [refreshRequests, refreshVerifications, refreshBookings]);
+  }, [refreshRequests, refreshVerifications]);
 
   const loadRequests = useCallback(async () => {
     try {
-      await Promise.all([refreshRequests(), refreshVerifications(), refreshBookings()]);
+      await Promise.all([refreshRequests(), refreshVerifications()]);
     } catch (error) {
       console.log('Error loading requester data:', error);
     }
-  }, [refreshRequests, refreshVerifications, refreshBookings]);
+  }, [refreshRequests, refreshVerifications]);
 
   const handleVerifyDonation = (v: AcceptedRequest) => {
     setSelectedVerification(v);
@@ -289,21 +287,35 @@ const MyRequestsScreen: React.FC = () => {
     try {
       await verifyDonationByRequester(selectedVerification.id, verificationNotes || undefined);
       await completeDonationAfterVerification(selectedVerification, selectedVerification.donorId, selectedVerification.donorName);
+
+      const { createNotification } = await import('@/src/services/firebase/database');
       await createNotification({
-        userId: selectedVerification.donorId, type: 'donation_verified',
+        userId: selectedVerification.donorId,
+        type: 'donation_verified',
         title: 'Donation Verified! 🎉',
         message: 'Your donation has been verified. You earned 50 points!',
-        data: { acceptedRequestId: selectedVerification.id }, isRead: false, timestamp: ''
+        data: { acceptedRequestId: selectedVerification.id },
+        isRead: false,
+        timestamp: new Date().toISOString()
       });
-      setVerifyModalVisible(false); setSelectedVerification(null); setVerificationNotes('');
+
+      setVerifyModalVisible(false);
+      setSelectedVerification(null);
+      setVerificationNotes('');
       Alert.alert('Success', 'Donation verified! The donor has been notified.');
       showRatingPrompt(router, user.id);
       loadRequests();
-    } catch { Alert.alert('Error', 'Failed to verify donation.'); }
+    } catch (error) {
+      console.error('Error verifying donation:', error);
+      Alert.alert('Error', 'Failed to verify donation.');
+    }
   };
 
   const handleDisputeDonation = async () => {
     if (!selectedVerification || !user) return;
+
+    const { disputeDonationByRequesterWithTicket, createNotification } = await import('@/src/services/firebase/database');
+
     Alert.alert('Report Issue', 'Are you sure you want to report an issue with this donation? This will create a support ticket for our team to investigate.', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -319,12 +331,18 @@ const MyRequestsScreen: React.FC = () => {
             );
 
             await createNotification({
-              userId: selectedVerification.donorId, type: 'donation_disputed',
+              userId: selectedVerification.donorId,
+              type: 'donation_disputed',
               title: 'Donation Issue Reported',
               message: 'The requester has reported an issue with your donation. Support will review this.',
-              data: { acceptedRequestId: selectedVerification.id, ticketId }, isRead: false, timestamp: ''
+              data: { acceptedRequestId: selectedVerification.id, ticketId },
+              isRead: false,
+              timestamp: new Date().toISOString()
             });
-            setVerifyModalVisible(false); setSelectedVerification(null); setVerificationNotes('');
+
+            setVerifyModalVisible(false);
+            setSelectedVerification(null);
+            setVerificationNotes('');
 
             Alert.alert('Report Submitted', 'The issue has been reported and a support ticket has been created.', [
               { text: 'Close', onPress: () => loadRequests() },
@@ -334,54 +352,6 @@ const MyRequestsScreen: React.FC = () => {
             console.error('Error reporting issue:', error);
             Alert.alert('Error', 'Failed to report issue. Please try again.');
           }
-        }
-      }
-    ]);
-  };
-
-  const handleCompleteRequest = async (request: BloodRequest) => {
-    if (!user) return;
-    Alert.alert('Complete Request', 'Have you received the blood donation? This will mark the request as completed.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Complete', onPress: async () => {
-          try {
-            await completeBloodRequest(request.id);
-            Alert.alert('Success', 'Blood request marked as completed!');
-            showRatingPrompt(router, user.id); loadRequests();
-          } catch { Alert.alert('Error', 'Failed to complete request. Please try again.'); }
-        }
-      }
-    ]);
-  };
-
-  const handleCancelRequest = async (request: BloodRequest) => {
-    if (!user) return;
-    Alert.alert('Cancel Request', 'Are you sure you want to cancel this blood request?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
-          try {
-            await updateBloodRequest(request.id, { status: 'cancel' });
-            Alert.alert('Success', 'Blood request cancelled.');
-            showRatingPrompt(router, user.id); loadRequests();
-          } catch { Alert.alert('Error', 'Failed to cancel request. Please try again.'); }
-        }
-      }
-    ]);
-  };
-
-  const handleCancelRecipientBooking = async (booking: RecipientBooking) => {
-    if (!user) return;
-    Alert.alert('Cancel Booking', 'Are you sure you want to cancel this transfusion booking?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
-          try {
-            await updateRecipientBookingStatus(booking.id, 'cancel');
-            Alert.alert('Success', 'Transfusion booking cancelled.');
-            loadRequests();
-          } catch { Alert.alert('Error', 'Failed to cancel booking. Please try again.'); }
         }
       }
     ]);
@@ -417,6 +387,35 @@ const MyRequestsScreen: React.FC = () => {
 
   const filteredRequests = useMemo(() => {
     let f = filter === 'all' ? requests : requests.filter(r => r.status === filter);
+
+    // Time Filtering
+    if (timeFilter !== 'all') {
+      const now = new Date();
+      f = f.filter(item => {
+        const itemDate = new Date(item.createdAt);
+        if (timeFilter === 'month') {
+          return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+        }
+        if (timeFilter === '3months') {
+          const threeMonthsAgo = new Date();
+          threeMonthsAgo.setMonth(now.getMonth() - 3);
+          return itemDate >= threeMonthsAgo;
+        }
+        if (timeFilter === '6months') {
+          const sixMonthsAgo = new Date();
+          sixMonthsAgo.setMonth(now.getMonth() - 6);
+          return itemDate >= sixMonthsAgo;
+        }
+        if (timeFilter === 'year') {
+          return itemDate.getFullYear() === now.getFullYear();
+        }
+        if (timeFilter === 'lastYear') {
+          return itemDate.getFullYear() === now.getFullYear() - 1;
+        }
+        return true;
+      });
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       f = f.filter(r =>
@@ -425,7 +424,7 @@ const MyRequestsScreen: React.FC = () => {
       );
     }
     return f;
-  }, [filter, requests, searchQuery]);
+  }, [filter, requests, searchQuery, timeFilter]);
 
   const filterTabs = useMemo(() => [
     { key: 'all', label: 'All', count: requests.length },
@@ -433,6 +432,53 @@ const MyRequestsScreen: React.FC = () => {
     { key: 'accepted', label: 'Accepted', count: requests.filter(r => r.status === 'accepted').length },
     { key: 'completed', label: 'Done', count: requests.filter(r => r.status === 'completed').length },
   ] as const, [requests]);
+
+  const TIME_FILTER_OPTIONS = [
+    { id: 'all', label: 'All Time' },
+    { id: 'month', label: 'This Month' },
+    { id: '3months', label: 'Last 3 Months' },
+    { id: '6months', label: 'Last 6 Months' },
+    { id: 'year', label: 'This Year' },
+    { id: 'lastYear', label: 'Last Year' },
+  ];
+
+  const filteredBookings = useMemo(() => {
+    let b = [...recipientBookings];
+
+    // Status filtering
+    if (bookingFilter !== 'all') {
+      b = b.filter(bk => bk.status === bookingFilter);
+    }
+
+    if (timeFilter !== 'all') {
+      const now = new Date();
+      b = b.filter(item => {
+        const itemDate = new Date(item.createdAt);
+        if (timeFilter === 'month') return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+        if (timeFilter === '3months') { const d = new Date(); d.setMonth(now.getMonth() - 3); return itemDate >= d; }
+        if (timeFilter === '6months') { const d = new Date(); d.setMonth(now.getMonth() - 6); return itemDate >= d; }
+        if (timeFilter === 'year') return itemDate.getFullYear() === now.getFullYear();
+        if (timeFilter === 'lastYear') return itemDate.getFullYear() === now.getFullYear() - 1;
+        return true;
+      });
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      b = b.filter(bk =>
+        bk.hospitalName?.toLowerCase().includes(q) ||
+        bk.patientName?.toLowerCase().includes(q)
+      );
+    }
+    return b;
+  }, [recipientBookings, bookingFilter, timeFilter, searchQuery]);
+
+  const bookingFilterTabs = useMemo(() => [
+    { key: 'all', label: 'All', count: recipientBookings.length },
+    { key: 'pending', label: 'Pending', count: recipientBookings.filter(b => b.status === 'pending').length },
+    { key: 'confirmed', label: 'Confirmed', count: recipientBookings.filter(b => b.status === 'confirmed').length },
+    { key: 'completed', label: 'Done', count: recipientBookings.filter(b => b.status === 'completed').length },
+    { key: 'cancelled', label: 'Cancelled', count: recipientBookings.filter(b => b.status === 'cancelled').length },
+  ] as const, [recipientBookings]);
 
   const renderRequestDetail = ({ item }: { item: BloodRequest }) => {
     const statusCfg = getStatusConfig(item.status);
@@ -580,43 +626,177 @@ const MyRequestsScreen: React.FC = () => {
         )}
       </View>
 
-      <View style={[st.filterBar, { backgroundColor: SURFACE, borderBottomColor: BORDER }]}>
-        {filterTabs.map(tab => {
-          const isActive = filter === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={[st.filterTab, isActive && { borderBottomColor: colors.primary }]}
-              onPress={() => setFilter(tab.key)}
-            >
-              <Text style={[st.filterTabText, { color: TEXT_MID }, isActive && { color: colors.primary }]}>{tab.label}</Text>
-              {tab.count > 0 && (
-                <View style={[st.filterBadge, { backgroundColor: colors.surfaceTint }, isActive && { backgroundColor: colors.primary + '20' }]}>
-                  <Text style={[st.filterBadgeText, { color: TEXT_SOFT }, isActive && { color: colors.primary }]}>{tab.count}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
+      {/* Time Filter Dropdown */}
+      <View style={{ paddingHorizontal: 16, marginBottom: 12, zIndex: 10 }}>
+        <TouchableOpacity
+          onPress={() => setIsTimeDropdownOpen(!isTimeDropdownOpen)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: colors.surface,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.surfaceBorder,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text }}>
+              {TIME_FILTER_OPTIONS.find(o => o.id === timeFilter)?.label || 'All Time'}
+            </Text>
+          </View>
+          <Ionicons name={isTimeDropdownOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textSecondary} />
+        </TouchableOpacity>
+        {isTimeDropdownOpen && (
+          <View style={{
+            backgroundColor: colors.surface,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.surfaceBorder,
+            marginTop: 4,
+            overflow: 'hidden',
+          }}>
+            {TIME_FILTER_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={opt.id}
+                onPress={() => { setTimeFilter(opt.id as any); setIsTimeDropdownOpen(false); }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  backgroundColor: timeFilter === opt.id ? (colors.primary + '15') : 'transparent',
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.surfaceBorder,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: timeFilter === opt.id ? '700' : '500', color: timeFilter === opt.id ? colors.primary : colors.text }}>
+                  {opt.label}
+                </Text>
+                {timeFilter === opt.id && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
-      <View style={{ flexDirection: 'row', padding: 12, gap: 8 }}>
-        <TouchableOpacity
-          style={[st.filterTab, { flex: 1, borderRadius: 10, paddingVertical: 10, borderBottomWidth: 0, backgroundColor: activeTab === 'requests' ? colors.primary : colors.surfaceTint, justifyContent: 'center' }]}
-          onPress={() => setActiveTab('requests')}
-        >
-          <Ionicons name="document-text" size={16} color={activeTab === 'requests' ? '#FFF' : TEXT_SOFT} />
-          <Text style={[st.filterTabText, { color: activeTab === 'requests' ? '#FFF' : TEXT_SOFT }]}>Blood Requests</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[st.filterTab, { flex: 1, borderRadius: 10, paddingVertical: 10, borderBottomWidth: 0, backgroundColor: activeTab === 'bookings' ? colors.primary : colors.surfaceTint, justifyContent: 'center' }]}
-          onPress={() => setActiveTab('bookings')}
-        >
-          <Ionicons name="calendar" size={16} color={activeTab === 'bookings' ? '#FFF' : TEXT_SOFT} />
-          <Text style={[st.filterTabText, { color: activeTab === 'bookings' ? '#FFF' : TEXT_SOFT }]}>My Bookings ({recipientBookings.length})</Text>
-        </TouchableOpacity>
-      </View>
+      {activeTab === 'requests' && (
+        <View style={[st.filterBar, { backgroundColor: SURFACE, borderBottomColor: BORDER }]}>
+          {filterTabs.map(tab => {
+            const isActive = filter === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[st.filterTab, isActive && { borderBottomColor: colors.primary }]}
+                onPress={() => setFilter(tab.key)}
+              >
+                <Text style={[st.filterTabText, { color: TEXT_MID }, isActive && { color: colors.primary }]}>{tab.label}</Text>
+                {tab.count > 0 && (
+                  <View style={[st.filterBadge, { backgroundColor: colors.surfaceTint }, isActive && { backgroundColor: colors.primary + '20' }]}>
+                    <Text style={[st.filterBadgeText, { color: TEXT_SOFT }, isActive && { color: colors.primary }]}>{tab.count}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {activeTab === 'bookings' && (
+        <View style={[st.filterBar, { backgroundColor: SURFACE, borderBottomColor: BORDER }]}>
+          {bookingFilterTabs.map(tab => {
+            const isActive = bookingFilter === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[st.filterTab, isActive && { borderBottomColor: colors.primary }]}
+                onPress={() => setBookingFilter(tab.key)}
+              >
+                <Text style={[st.filterTabText, { color: TEXT_MID }, isActive && { color: colors.primary }]}>{tab.label}</Text>
+                {tab.count > 0 && (
+                  <View style={[st.filterBadge, { backgroundColor: colors.surfaceTint }, isActive && { backgroundColor: colors.primary + '20' }]}>
+                    <Text style={[st.filterBadgeText, { color: TEXT_SOFT }, isActive && { color: colors.primary }]}>{tab.count}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
     </>
+  );
+
+  const renderBookingListItem = ({ item }: { item: any }) => {
+    const booking = item as RecipientBooking;
+    const cfg = statusMap[booking.status] || { color: colors.textMuted, icon: 'information-circle', bg: colors.surfaceTint, label: booking.status };
+    return (
+      <View style={st.card}>
+        <LinearGradient
+          colors={booking.status === 'confirmed' ? [BLUE, BLUE + 'B3'] : booking.status === 'completed' ? [GREEN, GREEN + 'B3'] : ['#334155', '#475569']}
+          style={[st.cardBand, { paddingVertical: 12 }]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="business" size={16} color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }} numberOfLines={1}>{booking.hospitalName}</Text>
+            </View>
+            <View style={[st.statusPill, { backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 4, paddingHorizontal: 8 }]}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF' }}>{cfg.label.toUpperCase()}</Text>
+            </View>
+          </View>
+        </LinearGradient>
+        <View style={{ padding: 14 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <View>
+              <Text style={{ fontSize: 11, color: TEXT_SOFT, fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 }}>Patient</Text>
+              <Text style={{ fontSize: 15, color: TEXT_DARK, fontWeight: '700' }}>{booking.patientName}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 11, color: TEXT_SOFT, fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 }}>Blood</Text>
+              <Text style={{ fontSize: 15, color: colors.success, fontWeight: '800' }}>{booking.bloodType}</Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            <View style={[st.chip, { backgroundColor: colors.surfaceTint, borderColor: BORDER }]}>
+              <Ionicons name="flask" size={13} color="#8B5CF6" />
+              <Text style={[st.chipLabel, { color: TEXT_SOFT }]}>{booking.bloodComponent || 'Whole Blood'}</Text>
+            </View>
+            <View style={[st.chip, { backgroundColor: colors.surfaceTint, borderColor: BORDER }]}>
+              <Ionicons name="time" size={13} color={BLUE} />
+              <Text style={[st.chipLabel, { color: TEXT_SOFT }]}>
+                {new Date(booking.scheduledDate || booking.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </Text>
+            </View>
+            <View style={[st.chip, { backgroundColor: cfg.bg, borderColor: 'transparent' }]}>
+              <Ionicons name={cfg.icon as any} size={13} color={cfg.color} />
+              <Text style={[st.chipValue, { color: cfg.color }]}>{booking.unitsNeeded || 1} units</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderBookingsEmptyState = () => (
+    <View style={st.emptyWrap}>
+      <LinearGradient colors={[colors.surfaceTint, colors.bg]} style={st.emptyIconWrap}>
+        <Ionicons name="calendar-outline" size={46} color={colors.primary} />
+      </LinearGradient>
+      <Text style={[st.emptyTitle, { color: TEXT_DARK }]}>No Transfusion Bookings</Text>
+      <Text style={[st.emptyText, { color: TEXT_MID }]}>You haven't made any transfusion bookings yet.</Text>
+      <TouchableOpacity style={st.emptyBtn} onPress={() => router.push('/(requester)/booktransfusion' as any)}>
+        <LinearGradient colors={[colors.primary, colors.primary + 'E6']} style={st.emptyBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+          <Ionicons name="add-circle" size={18} color="#FFFFFF" />
+          <Text style={st.emptyBtnText}>Book Transfusion</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
   );
 
   const renderRequestListItem = ({ item }: { item: BloodRequest }) => {
@@ -686,7 +866,12 @@ const MyRequestsScreen: React.FC = () => {
           </TouchableOpacity>
           <View style={st.headerCenter}>
             <Text style={st.headerTitle}>My Requests</Text>
-            <Text style={st.headerSub}>{requests.length} total request{requests.length !== 1 ? 's' : ''}</Text>
+            <Text style={st.headerSub}>
+              {activeTab === 'requests'
+                ? `${requests.length} request${requests.length !== 1 ? 's' : ''}`
+                : `${recipientBookings.length} booking${recipientBookings.length !== 1 ? 's' : ''}`
+              }
+            </Text>
           </View>
           <TouchableOpacity style={st.addBtn} onPress={() => router.push('/(requester)/needblood' as any)}>
             <Ionicons name="add" size={22} color="#FFFFFF" />
@@ -706,65 +891,51 @@ const MyRequestsScreen: React.FC = () => {
             </View>
           ))}
         </View>
+
+        {/* Tab Switcher: Requests vs Bookings */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          <TouchableOpacity
+            onPress={() => setActiveTab('requests')}
+            style={{
+              flex: 1,
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: activeTab === 'requests' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+              borderWidth: 1,
+              borderColor: activeTab === 'requests' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>🩸 Blood Requests</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab('bookings')}
+            style={{
+              flex: 1,
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: activeTab === 'bookings' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+              borderWidth: 1,
+              borderColor: activeTab === 'bookings' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>📋 Transfusion Bookings</Text>
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
 
-      {loading ? (
-        <View style={st.loadingWrap}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[st.loadingText, { color: TEXT_MID }]}>Loading requests...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={activeTab === 'requests' ? filteredRequests : []}
-          renderItem={renderRequestListItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={st.listContent}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={activeTab === 'requests' ? renderEmptyState : null}
-          ListFooterComponent={activeTab === 'bookings' ? (
-            <View style={{ gap: 12, paddingBottom: 80 }}>
-              {recipientBookings.length === 0 ? (
-                <View style={st.emptyWrap}>
-                  <LinearGradient colors={[colors.surfaceTint, colors.bg]} style={st.emptyIconWrap}>
-                    <Ionicons name="calendar-outline" size={46} color={colors.primary} />
-                  </LinearGradient>
-                  <Text style={[st.emptyTitle, { color: TEXT_DARK }]}>No Bookings Yet</Text>
-                  <Text style={[st.emptyText, { color: TEXT_MID }]}>Book a transfusion from the Booking tab</Text>
-                </View>
-              ) : (
-                recipientBookings.map((b: RecipientBooking) => {
-                  const cfg = statusMap[b.status] || statusMap.pending;
-                  return (
-                    <TouchableOpacity key={b.id} style={st.card}>
-                      <View style={[st.cardBand, { backgroundColor: cfg.bg, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }]}>
-                        <View style={st.cardBandRow}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Ionicons name={cfg.icon as any} size={16} color={cfg.color} />
-                            <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 11, textTransform: 'uppercase' }}>{cfg.label}</Text>
-                          </View>
-                          <Text style={{ fontSize: 10, color: TEXT_SOFT, fontWeight: '600' }}>{new Date(b.createdAt).toLocaleDateString()}</Text>
-                        </View>
-                      </View>
-                      <View style={{ padding: 14 }}>
-                        <Text style={{ fontSize: 14, fontWeight: '800', color: TEXT_DARK, marginBottom: 4 }}>{b.hospitalName}</Text>
-                        <Text style={{ fontSize: 12, color: TEXT_MID, marginBottom: 12 }}>{b.patientName} • {b.bloodType} • {b.unitsNeeded} units</Text>
-                        {b.status === 'pending' && (
-                          <TouchableOpacity onPress={() => handleCancelRecipientBooking(b)}>
-                            <Text style={{ fontSize: 12, color: colors.danger, fontWeight: '700' }}>Cancel Booking</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </View>
-          ) : null}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-        />
-      )}
+      <FlatList
+        data={(activeTab === 'requests' ? filteredRequests : filteredBookings) as any[]}
+        renderItem={(activeTab === 'requests' ? renderRequestListItem : renderBookingListItem) as any}
+        keyExtractor={(item: any) => item.id}
+        contentContainerStyle={st.listContent}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={activeTab === 'requests' ? renderEmptyState : renderBookingsEmptyState}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      />
 
       <Modal visible={!!viewRequest} transparent animationType="fade">
         <View style={st.modalOverlay}>

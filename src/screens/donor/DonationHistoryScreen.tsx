@@ -1,6 +1,7 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import {
   cancelAcceptedRequest,
   createNotification,
@@ -35,7 +36,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type TabType = 'active' | 'history' | 'bookings';
+type TabType = 'donations' | 'bookings';
 
 
 // Brand Colors 
@@ -73,8 +74,13 @@ const DonationHistoryScreen: React.FC = () => {
   const params = useLocalSearchParams<{ tab?: TabType }>();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>(params.tab || 'active');
-  const [filter, setFilter] = useState<'all' | 'thisYear' | 'lastYear'>('all');
+  const [activeTab, setActiveTab] = useState<TabType>(params.tab as TabType || 'donations');
+  const { onScroll } = useTabBarAnimation();
+  const [filter, setFilter] = useState<'all' | 'thisMonth' | 'last90Days' | 'thisYear' | 'lastYear'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
+  const [donationStatusFilter, setDonationStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'pending_verification' | 'completed' | 'disputed'>('all');
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
   const [selectedCommitment, setSelectedCommitment] = useState<AcceptedRequest | null>(null);
@@ -194,15 +200,98 @@ const DonationHistoryScreen: React.FC = () => {
     }
   }, [refreshCommitments, refreshHistory, refreshBookings]);
 
-  const filteredDonations = useMemo(() => {
-    const now = new Date().getFullYear();
-    if (filter === 'thisYear') return donations.filter(d => new Date(d.donationDate).getFullYear() === now);
-    if (filter === 'lastYear') return donations.filter(d => new Date(d.donationDate).getFullYear() === now - 1);
-    return donations;
-  }, [donations, filter]);
+  // Combined donations data (active commitments + completed history)
+  const allDonationItems = useMemo(() => {
+    const items = [
+      ...acceptedRequests.map(r => ({ ...r, _type: 'commitment' as const })),
+      ...donations.map(d => ({ ...d, _type: 'donation' as const })),
+    ];
+    return items;
+  }, [acceptedRequests, donations]);
 
-  const totalPoints = useMemo(() => filteredDonations.reduce((s, d) => s + d.pointsEarned, 0), [filteredDonations]);
-  const totalUnits = useMemo(() => filteredDonations.reduce((s, d) => s + (d.unitsCollected || 1), 0), [filteredDonations]);
+  const TIME_FILTER_OPTIONS = [
+    { id: 'all', label: 'All Time' },
+    { id: 'thisMonth', label: 'This Month' },
+    { id: 'last90Days', label: 'Last 3 Months' },
+    { id: 'thisYear', label: 'This Year' },
+    { id: 'lastYear', label: 'Last Year' },
+  ];
+
+  const filteredDonations = useMemo(() => {
+    let f = [...allDonationItems];
+    // Status filter
+    if (donationStatusFilter !== 'all') {
+      f = f.filter(item => (item as any).status === donationStatusFilter);
+    }
+    // Time filter
+    const now = new Date();
+    if (filter !== 'all') {
+      f = f.filter(item => {
+        const dateStr = item._type === 'donation' ? (item as any).donationDate : (item as any).createdAt;
+        const itemDate = new Date(dateStr);
+        if (filter === 'thisMonth') return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+        if (filter === 'last90Days') { const d = new Date(); d.setDate(now.getDate() - 90); return itemDate >= d; }
+        if (filter === 'thisYear') return itemDate.getFullYear() === now.getFullYear();
+        if (filter === 'lastYear') return itemDate.getFullYear() === now.getFullYear() - 1;
+        return true;
+      });
+    }
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      f = f.filter(item => {
+        if (item._type === 'commitment') {
+          const c = item as any;
+          return c.hospitalName?.toLowerCase().includes(q) || c.requesterName?.toLowerCase().includes(q) || c.bloodType?.toLowerCase().includes(q);
+        }
+        const d = item as any;
+        return d.hospitalName?.toLowerCase().includes(q) || d.bloodType?.toLowerCase().includes(q) || d.location?.toLowerCase().includes(q);
+      });
+    }
+    return f;
+  }, [allDonationItems, donationStatusFilter, filter, searchQuery]);
+
+  const filteredBookings = useMemo(() => {
+    let b = [...donorBookings];
+    if (bookingStatusFilter !== 'all') {
+      b = b.filter(bk => bk.status === bookingStatusFilter);
+    }
+    const now = new Date();
+    if (filter !== 'all') {
+      b = b.filter(item => {
+        const itemDate = new Date(item.createdAt);
+        if (filter === 'thisMonth') return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+        if (filter === 'last90Days') { const d = new Date(); d.setDate(now.getDate() - 90); return itemDate >= d; }
+        if (filter === 'thisYear') return itemDate.getFullYear() === now.getFullYear();
+        if (filter === 'lastYear') return itemDate.getFullYear() === now.getFullYear() - 1;
+        return true;
+      });
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      b = b.filter(bk => bk.hospitalName?.toLowerCase().includes(q));
+    }
+    return b;
+  }, [donorBookings, bookingStatusFilter, filter, searchQuery]);
+
+  const donationFilterTabs = useMemo(() => [
+    { key: 'all', label: 'All', count: allDonationItems.length },
+    { key: 'pending', label: 'Pending', count: allDonationItems.filter(i => (i as any).status === 'pending').length },
+    { key: 'in_progress', label: 'Active', count: allDonationItems.filter(i => (i as any).status === 'in_progress').length },
+    { key: 'completed', label: 'Done', count: allDonationItems.filter(i => (i as any).status === 'completed').length },
+    { key: 'disputed', label: 'Disputed', count: allDonationItems.filter(i => (i as any).status === 'disputed').length },
+  ] as const, [allDonationItems]);
+
+  const bookingFilterTabs = useMemo(() => [
+    { key: 'all', label: 'All', count: donorBookings.length },
+    { key: 'pending', label: 'Pending', count: donorBookings.filter(b => b.status === 'pending').length },
+    { key: 'confirmed', label: 'Confirmed', count: donorBookings.filter(b => b.status === 'confirmed').length },
+    { key: 'completed', label: 'Done', count: donorBookings.filter(b => b.status === 'completed').length },
+    { key: 'cancelled', label: 'Cancelled', count: donorBookings.filter(b => b.status === 'cancelled').length },
+  ] as const, [donorBookings]);
+
+  const totalPoints = useMemo(() => donations.reduce((s, d) => s + d.pointsEarned, 0), [donations]);
+  const totalUnits = useMemo(() => donations.reduce((s, d) => s + (d.unitsCollected || 1), 0), [donations]);
 
   const handleStartCommitment = async (c: AcceptedRequest) => {
     try {
@@ -788,6 +877,13 @@ const DonationHistoryScreen: React.FC = () => {
     filterBtnText: { fontSize: 13, fontWeight: '600', color: TEXT_MID },
     filterBtnTextActive: { color: '#FFFFFF' },
 
+    // Status Filter Bar
+    filterBar: { flexDirection: 'row', borderBottomWidth: 1, paddingHorizontal: 4 },
+    filterTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    filterTabText: { fontSize: 12, fontWeight: '600' },
+    filterBadge: { minWidth: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
+    filterBadgeText: { fontSize: 10, fontWeight: '700' },
+
     // Loading
     loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
     loadingText: { fontSize: 15, color: TEXT_MID },
@@ -954,27 +1050,55 @@ const DonationHistoryScreen: React.FC = () => {
         )}
       </LinearGradient>
 
-      {/* Tabs */}
-      <View style={st.tabBar}>
-        {[
-          { key: 'active', label: 'Active', icon: 'time', count: acceptedRequests.length },
-          { key: 'history', label: 'History', icon: 'checkmark-done-circle', count: donations.length },
-          { key: 'bookings', label: 'Bookings', icon: 'calendar', count: donorBookings.length },
-        ].map((tab) => {
-          const isActive = activeTab === tab.key as TabType;
+      {/* ─── 2-Tab Switcher ─── */}
+      <View style={{
+        flexDirection: 'row',
+        marginHorizontal: 16,
+        marginTop: 16,
+        marginBottom: 8,
+        backgroundColor: SURFACE,
+        borderRadius: 14,
+        padding: 3,
+        borderWidth: 1,
+        borderColor: BORDER,
+      }}>
+        {([
+          { key: 'donations', label: 'Donations', icon: 'water', count: allDonationItems.length },
+          { key: 'bookings', label: 'Hospital Bookings', icon: 'calendar', count: donorBookings.length },
+        ] as const).map(tab => {
+          const isActive = activeTab === tab.key;
           return (
             <TouchableOpacity
               key={tab.key}
-              style={[st.tab, isActive && st.tabActive]}
-              onPress={() => setActiveTab(tab.key as TabType)}
+              onPress={() => setActiveTab(tab.key)}
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                paddingVertical: 10,
+                borderRadius: 11,
+                ...(isActive
+                  ? { backgroundColor: B_MID }
+                  : {}),
+              }}
             >
-              <Ionicons name={tab.icon as any} size={18} color={isActive ? B_MID : TEXT_SOFT} />
-              <Text style={[st.tabText, isActive && st.tabTextActive]}>
+              <Ionicons name={tab.icon as any} size={16} color={isActive ? '#FFFFFF' : TEXT_SOFT} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: isActive ? '#FFFFFF' : TEXT_SOFT }}>
                 {tab.label}
               </Text>
               {tab.count > 0 && (
-                <View style={[st.tabBadge, isActive && st.tabBadgeActive]}>
-                  <Text style={[st.tabBadgeText, isActive && st.tabBadgeTextActive]}>
+                <View style={{
+                  minWidth: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : B_PALE,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  paddingHorizontal: 5,
+                }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isActive ? '#FFFFFF' : B_MID }}>
                     {tab.count}
                   </Text>
                 </View>
@@ -984,134 +1108,276 @@ const DonationHistoryScreen: React.FC = () => {
         })}
       </View>
 
-      {/* Filter Buttons (history tab) */}
-      {activeTab === 'history' && donations.length > 0 && (
-        <View style={st.filterRow}>
-          {(['all', 'thisYear', 'lastYear'] as const).map((f) => {
-            const labels = { all: 'All Time', thisYear: 'This Year', lastYear: 'Last Year' };
-            const isActive = filter === f;
+      {/* ─── Search Bar ─── */}
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: 16,
+        marginBottom: 8,
+        backgroundColor: SURFACE,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: BORDER,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        gap: 8,
+      }}>
+        <Ionicons name="search" size={16} color={TEXT_SOFT} />
+        <TextInput
+          placeholder={activeTab === 'donations' ? 'Search donations, hospital, blood type...' : 'Search bookings, hospital...'}
+          style={{ flex: 1, fontSize: 13, color: TEXT_DARK, padding: 0 }}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholderTextColor={TEXT_SOFT}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={16} color={TEXT_SOFT} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* ─── Time Filter Dropdown ─── */}
+      <View style={{ paddingHorizontal: 16, marginBottom: 8, zIndex: 10 }}>
+        <TouchableOpacity
+          onPress={() => setIsTimeDropdownOpen(!isTimeDropdownOpen)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: SURFACE,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: BORDER,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="calendar-outline" size={16} color={B_MID} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_DARK }}>
+              {TIME_FILTER_OPTIONS.find(o => o.id === filter)?.label || 'All Time'}
+            </Text>
+          </View>
+          <Ionicons name={isTimeDropdownOpen ? 'chevron-up' : 'chevron-down'} size={16} color={TEXT_MID} />
+        </TouchableOpacity>
+        {isTimeDropdownOpen && (
+          <View style={{
+            backgroundColor: SURFACE,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: BORDER,
+            marginTop: 4,
+            overflow: 'hidden',
+          }}>
+            {TIME_FILTER_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={opt.id}
+                onPress={() => { setFilter(opt.id as any); setIsTimeDropdownOpen(false); }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  backgroundColor: filter === opt.id ? (B_MID + '15') : 'transparent',
+                  borderBottomWidth: 1,
+                  borderBottomColor: BORDER,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: filter === opt.id ? '700' : '500', color: filter === opt.id ? B_MID : TEXT_DARK }}>
+                  {opt.label}
+                </Text>
+                {filter === opt.id && <Ionicons name="checkmark" size={16} color={B_MID} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* ─── Status Filter Bar (Donations) ─── */}
+      {activeTab === 'donations' && (
+        <View style={[st.filterBar, { backgroundColor: SURFACE, borderBottomColor: BORDER }]}>
+          {donationFilterTabs.map(tab => {
+            const isActive = donationStatusFilter === tab.key;
             return (
               <TouchableOpacity
-                key={f}
-                style={[st.filterBtn, isActive && st.filterBtnActive]}
-                onPress={() => setFilter(f)}
+                key={tab.key}
+                style={[st.filterTab, isActive && { borderBottomColor: B_MID }]}
+                onPress={() => setDonationStatusFilter(tab.key as any)}
               >
-                <Text style={[st.filterBtnText, isActive && st.filterBtnTextActive]}>
-                  {labels[f]}
-                </Text>
+                <Text style={[st.filterTabText, { color: TEXT_MID }, isActive && { color: B_MID }]}>{tab.label}</Text>
+                {tab.count > 0 && (
+                  <View style={[st.filterBadge, { backgroundColor: B_PALE }, isActive && { backgroundColor: B_MID + '20' }]}>
+                    <Text style={[st.filterBadgeText, { color: TEXT_SOFT }, isActive && { color: B_MID }]}>{tab.count}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
         </View>
       )}
 
-      {/* Content */}
+      {/* ─── Status Filter Bar (Bookings) ─── */}
+      {activeTab === 'bookings' && (
+        <View style={[st.filterBar, { backgroundColor: SURFACE, borderBottomColor: BORDER }]}>
+          {bookingFilterTabs.map(tab => {
+            const isActive = bookingStatusFilter === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[st.filterTab, isActive && { borderBottomColor: B_MID }]}
+                onPress={() => setBookingStatusFilter(tab.key as any)}
+              >
+                <Text style={[st.filterTabText, { color: TEXT_MID }, isActive && { color: B_MID }]}>{tab.label}</Text>
+                {tab.count > 0 && (
+                  <View style={[st.filterBadge, { backgroundColor: B_PALE }, isActive && { backgroundColor: B_MID + '20' }]}>
+                    <Text style={[st.filterBadgeText, { color: TEXT_SOFT }, isActive && { color: B_MID }]}>{tab.count}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {/* ─── Content ─── */}
       {loading ? (
         <View style={st.loadingWrap}>
           <ActivityIndicator size="large" color={B_MID} />
           <Text style={st.loadingText}>Loading your donations...</Text>
         </View>
-      ) : (
-        <>
-          {activeTab === 'active' ? (
-            <FlatList
-              data={acceptedRequests}
-              renderItem={renderCommitmentListItem}
-              keyExtractor={(i) => i.id}
-              contentContainerStyle={st.listContent}
-              ListEmptyComponent={renderEmptyCommitments}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
-            />
-          ) : activeTab === 'history' ? (
-            <FlatList
-              data={filteredDonations}
-              renderItem={renderDonationListItem}
-              keyExtractor={(i) => i.id}
-              contentContainerStyle={st.listContent}
-              ListEmptyComponent={renderEmptyHistory}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
-            />
-          ) : (
-            <FlatList
-              data={donorBookings}
-              renderItem={({ item }) => {
-                const statusMap: Record<string, { color: string; icon: string; bg: string; label: string }> = {
-                  pending: { color: WARN, icon: 'time', bg: WARN_PALE, label: 'Pending' },
-                  confirmed: { color: B_MID, icon: 'checkmark-circle', bg: B_PALE, label: 'Confirmed' },
-                  completed: { color: SUCCESS, icon: 'trophy', bg: SUCCESS_PALE, label: 'Completed' },
-                  rejected: { color: DANGER, icon: 'close-circle', bg: DANGER_PALE, label: 'Rejected' },
-                  cancelled: { color: '#6B7280', icon: 'close-circle', bg: '#F3F4F6', label: 'Cancelled' },
-                  cancel: { color: '#6B7280', icon: 'close-circle', bg: '#F3F4F6', label: 'Cancelled' },
-                };
-                const cfg = statusMap[item.status] || statusMap.pending;
-                return (
-                  <TouchableOpacity
-                    style={st.card}
-                    onPress={() => router.push({ pathname: '/(donor)/booking-status' as any, params: { bookingId: item.id } })}
-                    activeOpacity={0.9}
-                  >
-                    <LinearGradient colors={['#312E81', '#1E1B4B']} style={[st.cardTopBand, { paddingVertical: 12 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                          <Ionicons name="calendar" size={16} color="rgba(255,255,255,0.8)" />
-                          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
-                            Booking ID: {item.id.substring(0, 8).toUpperCase()}
-                          </Text>
-                        </View>
-                        <View style={[st.statusPill, { backgroundColor: cfg.bg }]}>
-                          <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
-                          <Text style={[st.statusPillText, { color: cfg.color, fontSize: 10 }]}>{cfg.label}</Text>
-                        </View>
-                      </View>
-                    </LinearGradient>
-                    <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: SUCCESS_PALE, justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="business" size={18} color={SUCCESS} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, color: TEXT_DARK, fontWeight: '700' }} numberOfLines={1}>{item.hospitalName}</Text>
-                        <Text style={{ fontSize: 12, color: TEXT_MID }}>
-                          {item.scheduledDate} at {item.scheduledTime}
-                        </Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        {item.status === 'pending' && (
-                          <TouchableOpacity
-                            style={st.cancelIconBtn}
-                            onPress={() => handleCancelBooking(item)}
-                          >
-                            <Ionicons name="close-circle" size={22} color={DANGER} />
-                          </TouchableOpacity>
-                        )}
-                        <Ionicons name="chevron-forward" size={20} color={BORDER} />
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-              keyExtractor={(i) => i.id}
-              contentContainerStyle={st.listContent}
-              ListEmptyComponent={() => (
-                <View style={st.emptyWrap}>
-                  <View style={st.emptyIconWrap}>
-                    <LinearGradient colors={[B_PALE, '#C7D2FE']} style={st.emptyIconGrad}>
-                      <Ionicons name="calendar-outline" size={48} color={B_MID} />
-                    </LinearGradient>
-                  </View>
-                  <Text style={st.emptyTitle}>No Hospital Bookings</Text>
-                  <Text style={st.emptyText}>You haven't booked any donation slots at hospitals yet.</Text>
-                  <TouchableOpacity style={st.emptyActionBtn} onPress={() => router.push('/(donor)/find-donors' as any)}>
-                    <LinearGradient colors={[B_DARK, B_MID]} style={st.emptyActionGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                      <Ionicons name="add-circle" size={18} color="#FFFFFF" />
-                      <Text style={st.emptyActionText}>Book a Donation Slot</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+      ) : activeTab === 'donations' ? (
+        <FlatList
+          data={filteredDonations as any[]}
+          renderItem={({ item }) => {
+            if (item._type === 'commitment') {
+              return renderCommitmentListItem({ item } as any);
+            }
+            return renderDonationListItem({ item } as any);
+          }}
+          keyExtractor={(i) => i.id}
+          contentContainerStyle={st.listContent}
+          ListEmptyComponent={
+            searchQuery || donationStatusFilter !== 'all' || filter !== 'all' ? (
+              <View style={st.emptyWrap}>
+                <View style={st.emptyIconWrap}>
+                  <LinearGradient colors={[B_PALE, '#C7D2FE']} style={st.emptyIconGrad}>
+                    <Ionicons name="search" size={48} color={B_MID} />
+                  </LinearGradient>
                 </View>
-              )}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
-            />
-          )}
-        </>
+                <Text style={st.emptyTitle}>No Matching Results</Text>
+                <Text style={st.emptyText}>Try adjusting your search or filters to find what you're looking for.</Text>
+              </View>
+            ) : (
+              <View style={st.emptyWrap}>
+                <View style={st.emptyIconWrap}>
+                  <LinearGradient colors={[B_PALE, '#C7D2FE']} style={st.emptyIconGrad}>
+                    <Ionicons name="water-outline" size={48} color={B_MID} />
+                  </LinearGradient>
+                </View>
+                <Text style={st.emptyTitle}>No Donations Yet</Text>
+                <Text style={st.emptyText}>Your donation history will appear here once you accept blood requests or complete donations.</Text>
+              </View>
+            )
+          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        />
+      ) : (
+        <FlatList
+          data={filteredBookings}
+          renderItem={({ item }) => {
+            const statusMap: Record<string, { color: string; icon: string; bg: string; label: string }> = {
+              pending: { color: WARN, icon: 'time', bg: WARN_PALE, label: 'Pending' },
+              confirmed: { color: B_MID, icon: 'checkmark-circle', bg: B_PALE, label: 'Confirmed' },
+              completed: { color: SUCCESS, icon: 'trophy', bg: SUCCESS_PALE, label: 'Completed' },
+              rejected: { color: DANGER, icon: 'close-circle', bg: DANGER_PALE, label: 'Rejected' },
+              cancelled: { color: '#6B7280', icon: 'close-circle', bg: '#F3F4F6', label: 'Cancelled' },
+              cancel: { color: '#6B7280', icon: 'close-circle', bg: '#F3F4F6', label: 'Cancelled' },
+            };
+            const cfg = statusMap[item.status] || statusMap.pending;
+            return (
+              <TouchableOpacity
+                style={st.card}
+                onPress={() => router.push({ pathname: '/(donor)/booking-status' as any, params: { bookingId: item.id } })}
+                activeOpacity={0.9}
+              >
+                <LinearGradient colors={['#312E81', '#1E1B4B']} style={[st.cardTopBand, { paddingVertical: 12 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                      <Ionicons name="calendar" size={16} color="rgba(255,255,255,0.8)" />
+                      <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                        Booking ID: {item.id.substring(0, 8).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={[st.statusPill, { backgroundColor: cfg.bg }]}>
+                      <Ionicons name={cfg.icon as any} size={12} color={cfg.color} />
+                      <Text style={[st.statusPillText, { color: cfg.color, fontSize: 10 }]}>{cfg.label}</Text>
+                    </View>
+                  </View>
+                </LinearGradient>
+                <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: SUCCESS_PALE, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="business" size={18} color={SUCCESS} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, color: TEXT_DARK, fontWeight: '700' }} numberOfLines={1}>{item.hospitalName}</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_MID }}>
+                      {item.scheduledDate} at {item.scheduledTime}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {item.status === 'pending' && (
+                      <TouchableOpacity
+                        style={st.cancelIconBtn}
+                        onPress={() => handleCancelBooking(item)}
+                      >
+                        <Ionicons name="close-circle" size={22} color={DANGER} />
+                      </TouchableOpacity>
+                    )}
+                    <Ionicons name="chevron-forward" size={20} color={BORDER} />
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+          keyExtractor={(i) => i.id}
+          contentContainerStyle={st.listContent}
+          ListEmptyComponent={
+            searchQuery || bookingStatusFilter !== 'all' || filter !== 'all' ? (
+              <View style={st.emptyWrap}>
+                <View style={st.emptyIconWrap}>
+                  <LinearGradient colors={[B_PALE, '#C7D2FE']} style={st.emptyIconGrad}>
+                    <Ionicons name="search" size={48} color={B_MID} />
+                  </LinearGradient>
+                </View>
+                <Text style={st.emptyTitle}>No Matching Results</Text>
+                <Text style={st.emptyText}>Try adjusting your search or filters to find what you're looking for.</Text>
+              </View>
+            ) : (
+              <View style={st.emptyWrap}>
+                <View style={st.emptyIconWrap}>
+                  <LinearGradient colors={[B_PALE, '#C7D2FE']} style={st.emptyIconGrad}>
+                    <Ionicons name="calendar-outline" size={48} color={B_MID} />
+                  </LinearGradient>
+                </View>
+                <Text style={st.emptyTitle}>No Hospital Bookings</Text>
+                <Text style={st.emptyText}>You haven't booked any donation slots at hospitals yet.</Text>
+                <TouchableOpacity style={st.emptyActionBtn} onPress={() => router.push('/(donor)/book-donation' as any)}>
+                  <LinearGradient colors={[B_DARK, B_MID]} style={st.emptyActionGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    <Ionicons name="add-circle" size={18} color="#FFFFFF" />
+                    <Text style={st.emptyActionText}>Book a Donation Slot</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )
+          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+        />
       )}
 
       {/* Commitment Detail Modal */}

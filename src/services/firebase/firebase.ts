@@ -2,9 +2,9 @@ import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { initializeAuth } from 'firebase/auth';
 // @ts-ignore - The types might be missing in the wrapper but the function exists in the RN bundle
-import { getReactNativePersistence } from '@firebase/auth/dist/rn/index.js';
+import { getReactNativePersistence } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
-import { Firestore, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { Firestore, getFirestore, initializeFirestore, persistentLocalCache } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -36,7 +36,6 @@ let db: Firestore;
 try {
   db = initializeFirestore(app, {
     localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager(),
       cacheSizeBytes: 104857600,
     }),
   });
