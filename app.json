@@ -17,6 +17,7 @@
       }
     },
     "android": {
+      "package": "com.kennethlepas.bloodlinkapp",
       "adaptiveIcon": {
         "backgroundColor": "#0A2647",
         "foregroundImage": "./assets/images/logo.jpg",
@@ -26,10 +27,11 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -63,6 +65,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b39db078-e515-46e6-98a6-f41e3cda3d07"
+      }
+    },
+    "owner": "kennethlepas"
   }
 }

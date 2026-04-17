@@ -491,7 +491,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ userType: propUserType }) =
                       value={formData.phoneNumber}
                       onChangeText={(value) => handleInputChange('phoneNumber', value)}
                       onBlur={() => handleBlur('phoneNumber')}
-                      placeholder="e.g. 07..."
+                      placeholder="e.g. 07... / 01..."
                       placeholderTextColor="#94A3B8"
                       keyboardType="phone-pad"
                       autoComplete="tel"

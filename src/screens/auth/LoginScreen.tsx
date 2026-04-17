@@ -436,7 +436,7 @@ const LoginScreen: React.FC = () => {
                 <View style={styles.glassSignupContainer}>
                   <Text style={styles.glassSignupText}>New to BloodLink? </Text>
                   <TouchableOpacity onPress={handleSignup} disabled={loading}>
-                    <Text style={styles.glassSignupLink}>Create Account</Text>
+                    <Text style={styles.glassSignupLink}>Sign Up</Text>
                   </TouchableOpacity>
                 </View>
               </View>

@@ -3,14 +3,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-    Dimensions,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -51,7 +51,7 @@ const TermsAndConditionsScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.contentCard}>
-            <Text style={styles.lastUpdated}>Last Updated: February 15, 2026</Text>
+            <Text style={styles.lastUpdated}>Last Updated: April 15, 2026</Text>
             
             <Text style={styles.intro}>
               Please read these Terms and Conditions carefully before using the BloodLink application.
@@ -261,7 +261,7 @@ const TermsAndConditionsScreen: React.FC = () => {
               </Text>
               <View style={styles.contactBox}>
                 <Text style={styles.contactText}>Email: support@bloodlink.app</Text>
-                <Text style={styles.contactText}>Website: www.bloodlink.app</Text>
+                <Text style={styles.contactText}>Website: https://blood-link-webguide.vercel.app/</Text>
               </View>
             </View>
 

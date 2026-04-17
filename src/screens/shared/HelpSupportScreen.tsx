@@ -358,7 +358,7 @@ export default function HelpSupportScreen() {
         {
             icon: 'logo-whatsapp' as keyof typeof Ionicons.glyphMap,
             title: 'WhatsApp',
-            subtitle: '+254 700 000 000',
+            subtitle: '+254 115 408 612',
             gradient: ['#25D366', '#128C7E'] as [string, string],
             onPress: () => openLink('https://wa.me/254700000000'),
         },
