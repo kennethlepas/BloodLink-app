@@ -1,6 +1,7 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { LogoutModal } from '@/src/components/LogoutModal';
 import { useUser } from '@/src/contexts/UserContext';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import { getUserBloodRequests, updateUser } from '@/src/services/firebase/database';
 import { BloodRequest } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
@@ -282,6 +283,7 @@ const RequesterProfileScreen: React.FC = () => {
   const router = useRouter();
   const { user, logout, updateUserData } = useUser();
   const { pickAndUploadImage, takeAndUploadPhoto, uploading: imageUploading } = useImagePicker();
+  const { onScroll, showTabBar } = useTabBarAnimation();
 
   const [requestHistory, setRequestHistory] = useState<BloodRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -590,6 +592,9 @@ const RequesterProfileScreen: React.FC = () => {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        onTouchStart={showTabBar}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -946,7 +951,7 @@ const styles = StyleSheet.create({
   // Header
   header: {
     paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.xxl,
     paddingBottom: SPACING.xxxl,
     borderBottomLeftRadius: RADIUS.xl,
     borderBottomRightRadius: RADIUS.xl,

@@ -72,7 +72,7 @@ const RequestsScreen: React.FC = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [viewRequest, setViewRequest] = useState<BloodRequest | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const { onScroll } = useTabBarAnimation();
+  const { onScroll, showTabBar } = useTabBarAnimation();
 
   // Track loading states for individual requests
   const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
@@ -209,6 +209,16 @@ const RequestsScreen: React.FC = () => {
     const hasActive = await checkActiveCommitments();
     if (hasActive) {
       Alert.alert('Already Committed', 'Please complete your current donation first.');
+      return;
+    }
+
+    if (!user.isAvailable) {
+      Alert.alert('Not Available', 'Go to your profile to mark yourself as available for donations.');
+      return;
+    }
+
+    if (!eligibility.isEligible) {
+      Alert.alert('Not Eligible', eligibility.message);
       return;
     }
 
@@ -513,6 +523,7 @@ const RequestsScreen: React.FC = () => {
           ListEmptyComponent={<View style={st.emptyWrap}><Text>No requests found</Text></View>}
           onScroll={onScroll}
           scrollEventThrottle={16}
+          onTouchStart={showTabBar}
         />
       )}
 
@@ -550,7 +561,7 @@ const RequestsScreen: React.FC = () => {
 
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: { padding: 16 },
+  header: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24 },
   headerTop: { alignItems: 'center' },
   headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
   headerSub: { fontSize: 11, color: '#FFF', opacity: 0.8 },

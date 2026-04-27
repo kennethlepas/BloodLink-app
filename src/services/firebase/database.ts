@@ -458,6 +458,19 @@ export const completeBloodRequest = async (requestId: string): Promise<void> => 
   }
 };
 
+/**
+ * Permanently delete a blood request
+ */
+export const deleteBloodRequest = async (requestId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'bloodRequests', requestId));
+    console.log('Blood request deleted successfully:', requestId);
+  } catch (error) {
+    console.error('Error deleting blood request:', error);
+    throw error;
+  }
+};
+
 export const getActiveBloodRequests = async (bloodType?: BloodType): Promise<BloodRequest[]> => {
   const cacheKey = `${CACHE_KEY_ACTIVE_REQUESTS}_${bloodType || 'ALL'}`;
   try {
@@ -3407,6 +3420,19 @@ export const updateDonorBookingStatus = async (
     console.log('[Database] Donor booking updated:', bookingId, status);
   } catch (error) {
     console.error('[Database] Error updating donor booking status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Permanently delete a donor booking
+ */
+export const deleteDonorBooking = async (bookingId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'donorBookings', bookingId));
+    console.log('[Database] Donor booking deleted successfully:', bookingId);
+  } catch (error) {
+    console.error('[Database] Error deleting donor booking:', error);
     throw error;
   }
 };

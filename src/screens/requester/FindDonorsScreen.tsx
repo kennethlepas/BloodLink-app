@@ -52,7 +52,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 18,
+    paddingBottom: 22,
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
@@ -382,7 +383,7 @@ export default function FindDonorsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBloodType, setSelectedBloodType] = useState<BloodType | 'all' | 'compatible'>('compatible');
   const [isBloodTypeExpanded, setIsBloodTypeExpanded] = useState(false);
-  const { onScroll } = useTabBarAnimation();
+  const { onScroll, showTabBar } = useTabBarAnimation();
 
   const {
     data: donorsData,
@@ -551,6 +552,7 @@ export default function FindDonorsScreen() {
           keyExtractor={i => i.id}
           onScroll={onScroll}
           scrollEventThrottle={16}
+          onTouchStart={showTabBar}
           renderItem={({ item }) => <DonorListItem donor={item} onPress={() => setViewDonor(item)} />}
           contentContainerStyle={fd.listContent} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[BLUE]} tintColor={BLUE} />}

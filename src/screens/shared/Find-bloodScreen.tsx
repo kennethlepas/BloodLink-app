@@ -255,7 +255,7 @@ const FindBloodScreen: React.FC = () => {
     container: { flex: 1, backgroundColor: colors.bg },
 
     // Header
-    header: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10 },
+    header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
     headerCenter: { flex: 1, alignItems: 'center' },
@@ -291,8 +291,8 @@ const FindBloodScreen: React.FC = () => {
     },
     selectionGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
     selectionItem: {
-      width: '22%',
-      aspectRatio: 1,
+      width: '48%',
+      aspectRatio: 1.25,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: '#E2E8F0',
@@ -839,130 +839,133 @@ const FindBloodScreen: React.FC = () => {
             )}
           </View>
 
-          <View style={styles.pickerBlock}>
-            <Text style={styles.pickerBlockLabel}>County</Text>
-            <TouchableOpacity
-              style={[styles.pickerTrigger, isCountyExpanded && styles.pickerTriggerExpanded]}
-              onPress={() => {
-                setIsCountyExpanded(!isCountyExpanded);
-                setIsSubCountyExpanded(false);
-                setIsBloodTypeExpanded(false);
-              }}
-              disabled={loading || loadingLocation}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Ionicons name="location" size={20} color={colors.primary} />
-                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 15 }}>
-                  {selectedCounty || 'All Counties'}
-                </Text>
-              </View>
-              <Ionicons name={isCountyExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.primary} />
-            </TouchableOpacity>
-
-            {isCountyExpanded && (
-              <View style={styles.inlineSelectionContainer}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 10, paddingHorizontal: 10, height: 38, marginBottom: 10 }}>
-                  <Ionicons name="search" size={14} color="#94A3B8" />
-                  <TextInput
-                    placeholder="Search county..."
-                    style={{ flex: 1, marginLeft: 8, fontSize: 13, color: '#0F172A' }}
-                    value={countySearch}
-                    onChangeText={setCountySearch}
-                    placeholderTextColor="#94A3B8"
-                    autoFocus
-                  />
-                  {countySearch.length > 0 && (
-                    <TouchableOpacity onPress={() => setCountySearch('')}>
-                      <Ionicons name="close-circle" size={14} color="#94A3B8" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <TouchableOpacity
-                  style={[styles.allTypeItem, !selectedCounty && styles.selectionItemActive]}
-                  onPress={() => { setSelectedCounty(''); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
-                >
-                  <Text style={[styles.selectionText, { marginTop: 0 }, !selectedCounty && styles.selectionTextActive]}>
-                    ALL COUNTIES
+          {/* County & Sub-county horizontally */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={[styles.pickerBlock, { flex: 1 }]}>
+              <Text style={styles.pickerBlockLabel}>County</Text>
+              <TouchableOpacity
+                style={[styles.pickerTrigger, isCountyExpanded && styles.pickerTriggerExpanded]}
+                onPress={() => {
+                  setIsCountyExpanded(!isCountyExpanded);
+                  setIsSubCountyExpanded(false);
+                  setIsBloodTypeExpanded(false);
+                }}
+                disabled={loading || loadingLocation}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="location" size={18} color={colors.primary} />
+                  <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 13 }} numberOfLines={1}>
+                    {selectedCounty || 'County'}
                   </Text>
-                </TouchableOpacity>
-                <ScrollView contentContainerStyle={styles.selectionGrid} style={{ maxHeight: 200 }} nestedScrollEnabled>
-                  {KENYA_COUNTIES.filter(c => !countySearch.trim() || c.toLowerCase().includes(countySearch.toLowerCase())).map(c => (
-                    <TouchableOpacity
-                      key={c}
-                      style={[styles.selectionItem, selectedCounty === c && styles.selectionItemActive, { width: '45%', aspectRatio: undefined, paddingVertical: 12 }]}
-                      onPress={() => { setSelectedCounty(c); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
-                    >
-                      <Text style={[styles.selectionText, { marginTop: 0 }, selectedCounty === c && styles.selectionTextActive]}>{c}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.pickerBlock}>
-            <Text style={styles.pickerBlockLabel}>Sub-County</Text>
-            <TouchableOpacity
-              style={[styles.pickerTrigger, isSubCountyExpanded && styles.pickerTriggerExpanded]}
-              onPress={() => {
-                if (!selectedCounty) {
-                  Alert.alert('Notice', 'Please select a county first');
-                  return;
-                }
-                setIsSubCountyExpanded(!isSubCountyExpanded);
-                setIsCountyExpanded(false);
-                setIsBloodTypeExpanded(false);
-              }}
-              disabled={loading || loadingLocation}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Ionicons name="map" size={20} color={colors.primary} />
-                <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 15 }}>
-                  {selectedSubCounty || 'All Sub-Counties'}
-                </Text>
-              </View>
-              <Ionicons name={isSubCountyExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.primary} />
-            </TouchableOpacity>
-
-            {isSubCountyExpanded && (
-              <View style={styles.inlineSelectionContainer}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 10, paddingHorizontal: 10, height: 38, marginBottom: 10 }}>
-                  <Ionicons name="search" size={14} color="#94A3B8" />
-                  <TextInput
-                    placeholder="Search sub-county..."
-                    style={{ flex: 1, marginLeft: 8, fontSize: 13, color: '#0F172A' }}
-                    value={subCountySearch}
-                    onChangeText={setSubCountySearch}
-                    placeholderTextColor="#94A3B8"
-                    autoFocus
-                  />
-                  {subCountySearch.length > 0 && (
-                    <TouchableOpacity onPress={() => setSubCountySearch('')}>
-                      <Ionicons name="close-circle" size={14} color="#94A3B8" />
-                    </TouchableOpacity>
-                  )}
                 </View>
-                <TouchableOpacity
-                  style={[styles.allTypeItem, !selectedSubCounty && styles.selectionItemActive]}
-                  onPress={() => { setSelectedSubCounty(''); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
-                >
-                  <Text style={[styles.selectionText, { marginTop: 0 }, !selectedSubCounty && styles.selectionTextActive]}>
-                    ALL SUB-COUNTIES
+                <Ionicons name={isCountyExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.primary} />
+              </TouchableOpacity>
+
+              {isCountyExpanded && (
+                <View style={[styles.inlineSelectionContainer, { position: 'absolute', top: 60, left: 0, right: -130, zIndex: 1000 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 10, paddingHorizontal: 10, height: 38, marginBottom: 10 }}>
+                    <Ionicons name="search" size={14} color="#94A3B8" />
+                    <TextInput
+                      placeholder="Search county..."
+                      style={{ flex: 1, marginLeft: 8, fontSize: 13, color: '#0F172A' }}
+                      value={countySearch}
+                      onChangeText={setCountySearch}
+                      placeholderTextColor="#94A3B8"
+                      autoFocus
+                    />
+                    {countySearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setCountySearch('')}>
+                        <Ionicons name="close-circle" size={14} color="#94A3B8" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.allTypeItem, !selectedCounty && styles.selectionItemActive, { height: 36 }]}
+                    onPress={() => { setSelectedCounty(''); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
+                  >
+                    <Text style={[styles.selectionText, { marginTop: 0 }, !selectedCounty && styles.selectionTextActive]}>
+                      ALL COUNTIES
+                    </Text>
+                  </TouchableOpacity>
+                  <ScrollView contentContainerStyle={styles.selectionGrid} style={{ maxHeight: 180 }} nestedScrollEnabled>
+                    {KENYA_COUNTIES.filter(c => !countySearch.trim() || c.toLowerCase().includes(countySearch.toLowerCase())).map(c => (
+                      <TouchableOpacity
+                        key={c}
+                        style={[styles.selectionItem, selectedCounty === c && styles.selectionItemActive, { width: '100%', aspectRatio: undefined, paddingVertical: 10 }]}
+                        onPress={() => { setSelectedCounty(c); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
+                      >
+                        <Text style={[styles.selectionText, { marginTop: 0 }, selectedCounty === c && styles.selectionTextActive]}>{c}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.pickerBlock, { flex: 1 }]}>
+              <Text style={styles.pickerBlockLabel}>Sub-County</Text>
+              <TouchableOpacity
+                style={[styles.pickerTrigger, isSubCountyExpanded && styles.pickerTriggerExpanded]}
+                onPress={() => {
+                  if (!selectedCounty) {
+                    Alert.alert('Notice', 'Please select a county first');
+                    return;
+                  }
+                  setIsSubCountyExpanded(!isSubCountyExpanded);
+                  setIsCountyExpanded(false);
+                  setIsBloodTypeExpanded(false);
+                }}
+                disabled={loading || loadingLocation}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="map" size={18} color={colors.primary} />
+                  <Text style={{ fontWeight: '700', color: colors.primary, fontSize: 13 }} numberOfLines={1}>
+                    {selectedSubCounty || 'Sub-County'}
                   </Text>
-                </TouchableOpacity>
-                <ScrollView contentContainerStyle={styles.selectionGrid} style={{ maxHeight: 200 }} nestedScrollEnabled>
-                  {getSubCountiesByCounty(selectedCounty).filter(sc => !subCountySearch.trim() || sc.toLowerCase().includes(subCountySearch.toLowerCase())).map(sc => (
-                    <TouchableOpacity
-                      key={sc}
-                      style={[styles.selectionItem, selectedSubCounty === sc && styles.selectionItemActive, { width: '45%', aspectRatio: undefined, paddingVertical: 12 }]}
-                      onPress={() => { setSelectedSubCounty(sc); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
-                    >
-                      <Text style={[styles.selectionText, { marginTop: 0 }, selectedSubCounty === sc && styles.selectionTextActive]}>{sc}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
+                </View>
+                <Ionicons name={isSubCountyExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.primary} />
+              </TouchableOpacity>
+
+              {isSubCountyExpanded && (
+                <View style={[styles.inlineSelectionContainer, { position: 'absolute', top: 60, right: 0, left: -130, zIndex: 1000 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 10, paddingHorizontal: 10, height: 38, marginBottom: 10 }}>
+                    <Ionicons name="search" size={14} color="#94A3B8" />
+                    <TextInput
+                      placeholder="Search sub-county..."
+                      style={{ flex: 1, marginLeft: 8, fontSize: 13, color: '#0F172A' }}
+                      value={subCountySearch}
+                      onChangeText={setSubCountySearch}
+                      placeholderTextColor="#94A3B8"
+                      autoFocus
+                    />
+                    {subCountySearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setSubCountySearch('')}>
+                        <Ionicons name="close-circle" size={14} color="#94A3B8" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.allTypeItem, !selectedSubCounty && styles.selectionItemActive, { height: 36 }]}
+                    onPress={() => { setSelectedSubCounty(''); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
+                  >
+                    <Text style={[styles.selectionText, { marginTop: 0 }, !selectedSubCounty && styles.selectionTextActive]}>
+                      ALL SUB-COUNTIES
+                    </Text>
+                  </TouchableOpacity>
+                  <ScrollView contentContainerStyle={styles.selectionGrid} style={{ maxHeight: 180 }} nestedScrollEnabled>
+                    {getSubCountiesByCounty(selectedCounty).filter(sc => !subCountySearch.trim() || sc.toLowerCase().includes(subCountySearch.toLowerCase())).map(sc => (
+                      <TouchableOpacity
+                        key={sc}
+                        style={[styles.selectionItem, selectedSubCounty === sc && styles.selectionItemActive, { width: '100%', aspectRatio: undefined, paddingVertical: 10 }]}
+                        onPress={() => { setSelectedSubCounty(sc); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
+                      >
+                        <Text style={[styles.selectionText, { marginTop: 0 }, selectedSubCounty === sc && styles.selectionTextActive]}>{sc}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
           </View>
 
           <View style={styles.searchBtnRow}>

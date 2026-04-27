@@ -52,7 +52,8 @@ import { moderateScale, scale, verticalScale } from '../../utils/scaling';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const REQUEST_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2.05;
 const DONOR_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2.05;
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.41;
+const DRAWER_WIDTH = SCREEN_WIDTH * 0.45;
+const NOTIF_DRAWER_WIDTH = SCREEN_WIDTH * 0.5;
 const FEAT_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2;
 
 //Helper: shadow 
@@ -145,12 +146,15 @@ export default function HomeScreen() {
   const [loadingDonors, setLoadingDonors] = useState(false);
   const [togglingAvail, setTogglingAvail] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const drawerAnim = useState(new Animated.Value(-DRAWER_WIDTH))[0];
+  const notifAnim = useState(new Animated.Value(NOTIF_DRAWER_WIDTH))[0];
+  const [notifList, setNotifList] = useState<Notification[]>([]);
 
   // Tab Bar Animation
-  const { onScroll } = useTabBarAnimation();
+  const { onScroll, showTabBar } = useTabBarAnimation();
 
   const [totalRequests, setTotalRequests] = useState(0);
   const [fulfilledRequests, setFulfilledRequests] = useState(0);
@@ -218,6 +222,7 @@ export default function HomeScreen() {
     let isInitialLoad = true;
 
     const unsubscribe = subscribeToUserNotifications(user.id, (notifications: Notification[]) => {
+      setNotifList(notifications);
       // If it's the first time onSnapshot returns, mark all existing ones as processed
       if (isInitialLoad) {
         notifications.forEach((n: Notification) => processedIds.add(n.id));
@@ -390,6 +395,14 @@ export default function HomeScreen() {
     }).start();
   };
 
+  const toggleNotifDrawer = () => {
+    const toValue = notifOpen ? NOTIF_DRAWER_WIDTH : 0;
+    setNotifOpen(!notifOpen);
+    Animated.spring(notifAnim, {
+      toValue, useNativeDriver: true, tension: 65, friction: 9,
+    }).start();
+  };
+
   const handleAvailabilityToggle = async (value: boolean) => {
     if (!user?.id) return;
     if (value && user.lastDonationDate) {
@@ -481,6 +494,14 @@ export default function HomeScreen() {
     if (avg >= 3.0) return 'Good';
     if (avg >= 2.0) return 'Fair';
     return 'Poor';
+  };
+
+  const formatNotifMessage = (msg: string) => {
+    if (!msg) return '';
+    return msg
+      .replace(/^New message from\s*:\s*/i, '')
+      .replace(/^New message from\s*/i, '')
+      .trim();
   };
 
   if (!user) return (
@@ -582,10 +603,10 @@ export default function HomeScreen() {
                   value={user.isAvailable || false}
                   onValueChange={handleAvailabilityToggle}
                   trackColor={{ false: 'rgba(255,255,255,0.25)', true: '#10B981' }}
-                  thumbColor={user.isAvailable ? '#FFFFFF' : 'rgba(255,255,255,0.75)'}
+                  thumbColor={user.isAvailable ? '#FFFFFF' : '#E2E8F0'}
                   ios_backgroundColor="rgba(255,255,255,0.25)"
                   disabled={togglingAvail}
-                  style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
+                  style={{ transform: [{ scaleX: 1.0 }, { scaleY: 1.0 }] }}
                 />
               </View>
             </View>
@@ -658,7 +679,7 @@ export default function HomeScreen() {
                       <View style={styles.drawerIconBadge} />
                     )}
                   </View>
-                  <Text style={[styles.drawerMenuLabel, { color: '#FFFFFF' }]}>{item.label}</Text>
+                  <Text style={[styles.drawerMenuLabel, { color: '#FFFFFF' }]} adjustsFontSizeToFit>{item.label}</Text>
                   <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.5)" />
                 </TouchableOpacity>
               ))}
@@ -685,8 +706,68 @@ export default function HomeScreen() {
         </LinearGradient>
       </Animated.View>
 
-      {drawerOpen && (
-        <TouchableOpacity style={styles.drawerOverlay} activeOpacity={1} onPress={toggleDrawer} />
+      {/* ══ NOTIFICATION SIDE PANEL (HALF SCREEN) ══ */}
+      <Animated.View style={[styles.notifDrawer, { transform: [{ translateX: notifAnim }] }]}>
+        <LinearGradient
+          colors={isDark ? ['#1E293B', '#111827'] : ['#F8FAFC', '#F1F5F9']}
+          style={styles.drawerGrad}
+        >
+          {/* Header area with dark gray background and improved spacing */}
+          <View style={[styles.notifHeader, { backgroundColor: isDark ? '#1F2937' : '#374151' }]}>
+            <Text style={[styles.notifTitle, { color: '#FFFFFF', paddingLeft: 16 }]}>Notifications</Text>
+            <TouchableOpacity onPress={toggleNotifDrawer} style={{ paddingRight: 16 }}>
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            {notifList.length === 0 ? (
+              <View style={styles.emptyNotifs}>
+                <Ionicons name="notifications-off-outline" size={48} color={colors.textMuted} />
+                <Text style={[styles.emptyNotifText, { color: colors.textSecondary }]}>No notifications yet</Text>
+              </View>
+            ) : (
+              notifList.map((notif, index) => (
+                <TouchableOpacity
+                  key={notif.id || index}
+                  style={[styles.notifItem, { borderBottomColor: colors.divider }]}
+                  onPress={() => {
+                    toggleNotifDrawer();
+                    // Navigate to notifications screen as requested
+                    router.push('/(shared)/notifications' as any);
+                  }}
+                >
+                  <View style={[styles.notifIconBox, { backgroundColor: brand.sky + '20' }]}>
+                    <Ionicons name="notifications" size={20} color={brand.sky} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.notifItemTitle, { color: colors.text }]} numberOfLines={1}>{formatNotifMessage(notif.title)}</Text>
+                    <Text style={[styles.notifItemMsg, { color: colors.textSecondary }]}>{formatNotifMessage(notif.message)}</Text>
+                    <Text style={styles.notifTime}>{new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+
+          <TouchableOpacity
+            style={styles.viewAllNotifsBtn}
+            onPress={() => { toggleNotifDrawer(); router.push('/(shared)/notifications' as any); }}
+          >
+            <Text style={styles.viewAllNotifsText}>View Full History</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      </Animated.View>
+
+      {(drawerOpen || notifOpen) && (
+        <TouchableOpacity
+          style={styles.drawerOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            if (drawerOpen) toggleDrawer();
+            if (notifOpen) toggleNotifDrawer();
+          }}
+        />
       )}
 
       <ScrollView
@@ -701,6 +782,7 @@ export default function HomeScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[brand.sky]} tintColor={brand.sky} />
         }
+        onTouchStart={showTabBar}
       >
         <LinearGradient colors={[brand.sky, brand.light]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
           <View style={styles.hCircle1} /><View style={styles.hCircle2} />
@@ -722,7 +804,7 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <TouchableOpacity onPress={() => router.push('/(shared)/notifications' as any)} style={styles.hNotifBtn} activeOpacity={0.8}>
+            <TouchableOpacity onPress={toggleNotifDrawer} style={styles.hNotifBtn} activeOpacity={0.8}>
               <NotificationBell iconSize={24} iconColor="#FFFFFF" badgeColor={brand.orangeLite} />
             </TouchableOpacity>
           </View>
@@ -1431,7 +1513,8 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   scrollView: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
 
-  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: DRAWER_WIDTH, zIndex: 1000, ...shadow('#000', 0.2, 16, 12) },
+  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: DRAWER_WIDTH, zIndex: 1005, ...shadow('#000', 0.2, 16, 12) },
+  notifDrawer: { position: 'absolute', right: 0, top: 0, bottom: 0, width: NOTIF_DRAWER_WIDTH, zIndex: 1005 },
   drawerGrad: { flex: 1, paddingTop: Platform.OS === 'ios' ? 50 : 36, paddingBottom: 24 },
   drawerProfile: { alignItems: 'center', paddingHorizontal: 12, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)' },
   drawerAvatarWrap: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: 'rgba(255,255,255,0.55)', overflow: 'hidden', marginBottom: 10 },
@@ -1441,15 +1524,15 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   drawerName: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', marginBottom: 2, textAlign: 'center' },
   drawerEmail: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 8, textAlign: 'center' },
   drawerBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, gap: 5 },
-  drawerBadgeText: { fontSize: 11, fontWeight: '700' },
+  drawerBadgeText: { fontSize: 12, fontWeight: '700' },
   drawerToggleBox: { marginTop: 16, marginHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   drawerToggleHeader: { marginBottom: 8 },
   drawerToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   drawerToggleTitle: { fontSize: 11, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 },
   drawerToggleCtrl: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 },
   drawerToggleStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  drawerStatusDot: { width: 7, height: 7, borderRadius: 3.5 },
-  drawerToggleLbl: { fontSize: 11, color: '#FFFFFF', fontWeight: '600', flex: 1 },
+  drawerStatusDot: { width: 9, height: 9, borderRadius: 4.5 },
+  drawerToggleLbl: { fontSize: 13, color: '#FFFFFF', fontWeight: '700', flex: 1 },
   drawerMenu: { flex: 1, marginTop: 16, paddingHorizontal: 10, justifyContent: 'space-between', paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
   drawerMenuItem: {
     flexDirection: 'row',
@@ -1471,8 +1554,8 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
     borderColor: 'rgba(255,255,255,0.2)',
   },
   drawerMenuLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#FFFFFF',
     flex: 1,
     letterSpacing: 0.3,
@@ -1497,10 +1580,32 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   drawerCloseBtn: { position: 'absolute', top: Platform.OS === 'ios' ? 44 : 28, right: 12, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'center', alignItems: 'center' },
   drawerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 999 },
 
+  // Notification Drawer Styles
+  notifHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 14,
+    // Add border bottom for better separation
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  notifTitle: { fontSize: 18, fontWeight: '800' },
+  emptyNotifs: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 40 },
+  emptyNotifText: { fontSize: 14, fontWeight: '600' },
+  notifItem: { flexDirection: 'row', gap: 12, paddingVertical: 14, borderBottomWidth: 1 },
+  notifIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  notifItemTitle: { fontSize: 13, fontWeight: '700', marginBottom: 2 },
+  notifItemMsg: { fontSize: 11, lineHeight: 16, marginBottom: 4 },
+  notifTime: { fontSize: 9, color: colors.textMuted, fontWeight: '600' },
+  viewAllNotifsBtn: { paddingVertical: 14, alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.divider, marginTop: 10 },
+  viewAllNotifsText: { color: colors.primary, fontWeight: '800', fontSize: 13 },
+
   actionBadge: { position: 'absolute', top: 5, right: 5, backgroundColor: '#DC2626', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 10, borderWidth: 1.5, borderColor: colors.surface, minWidth: 18, alignItems: 'center' },
   actionBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
 
-  header: { paddingHorizontal: moderateScale(18), paddingTop: verticalScale(4), paddingBottom: verticalScale(12), borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden', position: 'relative' },
+  header: { paddingHorizontal: moderateScale(18), paddingTop: verticalScale(16), paddingBottom: verticalScale(20), borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden', position: 'relative' },
   hCircle1: { position: 'absolute', width: scale(160), height: scale(160), borderRadius: scale(80), backgroundColor: 'rgba(255,255,255,0.05)', top: -50, right: -40 },
   hCircle2: { position: 'absolute', width: scale(100), height: scale(100), borderRadius: scale(50), backgroundColor: 'rgba(255,255,255,0.06)', bottom: 10, left: -25 },
   hTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },

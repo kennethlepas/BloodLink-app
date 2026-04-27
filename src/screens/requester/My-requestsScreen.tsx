@@ -4,9 +4,12 @@ import { useCachedData } from '@/src/hooks/useCachedData';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import {
   completeDonationAfterVerification,
+  deleteBloodRequest,
   getRecipientBookings,
   getRequesterPendingVerifications,
   getUserBloodRequests,
+  updateBloodRequest,
+  updateRecipientBookingStatus,
   verifyDonationByRequester,
 } from '@/src/services/firebase/database';
 import { AcceptedRequest, BloodRequest, RecipientBooking } from '@/src/types/types';
@@ -54,7 +57,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
   // Header
-  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 18, backgroundColor: '#2C2418' },
+  header: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24, backgroundColor: '#2C2418' },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   headerCenter: { alignItems: 'center', flex: 1 },
@@ -229,7 +232,7 @@ const MyRequestsScreen: React.FC = () => {
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'requests' | 'bookings'>('requests');
   const [bookingFilter, setBookingFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
-  const { onScroll } = useTabBarAnimation();
+  const { onScroll, showTabBar } = useTabBarAnimation();
 
   // Fetch user requests
   const { data: requestsData, loading: loadingRequests, refresh: refreshRequests } = useCachedData(
@@ -309,6 +312,80 @@ const MyRequestsScreen: React.FC = () => {
       console.error('Error verifying donation:', error);
       Alert.alert('Error', 'Failed to verify donation.');
     }
+  };
+
+  const handleCancelRequest = async (request: BloodRequest) => {
+    Alert.alert(
+      'Cancel Request',
+      'Are you sure you want to cancel this blood request? This will stop donors from seeing it.',
+      [
+        { text: 'Keep Request', style: 'cancel' },
+        {
+          text: 'Cancel Request',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateBloodRequest(request.id, { status: 'cancel' });
+              Alert.alert('Success', 'Request cancelled successfully.');
+              setViewRequest(null);
+              onRefresh();
+            } catch (error) {
+              console.error('Error cancelling request:', error);
+              Alert.alert('Error', 'Failed to cancel request.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteRequest = async (request: BloodRequest) => {
+    Alert.alert(
+      'Delete Request',
+      'Are you sure you want to permanently delete this request? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteBloodRequest(request.id);
+              Alert.alert('Success', 'Request deleted successfully.');
+              setViewRequest(null);
+              onRefresh();
+            } catch (error) {
+              console.error('Error deleting request:', error);
+              Alert.alert('Error', 'Failed to delete request.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCancelRecipientBooking = async (booking: RecipientBooking) => {
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this transfusion booking?',
+      [
+        { text: 'Keep Booking', style: 'cancel' },
+        {
+          text: 'Cancel Booking',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateRecipientBookingStatus(booking.id, 'cancel');
+              Alert.alert('Success', 'Booking cancelled successfully.');
+              onRefresh();
+            } catch (error) {
+              console.error('Error cancelling booking:', error);
+              Alert.alert('Error', 'Failed to cancel booking.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleDisputeDonation = async () => {
@@ -735,7 +812,23 @@ const MyRequestsScreen: React.FC = () => {
     const booking = item as RecipientBooking;
     const cfg = statusMap[booking.status] || { color: colors.textMuted, icon: 'information-circle', bg: colors.surfaceTint, label: booking.status };
     return (
-      <View style={st.card}>
+      <TouchableOpacity
+        style={st.card}
+        activeOpacity={0.9}
+        onPress={() => {
+          Alert.alert(
+            'Booking Options',
+            `What would you like to do with this booking for ${booking.hospitalName}?`,
+            [
+              { text: 'Close', style: 'cancel' },
+              ...(booking.status === 'pending' || booking.status === 'confirmed'
+                ? [{ text: 'Cancel Booking', style: 'destructive' as const, onPress: () => handleCancelRecipientBooking(booking) }]
+                : []
+              )
+            ]
+          );
+        }}
+      >
         <LinearGradient
           colors={booking.status === 'confirmed' ? [BLUE, BLUE + 'B3'] : booking.status === 'completed' ? [GREEN, GREEN + 'B3'] : ['#334155', '#475569']}
           style={[st.cardBand, { paddingVertical: 12 }]}
@@ -779,7 +872,7 @@ const MyRequestsScreen: React.FC = () => {
             </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -932,6 +1025,7 @@ const MyRequestsScreen: React.FC = () => {
         contentContainerStyle={st.listContent}
         onScroll={onScroll}
         scrollEventThrottle={16}
+        onTouchStart={showTabBar}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={activeTab === 'requests' ? renderEmptyState : renderBookingsEmptyState}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
@@ -948,12 +1042,34 @@ const MyRequestsScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
               {viewRequest && renderRequestDetail({ item: viewRequest })}
-              <TouchableOpacity
-                style={[st.verifyBtn, { marginTop: 20, alignSelf: 'center', width: '100%' }]}
-                onPress={() => setViewRequest(null)}
-              >
-                <Text style={st.verifyBtnText}>Close</Text>
-              </TouchableOpacity>
+
+              <View style={{ gap: 10, marginTop: 20 }}>
+                {viewRequest?.status === 'pending' && (
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={[st.actionBtnRed, { flex: 1, backgroundColor: DANGER_PALE }]}
+                      onPress={() => handleCancelRequest(viewRequest)}
+                    >
+                      <Ionicons name="close-circle" size={18} color={DANGER} />
+                      <Text style={[st.actionBtnText, { color: DANGER }]}>Cancel Request</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[st.actionBtnRed, { flex: 1, borderColor: DANGER }]}
+                      onPress={() => handleDeleteRequest(viewRequest)}
+                    >
+                      <Ionicons name="trash" size={18} color={DANGER} />
+                      <Text style={[st.actionBtnText, { color: DANGER }]}>Delete Request</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[st.verifyBtn, { alignSelf: 'center', width: '100%' }]}
+                  onPress={() => setViewRequest(null)}
+                >
+                  <Text style={st.verifyBtnText}>Close</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         </View>

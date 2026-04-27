@@ -2,6 +2,7 @@ import { useImagePicker } from '@/hooks/useImagePicker';
 import { LogoutModal } from '@/src/components/LogoutModal';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
+import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import {
   getDonorAcceptedRequests,
   getDonorHistory,
@@ -251,6 +252,8 @@ const DonorProfileScreen: React.FC = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  const { onScroll, showTabBar } = useTabBarAnimation();
+
   // Fetch active commitments (pending, in_progress, pending_verification)
   const {
     data: commitmentsData,
@@ -448,6 +451,9 @@ const DonorProfileScreen: React.FC = () => {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        onTouchStart={showTabBar}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -848,7 +854,7 @@ const styles = StyleSheet.create({
   // Header
   header: {
     paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.xxl,
     paddingBottom: SPACING.xxxl,
     borderBottomLeftRadius: RADIUS.xl,
     borderBottomRightRadius: RADIUS.xl,

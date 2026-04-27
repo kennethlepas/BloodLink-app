@@ -1,3 +1,4 @@
+import { getHangingTabStyle } from '@/src/constants/TabStyles';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
@@ -10,28 +11,13 @@ export default function RequesterLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary, // Use theme primary blue
-        tabBarInactiveTintColor: colors.textSecondary, // Use theme secondary text
+        tabBarInactiveTintColor: '#475569', // Darker gray for better visibility
         tabBarHideOnKeyboard: true, // Hide on keyboard
-        tabBarStyle: {
-          backgroundColor: colors.surface, // Use theme surface color
-          borderTopWidth: 0, // Remove top border
-          elevation: 5, // Android shadow
-          shadowColor: '#000', // iOS shadow
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: isDark ? 0.3 : 0.1,
-          shadowRadius: 10,
-          height: 60, // Taller
-          position: 'absolute', // Floating effect
-          bottom: 20, // Float from bottom
-          left: 20, // Margin left
-          right: 20, // Margin right
-          borderRadius: 25, // Rounded corners
-          paddingBottom: 0, // Center icons vertically
-        },
+        tabBarStyle: getHangingTabStyle(colors, isDark),
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-          marginBottom: 5,
+          fontSize: 11,
+          fontWeight: '700',
+          marginBottom: 4,
         },
         tabBarItemStyle: {
           justifyContent: 'center',

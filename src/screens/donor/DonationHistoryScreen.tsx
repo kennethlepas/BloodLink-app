@@ -5,6 +5,7 @@ import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
 import {
   cancelAcceptedRequest,
   createNotification,
+  deleteDonorBooking,
   getDonorAcceptedRequests,
   getDonorBookings,
   getDonorHistory,
@@ -75,7 +76,7 @@ const DonationHistoryScreen: React.FC = () => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>(params.tab as TabType || 'donations');
-  const { onScroll } = useTabBarAnimation();
+  const { onScroll, showTabBar } = useTabBarAnimation();
   const [filter, setFilter] = useState<'all' | 'thisMonth' | 'last90Days' | 'thisYear' | 'lastYear'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
@@ -779,6 +780,33 @@ const DonationHistoryScreen: React.FC = () => {
     );
   };
 
+  const handleDeleteBooking = async (booking: DonorBooking) => {
+    Alert.alert(
+      'Delete Booking',
+      'Are you sure you want to permanently delete this booking record? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setRefreshing(true);
+              await deleteDonorBooking(booking.id);
+              Alert.alert('Success', 'Booking deleted successfully.');
+              onRefresh();
+            } catch (error) {
+              console.error('Error deleting booking:', error);
+              Alert.alert('Error', 'Failed to delete booking.');
+            } finally {
+              setRefreshing(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderEmptyCommitments = () => (
     <View style={st.emptyWrap}>
       <View style={st.emptyIconWrap}>
@@ -813,7 +841,7 @@ const DonationHistoryScreen: React.FC = () => {
     container: { flex: 1, backgroundColor: BG },
 
     // Header
-    header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 },
+    header: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24 },
     headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
     headerTitleWrap: { alignItems: 'center' },
@@ -1284,6 +1312,7 @@ const DonationHistoryScreen: React.FC = () => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
           onScroll={onScroll}
           scrollEventThrottle={16}
+          onTouchStart={showTabBar}
         />
       ) : (
         <FlatList
@@ -1337,6 +1366,14 @@ const DonationHistoryScreen: React.FC = () => {
                         <Ionicons name="close-circle" size={22} color={DANGER} />
                       </TouchableOpacity>
                     )}
+                    {(item.status === 'cancel' || item.status === 'cancelled' || item.status === 'rejected' || item.status === 'completed') && (
+                      <TouchableOpacity
+                        style={st.cancelIconBtn}
+                        onPress={() => handleDeleteBooking(item)}
+                      >
+                        <Ionicons name="trash-outline" size={22} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    )}
                     <Ionicons name="chevron-forward" size={20} color={BORDER} />
                   </View>
                 </View>
@@ -1377,6 +1414,7 @@ const DonationHistoryScreen: React.FC = () => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[B_MID]} tintColor={B_MID} />}
           onScroll={onScroll}
           scrollEventThrottle={16}
+          onTouchStart={showTabBar}
         />
       )}
 

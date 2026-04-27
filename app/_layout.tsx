@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
@@ -29,6 +30,11 @@ function RootLayoutNav() {
   const [awarenessMuted, setAwarenessMuted] = useState(false);
   const hasShownOnLogin = useRef(false);
   const appState = useRef(AppState.currentState);
+
+  // Hide native splash screen immediately since we use our own LoadingScreen
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => { });
+  }, []);
 
   // ── Guard: only allow one navigation at a time ─────────────────────────
   const isNavigating = useRef(false);

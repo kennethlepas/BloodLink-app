@@ -74,6 +74,9 @@ export default function BookDonationScreen() {
         requestLocation();
     }, []);
 
+    // Check availability
+    const isAvailable = user?.isAvailable !== false;
+
     const requestLocation = async () => {
         try {
             const loc = await getCurrentLocation();
@@ -158,6 +161,17 @@ export default function BookDonationScreen() {
         try {
             setBookingLoading(true);
 
+            // Check availability restriction
+            if (user?.userType === 'donor' && user.isAvailable === false) {
+                setBookingLoading(false);
+                Alert.alert(
+                    'Not Available',
+                    'You are currently marked as unavailable for donations. Please go to your profile to update your availability status.',
+                    [{ text: 'Go to Profile', onPress: () => router.push('/(donor)/profile' as any) }, { text: 'OK' }]
+                );
+                return;
+            }
+
             // Check for existing active bookings for this hospital
             const existingBookings = await getDonorBookings(user.id);
             const activeDuplicate = existingBookings.find(b =>
@@ -192,7 +206,7 @@ export default function BookDonationScreen() {
                 notes: notes.trim() || undefined,
             };
 
-            await createBooking(bookingData as any);
+            const createdDocId = await createBooking(bookingData as any);
 
             await sendLocalNotification(
                 'Booking Confirmed! ❤️',
@@ -208,7 +222,7 @@ export default function BookDonationScreen() {
             Alert.alert(
                 'Booking Successful! 🎉',
                 `Thank you! ${selectedHospital.name} is preparing for your arrival.\n\nYour Booking ID: ${bookingId}`,
-                [{ text: 'View Status', onPress: () => router.replace({ pathname: '/(donor)/booking-status' as any, params: { bookingId } }) }]
+                [{ text: 'View Status', onPress: () => router.replace({ pathname: '/(donor)/booking-status' as any, params: { bookingId: createdDocId } }) }]
             );
         } catch (error) {
             console.error('Booking error:', error);
@@ -247,6 +261,19 @@ export default function BookDonationScreen() {
                     />
                 </View>
             </LinearGradient>
+
+            {/* Offline Warning Banner */}
+            {user?.userType === 'donor' && user.isAvailable === false && (
+                <View style={styles.offlineBanner}>
+                    <Ionicons name="alert-circle" size={18} color="#991B1B" />
+                    <Text style={styles.offlineText}>
+                        You are currently not eligible to donate. Go to your profile to enable availability.
+                    </Text>
+                    <TouchableOpacity onPress={() => router.push('/(donor)/profile' as any)}>
+                        <Text style={styles.offlineAction}>Go Profile</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {/* Filter Section */}
             <View style={[styles.filterContainer, { backgroundColor: colors.surface }]}>
@@ -454,7 +481,8 @@ export default function BookDonationScreen() {
                     <View style={styles.modalOverlay}>
                         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                             <KeyboardAvoidingView
-                                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                                 style={styles.keyboardView}
                             >
                                 <View style={[styles.centeredModal, { backgroundColor: colors.surface }]}>
@@ -611,7 +639,7 @@ const styles = StyleSheet.create({
     centeredModal: {
         width: '90%',
         maxWidth: 400,
-        maxHeight: '80%',
+        maxHeight: Platform.OS === 'ios' ? '80%' : '90%',
         borderRadius: 20,
         padding: 20,
         shadowColor: '#000',
@@ -786,5 +814,26 @@ const styles = StyleSheet.create({
         marginLeft: 8,
         height: 30,
         padding: 0,
+    },
+    offlineBanner: {
+        backgroundColor: '#FEE2E2',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#FECACA',
+    },
+    offlineText: {
+        flex: 1,
+        fontSize: 12,
+        color: '#991B1B',
+        fontWeight: '600',
+    },
+    offlineAction: {
+        fontSize: 12,
+        color: '#2563EB',
+        fontWeight: '800',
     },
 });

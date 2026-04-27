@@ -7,7 +7,6 @@ import {
   Dimensions,
   Easing,
   Image,
-  ImageBackground,
   Platform,
   Pressable,
   StyleSheet,
@@ -47,35 +46,33 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
   ];
 
   // Animation values
-  const fadeAnim = new Animated.Value(1); // Start at 1 to avoid fading
-  const scaleAnim = new Animated.Value(0.8);
+  const fadeAnim = new Animated.Value(0);
+  const scaleAnim = new Animated.Value(0);
   const pulseAnim = new Animated.Value(1);
   const progressAnim = new Animated.Value(0);
   const backgroundTransition = useRef(new Animated.Value(0)).current;
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
   useEffect(() => {
-    const preloadImages = async () => {
+    const preloadAssets = async () => {
       try {
-        const images = [
-          require('@/assets/images/loading-bg1.jpg'),
-          require('@/assets/images/loading-bg2.jpg'),
-        ];
+        const logo = require('@/assets/images/logo.jpg');
+        const bg1 = require('@/assets/images/loading-bg1.jpg');
+        const bg2 = require('@/assets/images/loading-bg2.jpg');
 
-        const prefetchTasks = images.map(image => {
-          const uri = Image.resolveAssetSource(image).uri;
-          return Image.prefetch(uri);
-        });
-
-        await Promise.all(prefetchTasks);
+        await Promise.all([
+          Image.prefetch(Image.resolveAssetSource(logo).uri),
+          Image.prefetch(Image.resolveAssetSource(bg1).uri),
+          Image.prefetch(Image.resolveAssetSource(bg2).uri),
+        ]);
         setImagesLoaded(true);
       } catch (e) {
-        console.warn('Failed to preload images', e);
+        console.warn('Failed to preload assets', e);
         setImagesLoaded(true);
       }
     };
 
-    preloadImages();
+    preloadAssets();
   }, []);
 
   // Message rotation logic
@@ -91,7 +88,11 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
     if (!imagesLoaded) return;
 
     Animated.parallel([
-      // Fading removed as per user request
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1200,
+        useNativeDriver: true,
+      }),
       Animated.spring(scaleAnim, {
         toValue: 1,
         damping: 15,
@@ -229,45 +230,48 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoadComplete }) => {
 
   return (
     <View style={styles.container}>
-      {/* First Background Image */}
-      <ImageBackground
-        source={require('@/assets/images/loading-bg1.jpg')}
-        style={[styles.backgroundImage, { top: -30 }]}
-        resizeMode="contain"
-      >
-        <LinearGradient
-          colors={['rgba(10, 38, 71, 0.2)', 'rgba(10, 38, 71, 0.8)', 'rgba(10, 38, 71, 0.95)']}
-          style={styles.overlay}
-        />
-      </ImageBackground>
+      <LinearGradient
+        colors={['#0A2647', '#144272', '#2C74B3']}
+        style={styles.gradientBackground}
+        locations={[0, 0.5, 1]}
+      />
 
-      {/* Second Background Image with Fade Transition */}
-      <Animated.View
-        style={[
-          styles.secondBackgroundContainer,
-          {
-            opacity: backgroundTransition,
-          },
-        ]}
-      >
-        <ImageBackground
+      {/* BACKGROUND IMAGE TRANSITION */}
+      <View style={styles.secondBackgroundContainer}>
+        <Animated.Image
+          source={require('@/assets/images/loading-bg1.jpg')}
+          style={[
+            styles.backgroundImage,
+            {
+              position: 'absolute',
+              opacity: backgroundTransition.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0],
+              }),
+            },
+          ]}
+          resizeMode="contain"
+        />
+        <Animated.Image
           source={require('@/assets/images/loading-bg2.jpg')}
-          style={styles.backgroundImage}
+          style={[
+            styles.backgroundImage,
+            {
+              position: 'absolute',
+              opacity: backgroundTransition,
+            },
+          ]}
           resizeMode="cover"
-        >
-          <LinearGradient
-            colors={['rgba(10, 38, 71, 0.2)', 'rgba(10, 38, 71, 0.8)', 'rgba(10, 38, 71, 0.95)']}
-            style={styles.overlay}
-          />
-        </ImageBackground>
-      </Animated.View>
+        />
+        <View style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.35)' }]} />
+      </View>
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <Animated.ScrollView
           style={[
             { flex: 1 },
             {
-              opacity: 1, // Remove fading for instant visibility
+              opacity: fadeAnim,
               transform: [{ scale: scaleAnim }],
             },
           ]}
@@ -438,14 +442,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A2647',
   },
-  backgroundImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    borderRadius: 20,
-    overflow: 'hidden',
+  gradientBackground: {
+    ...StyleSheet.absoluteFillObject,
   },
   safeArea: {
     flex: 1,
@@ -499,15 +497,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+  },
   appName: {
-    fontSize: moderateScale(32),
+    fontSize: moderateScale(34),
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
     marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 6,
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   tagline: {
     fontSize: moderateScale(12),

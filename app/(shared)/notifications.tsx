@@ -76,37 +76,8 @@ const NotificationsScreen: React.FC = () => {
         await markNotificationAsRead(notification.id);
       }
 
-      // Navigate based on notification data or type
-      const action = notification.data?.action;
-      const type = notification.type;
-
-      if (action === 'view_request' || type === 'blood_request' || type === 'donor_nearby' || type === 'hospital_broadcast') {
-        if (user?.userType === 'donor') {
-          router.push('/(donor)/requests' as any);
-        } else {
-          router.push('/(requester)/my-requests' as any);
-        }
-      } else if (action === 'open_chat' || type === 'new_message' || type === 'request_accepted') {
-        if (notification.data?.chatId) {
-          router.push(`/(shared)/chat/${notification.data.chatId}` as any);
-        } else {
-          router.push('/(shared)/chat-list' as any);
-        }
-      } else if (action === 'verify_donation' || type === 'verify_donation') {
-        router.push('/(requester)/my-requests' as any);
-      } else if (action === 'view_donation_history' || type === 'donation_verified') {
-        router.push('/(donor)/donation-history' as any);
-      } else if (action === 'open_donor_home' || type === 'donation_reminder') {
-        router.push('/(donor)/index' as any);
-      } else if (type === 'booking_confirmed' || type === 'booking_rejected' || type === 'booking_completed' || type === 'booking_fulfilled') {
-        if (user?.userType === 'donor') {
-          router.push('/(donor)/booking-status' as any);
-        } else {
-          router.push('/(requester)/my-requests' as any);
-        }
-      } else if (type === 'system_alert') {
-        // Maybe show an alert or navigate to settings/info
-      }
+      // Navigation disabled as requested to avoid "not found" pages
+      // User only wants notifications to be marked as read
     } catch (error) {
       console.error('Error handling notification press:', error);
     }
@@ -194,6 +165,14 @@ const NotificationsScreen: React.FC = () => {
     return date.toLocaleDateString();
   };
 
+  const formatNotifMessage = (msg: string) => {
+    if (!msg) return '';
+    return msg
+      .replace(/^New message from\s*:\s*/i, '')
+      .replace(/^New message from\s*/i, '')
+      .trim();
+  };
+
   const renderNotificationItem = ({ item }: { item: Notification }) => (
     <TouchableOpacity
       style={[styles.notificationItem, !item.isRead && styles.unreadNotification]}
@@ -222,7 +201,7 @@ const NotificationsScreen: React.FC = () => {
             ]}
             numberOfLines={1}
           >
-            {item.title}
+            {formatNotifMessage(item.title)}
           </Text>
           {!item.isRead && <View style={styles.unreadDot} />}
         </View>
@@ -233,14 +212,10 @@ const NotificationsScreen: React.FC = () => {
           ]}
           numberOfLines={2}
         >
-          {item.message}
+          {formatNotifMessage(item.message)}
         </Text>
         <View style={styles.notificationFooter}>
           <Text style={styles.notificationTime}>{formatTimestamp(item.timestamp)}</Text>
-          <View style={styles.viewDetailsContainer}>
-            <Text style={styles.viewDetailsText}>View Details</Text>
-            <Ionicons name="chevron-forward" size={14} color="#3B82F6" />
-          </View>
         </View>
       </View>
     </TouchableOpacity>
