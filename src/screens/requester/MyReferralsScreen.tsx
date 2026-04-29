@@ -70,6 +70,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         color: '#FFFFFF',
         letterSpacing: 0.5,
     },
+    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
     headerRight: {
         paddingHorizontal: 14,
         paddingVertical: 6,
@@ -396,6 +397,7 @@ export default function MyReferralsScreen() {
                         </TouchableOpacity>
                         <View style={{ flex: 1, alignItems: 'center' }}>
                             <Text style={st.headerTitle}>Hospital Referrals</Text>
+                            <Text style={st.headerSub}>Hospital referral history</Text>
                         </View>
                         <View style={{ width: 44 }} />
                     </View>
@@ -423,6 +425,7 @@ export default function MyReferralsScreen() {
                         <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                     <Text style={st.headerTitle}>My Referrals</Text>
+                    <Text style={st.headerSub}>Hospital referral history</Text>
                     <View style={st.headerRight}>
                         <Text style={st.countText}>{referrals.length}</Text>
                     </View>

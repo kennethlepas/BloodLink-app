@@ -558,6 +558,7 @@ export default function BookRecipientScreen(): JSX.Element {
                         </View>
                     </TouchableOpacity>
                     <Text style={dynamicStyles.headerTitle}>Book Transfusion</Text>
+                    <Text style={dynamicStyles.headerSub}>Schedule your transfusion</Text>
                     <TouchableOpacity onPress={() => setHistoryModalVisible(true)} style={dynamicStyles.historyButton}>
                         <Ionicons name="time" size={20} color="#FFFFFF" />
                         <Text style={dynamicStyles.historyButtonText}>History</Text>
@@ -1047,6 +1048,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         color: '#FFFFFF',
         flex: 1,
     },
+    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
     historyButton: {
         flexDirection: 'row',
         alignItems: 'center',

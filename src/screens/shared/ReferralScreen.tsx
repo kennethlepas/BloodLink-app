@@ -64,6 +64,7 @@ export default function ReferralScreen() {
                     <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Refer & Save Lives</Text>
+                <Text style={styles.headerSub}>Invite friends to save lives</Text>
             </LinearGradient>
 
             <ScrollView
@@ -241,6 +242,7 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: '#FFF'
     },
+    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
     scrollContent: {
         padding: 20,
         alignItems: 'center'

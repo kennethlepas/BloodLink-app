@@ -49,11 +49,11 @@ import {
 } from '../../services/notifications';
 import { moderateScale, scale, verticalScale } from '../../utils/scaling';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const REQUEST_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2.05;
 const DONOR_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2.05;
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.45;
-const NOTIF_DRAWER_WIDTH = SCREEN_WIDTH * 0.5;
+const DRAWER_WIDTH = SCREEN_WIDTH * 0.50;
+const NOTIF_DRAWER_WIDTH = SCREEN_WIDTH * 0.50;
 const FEAT_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2;
 
 //Helper: shadow 
@@ -150,7 +150,7 @@ export default function HomeScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const drawerAnim = useState(new Animated.Value(-DRAWER_WIDTH))[0];
-  const notifAnim = useState(new Animated.Value(NOTIF_DRAWER_WIDTH))[0];
+  const notifAnim = useState(new Animated.Value(0))[0];
   const [notifList, setNotifList] = useState<Notification[]>([]);
 
   // Tab Bar Animation
@@ -396,10 +396,13 @@ export default function HomeScreen() {
   };
 
   const toggleNotifDrawer = () => {
-    const toValue = notifOpen ? NOTIF_DRAWER_WIDTH : 0;
+    const toValue = notifOpen ? 0 : 1;
     setNotifOpen(!notifOpen);
     Animated.spring(notifAnim, {
-      toValue, useNativeDriver: true, tension: 65, friction: 9,
+      toValue,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 9,
     }).start();
   };
 
@@ -706,8 +709,26 @@ export default function HomeScreen() {
         </LinearGradient>
       </Animated.View>
 
-      {/* ══ NOTIFICATION SIDE PANEL (HALF SCREEN) ══ */}
-      <Animated.View style={[styles.notifDrawer, { transform: [{ translateX: notifAnim }] }]}>
+      {/* ══ NOTIFICATION SIDE PANEL (HANGING CARD) ══ */}
+      <Animated.View
+        pointerEvents={notifOpen ? 'auto' : 'none'}
+        style={[styles.notifDrawer, {
+          opacity: notifAnim,
+          transform: [
+            {
+              translateY: notifAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-20, 0]
+              })
+            },
+            {
+              scale: notifAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.95, 1]
+              })
+            }
+          ]
+        }]}>
         <LinearGradient
           colors={isDark ? ['#1E293B', '#111827'] : ['#F8FAFC', '#F1F5F9']}
           style={styles.drawerGrad}
@@ -805,7 +826,7 @@ export default function HomeScreen() {
             </View>
 
             <TouchableOpacity onPress={toggleNotifDrawer} style={styles.hNotifBtn} activeOpacity={0.8}>
-              <NotificationBell iconSize={24} iconColor="#FFFFFF" badgeColor={brand.orangeLite} />
+              <NotificationBell iconSize={28} iconColor="#FFFFFF" badgeColor={brand.orangeLite} />
             </TouchableOpacity>
           </View>
 
@@ -1514,7 +1535,7 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   scrollContent: { paddingBottom: 20 },
 
   drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: DRAWER_WIDTH, zIndex: 1005, ...shadow('#000', 0.2, 16, 12) },
-  notifDrawer: { position: 'absolute', right: 0, top: 0, bottom: 0, width: NOTIF_DRAWER_WIDTH, zIndex: 1005 },
+  notifDrawer: { position: 'absolute', right: 12, top: Platform.OS === 'ios' ? 65 : 45, width: NOTIF_DRAWER_WIDTH + 40, maxHeight: SCREEN_HEIGHT * 0.50, zIndex: 1005, borderRadius: 24, overflow: 'hidden', ...shadow('#000', 0.25, 20, 10) },
   drawerGrad: { flex: 1, paddingTop: Platform.OS === 'ios' ? 50 : 36, paddingBottom: 24 },
   drawerProfile: { alignItems: 'center', paddingHorizontal: 12, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)' },
   drawerAvatarWrap: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: 'rgba(255,255,255,0.55)', overflow: 'hidden', marginBottom: 10 },
@@ -1626,8 +1647,8 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
       }),
   },
   hBrandTextContainer: { alignItems: 'center' },
-  hAppName: { fontSize: moderateScale(18), fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 },
-  hTagline: { fontSize: moderateScale(8), fontWeight: '700', color: 'rgba(255,255,255,0.88)', letterSpacing: 1.6, marginTop: 0 },
+  hAppName: { fontSize: moderateScale(24), fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.4 },
+  hTagline: { fontSize: moderateScale(10), fontWeight: '700', color: 'rgba(255,255,255,0.88)', letterSpacing: 1.6, marginTop: 0 },
   hNotifBtn: { width: scale(44), height: scale(44), borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center' },
   hGreetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   hAvatarSmall: { width: scale(36), height: scale(36), borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)', overflow: 'hidden' },

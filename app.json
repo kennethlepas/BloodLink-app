@@ -7,6 +7,11 @@
     "icon": "./assets/images/logo-fixed.png",
     "scheme": "bloodlinkapp",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A2647"
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -25,6 +30,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
+      "splash": {
+        "image": "./assets/images/icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0A2647"
+      },
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",

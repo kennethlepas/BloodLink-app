@@ -59,6 +59,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
+  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
 
   filtersWrap: { borderBottomWidth: 1, borderBottomColor: colors.surfaceBorder, backgroundColor: colors.surface, paddingHorizontal: 16, paddingVertical: 14 },
   searchBar: { borderRadius: 12, borderWidth: 1, borderColor: colors.surfaceBorder, backgroundColor: colors.surfaceAlt, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, paddingHorizontal: 14, paddingVertical: 10 },
@@ -466,6 +467,7 @@ export default function FindDonorsScreen() {
           </TouchableOpacity>
           <View style={fd.headerCenter}>
             <Text style={fd.headerTitle}>Find Donors</Text>
+            <Text style={fd.headerSub}>Browse available donors</Text>
           </View>
           <View style={{ width: 40 }} />
         </View>

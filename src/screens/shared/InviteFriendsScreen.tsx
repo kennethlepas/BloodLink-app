@@ -40,6 +40,7 @@ export default function InviteFriendsScreen() {
                     <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Invite a Hero</Text>
+                <Text style={styles.headerSub}>Grow the BloodLink community</Text>
             </LinearGradient>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -117,6 +118,7 @@ const styles = StyleSheet.create({
     },
     backButton: { marginRight: 15 },
     headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
     scrollContent: { padding: 24, alignItems: 'center' },
     illustrationContainer: {
         marginVertical: 30,

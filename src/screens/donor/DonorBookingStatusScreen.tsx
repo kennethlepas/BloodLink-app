@@ -169,6 +169,7 @@ export default function DonorBookingStatusScreen() {
                         <Ionicons name="arrow-back" size={24} color="#FFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Booking Status</Text>
+                    <Text style={styles.headerSub}>Track your appointment</Text>
                     <View style={{ width: 24 }} />
                 </View>
 
@@ -284,6 +285,7 @@ const styles = StyleSheet.create({
     headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 },
     backIcon: { padding: 4 },
     headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
     statusCard: {
         backgroundColor: '#FFF',
         borderRadius: 20,

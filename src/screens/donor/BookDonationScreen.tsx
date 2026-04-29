@@ -248,6 +248,7 @@ export default function BookDonationScreen() {
                         <Ionicons name="arrow-back" size={24} color="#FFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Book Donation</Text>
+                    <Text style={styles.headerSub}>Find a hospital near you</Text>
                 </View>
 
                 <View style={styles.searchContainer}>
@@ -579,6 +580,7 @@ const styles = StyleSheet.create({
     headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     backButton: { marginRight: 15 },
     headerTitle: { fontSize: 22, fontWeight: '800', color: '#FFF' },
+    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',

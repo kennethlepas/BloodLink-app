@@ -20,7 +20,7 @@ const AppLogo: React.FC<AppLogoProps> = ({ variant = 'compact', showBadge = fals
             case 'large':
                 return { width: moderateScale(150), height: moderateScale(200) };
             case 'header':
-                return { width: scale(48), height: scale(62) };
+                return { width: scale(56), height: scale(72) };
             case 'icon':
                 return { width: moderateScale(40), height: moderateScale(40) };
             case 'compact':

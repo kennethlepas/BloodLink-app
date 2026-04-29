@@ -83,6 +83,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 22, fontWeight: '800', color: colors.text },
+  headerSub: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
 
   scrollContent: { paddingBottom: 100 },
   formBody: { padding: 20 },
@@ -525,6 +526,7 @@ const NeedBloodScreen: React.FC = () => {
           </TouchableOpacity>
           <View style={nb.headerCenter}>
             <Text style={nb.headerTitle}>Request Blood</Text>
+            <Text style={nb.headerSub}>Submit a blood request</Text>
           </View>
           <View style={{ width: 40 }} />
         </View>
