@@ -400,7 +400,7 @@ export default function WelcomeScreen() {
                     onPress={() => router.push('/(shared)/guide' as any)}
                   >
                     <Text style={styles.guideButtonText}>Explore Guide</Text>
-                    <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
+                    <Ionicons name="arrow-forward" size={14} color="#8B5CF6" />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -409,14 +409,15 @@ export default function WelcomeScreen() {
                   >
                     <Text style={styles.supportButtonText}>Help & Support</Text>
                   </TouchableOpacity>
-                </View>
 
-                <TouchableOpacity
-                  style={styles.webGuideLink}
-                  onPress={() => Linking.openURL(WEB_GUIDE_URL)}
-                >
-                  <Text style={styles.webGuideLinkText}>View Web Guide →</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.webGuideLink}
+                    onPress={() => Linking.openURL(WEB_GUIDE_URL)}
+                  >
+                    <Text style={styles.webGuideLinkText}>View Web Guide</Text>
+                    <Ionicons name="open-outline" size={12} color="rgba(255,255,255,0.85)" />
+                  </TouchableOpacity>
+                </View>
               </View>
             </LinearGradient>
           </View>
@@ -921,46 +922,51 @@ const styles = StyleSheet.create({
     lineHeight: moderateScale(18),
     marginBottom: 12,
   },
+
+  guideButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: scale(8),
+    marginTop: 4,
+  },
   guideButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: scale(12),
-    paddingVertical: verticalScale(6),
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(8),
     borderRadius: 10,
-    alignSelf: 'flex-start',
-    gap: 4,
   },
   guideButtonText: {
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(13),
     fontWeight: '700',
-    color: '#8B5CF6',
-  },
-  guideButtonRow: {
-    flexDirection: 'row',
-    gap: scale(10),
-    marginTop: 4,
-    marginBottom: 8,
-    alignItems: 'center',
+    color: '#7C3AED',
   },
   supportButton: {
-    paddingHorizontal: scale(10),
-    paddingVertical: verticalScale(6),
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(8),
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   supportButtonText: {
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(13),
     fontWeight: '600',
     color: '#FFFFFF',
   },
   webGuideLink: {
-    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: verticalScale(8),
+    paddingHorizontal: scale(2),
   },
   webGuideLinkText: {
-    fontSize: moderateScale(11),
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: moderateScale(12),
+    color: 'rgba(255,255,255,0.85)',
     fontWeight: '500',
     textDecorationLine: 'underline',
   },

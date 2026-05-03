@@ -2,7 +2,7 @@ import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
-import { getUsersByBloodType } from '@/src/services/firebase/database';
+import { getUsersByBloodType } from '@/src/services/offline/offlineDatabase';
 import { BloodType, Donor } from '@/src/types/types';
 import { canDonateTo } from '@/src/utils/bloodCompatibility';
 import { Ionicons } from '@expo/vector-icons';

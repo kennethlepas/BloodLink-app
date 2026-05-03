@@ -3,7 +3,7 @@ import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
 import { uploadImageToCloudinary } from '@/src/services/cloudinary/upload.service';
-import { getBloodBanks, submitVerificationRequest } from '@/src/services/firebase/database';
+import { getBloodBanks, submitVerificationRequest } from '@/src/services/offline/offlineDatabase';
 import { BloodBank } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';

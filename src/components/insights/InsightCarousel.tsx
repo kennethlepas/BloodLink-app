@@ -111,16 +111,18 @@ export const HorizontalCarousel: React.FC<HorizontalCarouselProps> = ({
         let interval: any;
         if (isAutoScrolling && data.length > 1) {
             interval = setInterval(() => {
-                const nextIndex = (activeIndex + 1) % data.length;
-                flatListRef.current?.scrollToIndex({
-                    index: nextIndex,
-                    animated: true,
+                setActiveIndex((prevIndex) => {
+                    const nextIndex = (prevIndex + 1) % data.length;
+                    flatListRef.current?.scrollToIndex({
+                        index: nextIndex,
+                        animated: true,
+                    });
+                    return nextIndex;
                 });
-                setActiveIndex(nextIndex);
             }, autoScrollInterval);
         }
         return () => clearInterval(interval);
-    }, [isAutoScrolling, activeIndex, data.length, autoScrollInterval]);
+    }, [isAutoScrolling, data.length, autoScrollInterval]);
 
     const handleScroll = Animated.event(
         [{ nativeEvent: { contentOffset: { x: scrollX } } }],
@@ -299,13 +301,13 @@ export const DemandCarousel: React.FC<DemandCarouselProps> = ({
         >
             <HorizontalCarousel
                 data={demands.filter((d) => d.activeRequests > 0)}
-                cardWidth={150}
+                cardWidth={180}
                 autoScroll={autoScroll}
                 renderItem={(demand) => (
                     <TouchableOpacity
                         onPress={() => onPress?.(demand)}
                         activeOpacity={0.7}
-                        style={{ marginRight: CARD_SPACING }}
+                        style={{ marginRight: CARD_SPACING, width: 180 }}
                     >
                         <BloodTypeDemandCard demand={demand} compact />
                     </TouchableOpacity>
@@ -356,7 +358,7 @@ export const UrgentNeedsCarousel: React.FC<UrgentNeedsCarouselProps> = ({
                 cardWidth={COMPACT_CARD_WIDTH + 20} // Slightly wider for urgent needs
                 autoScroll={autoScroll}
                 renderItem={(need) => (
-                    <View style={{ marginRight: CARD_SPACING }}>
+                    <View style={{ marginRight: CARD_SPACING, width: COMPACT_CARD_WIDTH + 20 }}>
                         <UrgentNeedCard need={need} onPress={() => onPress?.(need)} />
                     </View>
                 )}

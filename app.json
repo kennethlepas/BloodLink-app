@@ -2,7 +2,7 @@
   "expo": {
     "name": "BloodLinkApp",
     "slug": "BloodLinkApp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/logo-fixed.png",
     "scheme": "bloodlinkapp",
@@ -23,6 +23,7 @@
     },
     "android": {
       "package": "com.kennethlepas.bloodlinkapp",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#0A2647",
         "foregroundImage": "./assets/images/logo-fixed.png",
@@ -48,8 +49,16 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "runtimeVersion": "1.0.1",
+    "updates": {
+      "url": "https://u.expo.dev/b39db078-e515-46e6-98a6-f41e3cda3d07",
+      "enabled": true,
+      "fallbackToCacheTimeout": 3000,
+      "checkAutomatically": "ON_LOAD"
+    },
     "plugins": [
       "expo-router",
+      "expo-updates",
       [
         "expo-image-picker",
         {

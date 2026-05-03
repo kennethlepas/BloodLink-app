@@ -725,137 +725,139 @@ export default function BookRecipientScreen(): JSX.Element {
                 transparent={true}
                 onRequestClose={closeModal}
             >
-                <TouchableWithoutFeedback onPress={closeModal}>
-                    <View style={dynamicStyles.modalOverlay}>
-                        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                            <KeyboardAvoidingView
-                                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                                style={dynamicStyles.keyboardView}
-                            >
-                                <View style={dynamicStyles.modalContent}>
-                                    <LinearGradient
-                                        colors={[colors.surfaceAlt, colors.bg]}
-                                        style={dynamicStyles.modalHeader}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 1 }}
-                                    >
-                                        <Text style={dynamicStyles.modalTitle}>Schedule Transfusion</Text>
-                                        <TouchableOpacity onPress={closeModal} style={dynamicStyles.modalCloseButton}>
-                                            <Ionicons name="close" size={24} color={colors.textSecondary} />
-                                        </TouchableOpacity>
-                                    </LinearGradient>
-
-                                    <ScrollView
-                                        showsVerticalScrollIndicator={false}
-                                        contentContainerStyle={dynamicStyles.modalScrollContent}
-                                    >
-                                        {/* Hospital Info Card */}
-                                        <View style={dynamicStyles.selectedHospitalCard}>
-                                            <LinearGradient
-                                                colors={[colors.surfaceAlt, colors.surfaceTint]}
-                                                style={dynamicStyles.hospitalIcon}
-                                            >
-                                                <Ionicons name="business" size={28} color={colors.primary} />
-                                            </LinearGradient>
-                                            <View style={dynamicStyles.selectedHospitalInfo}>
-                                                <Text style={dynamicStyles.selectedHospitalName}>
-                                                    {selectedHospital?.name}
-                                                </Text>
-                                                <Text style={dynamicStyles.selectedHospitalAddr}>
-                                                    {selectedHospital?.address}
-                                                </Text>
-                                                {distanceToHospital && (
-                                                    <View style={dynamicStyles.selectedDistance}>
-                                                        <Ionicons name="location" size={12} color={colors.primary} />
-                                                        <Text style={dynamicStyles.selectedDistanceText}>
-                                                            {distanceToHospital} km away
-                                                        </Text>
-                                                    </View>
-                                                )}
-                                            </View>
-                                        </View>
-
-                                        {/* Patient Name */}
-                                        <Text style={dynamicStyles.sectionLabel}>Patient Name (Optional)</Text>
-                                        <TextInput
-                                            placeholder="Enter patient name"
-                                            placeholderTextColor={colors.textMuted}
-                                            style={dynamicStyles.inputField}
-                                            value={formData.patientName}
-                                            onChangeText={(text) => updateFormField('patientName', text)}
-                                        />
-
-                                        {/* Units Needed */}
-                                        <Text style={dynamicStyles.sectionLabel}>Units Required</Text>
-                                        <View style={dynamicStyles.unitsRow}>
-                                            <TouchableOpacity
-                                                style={dynamicStyles.unitBtn}
-                                                onPress={() => adjustUnits(false)}
-                                            >
-                                                <Ionicons name="remove" size={24} color={colors.primary} />
-                                            </TouchableOpacity>
-                                            <Text style={dynamicStyles.unitsValue}>{formData.unitsNeeded}</Text>
-                                            <TouchableOpacity
-                                                style={dynamicStyles.unitBtn}
-                                                onPress={() => adjustUnits(true)}
-                                            >
-                                                <Ionicons name="add" size={24} color={colors.primary} />
-                                            </TouchableOpacity>
-                                        </View>
-
-                                        {/* Blood Component */}
-                                        <Text style={dynamicStyles.sectionLabel}>Blood Component</Text>
-                                        <View style={dynamicStyles.componentGrid}>
-                                            {BLOOD_COMPONENTS.map(renderBloodComponent)}
-                                        </View>
-
-                                        {/* Time Slot */}
-                                        <Text style={dynamicStyles.sectionLabel}>Preferred Time</Text>
-                                        <View style={dynamicStyles.timeGrid}>
-                                            {TIME_SLOTS.map(renderTimeSlot)}
-                                        </View>
-
-                                        {/* Notes */}
-                                        <Text style={dynamicStyles.sectionLabel}>Special Instructions (Optional)</Text>
-                                        <TextInput
-                                            placeholder="Any specific requirements or notes..."
-                                            placeholderTextColor={colors.textMuted}
-                                            style={dynamicStyles.notesInput}
-                                            value={formData.notes}
-                                            onChangeText={(text) => updateFormField('notes', text)}
-                                            multiline
-                                            numberOfLines={3}
-                                            textAlignVertical="top"
-                                        />
-
-                                        {/* Book Button */}
-                                        <TouchableOpacity
-                                            style={dynamicStyles.bookButton}
-                                            onPress={handleBooking}
-                                            disabled={bookingLoading}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                    style={{ flex: 1 }}
+                >
+                    <TouchableWithoutFeedback onPress={closeModal}>
+                        <View style={dynamicStyles.modalOverlay}>
+                            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                                <View style={dynamicStyles.keyboardView}>
+                                    <View style={dynamicStyles.modalContent}>
+                                        <LinearGradient
+                                            colors={[colors.surfaceAlt, colors.bg]}
+                                            style={dynamicStyles.modalHeader}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
                                         >
-                                            <LinearGradient
-                                                colors={COLORS.primary.gradient}
-                                                start={{ x: 0, y: 0 }}
-                                                end={{ x: 1, y: 0 }}
-                                                style={dynamicStyles.bookButtonGrad}
+                                            <Text style={dynamicStyles.modalTitle}>Schedule Transfusion</Text>
+                                            <TouchableOpacity onPress={closeModal} style={dynamicStyles.modalCloseButton}>
+                                                <Ionicons name="close" size={24} color={colors.textSecondary} />
+                                            </TouchableOpacity>
+                                        </LinearGradient>
+
+                                        <ScrollView
+                                            showsVerticalScrollIndicator={false}
+                                            contentContainerStyle={dynamicStyles.modalScrollContent}
+                                        >
+                                            {/* Hospital Info Card */}
+                                            <View style={dynamicStyles.selectedHospitalCard}>
+                                                <LinearGradient
+                                                    colors={[colors.surfaceAlt, colors.surfaceTint]}
+                                                    style={dynamicStyles.hospitalIcon}
+                                                >
+                                                    <Ionicons name="business" size={28} color={colors.primary} />
+                                                </LinearGradient>
+                                                <View style={dynamicStyles.selectedHospitalInfo}>
+                                                    <Text style={dynamicStyles.selectedHospitalName}>
+                                                        {selectedHospital?.name}
+                                                    </Text>
+                                                    <Text style={dynamicStyles.selectedHospitalAddr}>
+                                                        {selectedHospital?.address}
+                                                    </Text>
+                                                    {distanceToHospital && (
+                                                        <View style={dynamicStyles.selectedDistance}>
+                                                            <Ionicons name="location" size={12} color={colors.primary} />
+                                                            <Text style={dynamicStyles.selectedDistanceText}>
+                                                                {distanceToHospital} km away
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            </View>
+
+                                            {/* Patient Name */}
+                                            <Text style={dynamicStyles.sectionLabel}>Patient Name (Optional)</Text>
+                                            <TextInput
+                                                placeholder="Enter patient name"
+                                                placeholderTextColor={colors.textMuted}
+                                                style={dynamicStyles.inputField}
+                                                value={formData.patientName}
+                                                onChangeText={(text) => updateFormField('patientName', text)}
+                                            />
+
+                                            {/* Units Needed */}
+                                            <Text style={dynamicStyles.sectionLabel}>Units Required</Text>
+                                            <View style={dynamicStyles.unitsRow}>
+                                                <TouchableOpacity
+                                                    style={dynamicStyles.unitBtn}
+                                                    onPress={() => adjustUnits(false)}
+                                                >
+                                                    <Ionicons name="remove" size={24} color={colors.primary} />
+                                                </TouchableOpacity>
+                                                <Text style={dynamicStyles.unitsValue}>{formData.unitsNeeded}</Text>
+                                                <TouchableOpacity
+                                                    style={dynamicStyles.unitBtn}
+                                                    onPress={() => adjustUnits(true)}
+                                                >
+                                                    <Ionicons name="add" size={24} color={colors.primary} />
+                                                </TouchableOpacity>
+                                            </View>
+
+                                            {/* Blood Component */}
+                                            <Text style={dynamicStyles.sectionLabel}>Blood Component</Text>
+                                            <View style={dynamicStyles.componentGrid}>
+                                                {BLOOD_COMPONENTS.map(renderBloodComponent)}
+                                            </View>
+
+                                            {/* Time Slot */}
+                                            <Text style={dynamicStyles.sectionLabel}>Preferred Time</Text>
+                                            <View style={dynamicStyles.timeGrid}>
+                                                {TIME_SLOTS.map(renderTimeSlot)}
+                                            </View>
+
+                                            {/* Notes */}
+                                            <Text style={dynamicStyles.sectionLabel}>Special Instructions (Optional)</Text>
+                                            <TextInput
+                                                placeholder="Any specific requirements or notes..."
+                                                placeholderTextColor={colors.textMuted}
+                                                style={dynamicStyles.notesInput}
+                                                value={formData.notes}
+                                                onChangeText={(text) => updateFormField('notes', text)}
+                                                multiline
+                                                numberOfLines={3}
+                                                textAlignVertical="top"
+                                            />
+
+                                            {/* Book Button */}
+                                            <TouchableOpacity
+                                                style={dynamicStyles.bookButton}
+                                                onPress={handleBooking}
+                                                disabled={bookingLoading}
                                             >
-                                                {bookingLoading ? (
-                                                    <ActivityIndicator size="small" color="#FFFFFF" />
-                                                ) : (
-                                                    <>
-                                                        <Text style={dynamicStyles.bookButtonText}>Confirm Appointment</Text>
-                                                        <Ionicons name="arrow-forward" size={20} color="#FFF" />
-                                                    </>
-                                                )}
-                                            </LinearGradient>
-                                        </TouchableOpacity>
-                                    </ScrollView>
+                                                <LinearGradient
+                                                    colors={COLORS.primary.gradient}
+                                                    start={{ x: 0, y: 0 }}
+                                                    end={{ x: 1, y: 0 }}
+                                                    style={dynamicStyles.bookButtonGrad}
+                                                >
+                                                    {bookingLoading ? (
+                                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                                    ) : (
+                                                        <>
+                                                            <Text style={dynamicStyles.bookButtonText}>Confirm Appointment</Text>
+                                                            <Ionicons name="arrow-forward" size={20} color="#FFF" />
+                                                        </>
+                                                    )}
+                                                </LinearGradient>
+                                            </TouchableOpacity>
+                                        </ScrollView>
+                                    </View>
                                 </View>
-                            </KeyboardAvoidingView>
-                        </TouchableWithoutFeedback>
-                    </View>
-                </TouchableWithoutFeedback>
+                            </TouchableWithoutFeedback>
+                        </View>
+                    </TouchableWithoutFeedback>
+                </KeyboardAvoidingView>
             </Modal>
             {/* History Modal */}
             <Modal visible={historyModalVisible} transparent animationType="slide">

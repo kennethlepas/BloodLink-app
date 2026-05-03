@@ -2,9 +2,9 @@ import { KENYA_COUNTIES, getSubCountiesByCounty } from '@/src/constants/kenyaLoc
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
-import { createBooking, getBloodBanks, getDonorBookings } from '@/src/services/firebase/database';
 import { getCurrentLocation } from '@/src/services/location/locationService';
 import { sendLocalNotification } from '@/src/services/notifications';
+import { createBooking, getBloodBanks, getDonorBookings } from '@/src/services/offline/offlineDatabase';
 import { BloodBank, BloodType, DonorBooking } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +20,7 @@ import {
     Modal,
     Platform,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Text,
     TextInput,
@@ -241,336 +242,342 @@ export default function BookDonationScreen() {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-            <LinearGradient colors={['#2563EB', '#3B82F6']} style={styles.header}>
-                <View style={styles.headerTop}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color="#FFF" />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Book Donation</Text>
-                    <Text style={styles.headerSub}>Find a hospital near you</Text>
-                </View>
-
-                <View style={styles.searchContainer}>
-                    <Ionicons name="search" size={20} color="rgba(255,255,255,0.6)" />
-                    <TextInput
-                        placeholder="Search hospital, county or sub-county..."
-                        style={styles.searchInput}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                    />
-                </View>
-            </LinearGradient>
-
-            {/* Offline Warning Banner */}
-            {user?.userType === 'donor' && user.isAvailable === false && (
-                <View style={styles.offlineBanner}>
-                    <Ionicons name="alert-circle" size={18} color="#991B1B" />
-                    <Text style={styles.offlineText}>
-                        You are currently not eligible to donate. Go to your profile to enable availability.
-                    </Text>
-                    <TouchableOpacity onPress={() => router.push('/(donor)/profile' as any)}>
-                        <Text style={styles.offlineAction}>Go Profile</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            {/* Filter Section */}
-            <View style={[styles.filterContainer, { backgroundColor: colors.surface }]}>
-                <View style={styles.filterRow}>
-                    <TouchableOpacity
-                        style={[styles.filterPicker, isCountyFilterExpanded && styles.filterPickerExpanded]}
-                        onPress={() => {
-                            setIsCountyFilterExpanded(!isCountyFilterExpanded);
-                            setIsSubCountyFilterExpanded(false);
-                        }}
-                    >
-                        <Text style={[styles.filterPickerText, !selectedCounty && { color: colors.textSecondary }]}>
-                            {selectedCounty || 'All Counties'}
-                        </Text>
-                        <Ionicons name={isCountyFilterExpanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.filterPicker, isSubCountyFilterExpanded && styles.filterPickerExpanded]}
-                        onPress={() => {
-                            if (!selectedCounty) {
-                                Alert.alert('Notice', 'Please select a county first');
-                                return;
-                            }
-                            setIsSubCountyFilterExpanded(!isSubCountyFilterExpanded);
-                            setIsCountyFilterExpanded(false);
-                        }}
-                    >
-                        <Text style={[styles.filterPickerText, !selectedSubCounty && { color: colors.textSecondary }]}>
-                            {selectedSubCounty || 'All Sub-Counties'}
-                        </Text>
-                        <Ionicons name={isSubCountyFilterExpanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                </View>
-
-                {isCountyFilterExpanded && (
-                    <View style={styles.filterDropdownList}>
-                        <View style={styles.filterSearchBox}>
-                            <Ionicons name="search" size={14} color={colors.textSecondary} />
-                            <TextInput
-                                placeholder="Search county..."
-                                style={styles.filterSearchInput}
-                                value={countySearch}
-                                onChangeText={setCountySearch}
-                            />
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#2563EB' }} edges={['top']}>
+            <StatusBar barStyle="light-content" backgroundColor="#2563EB" />
+            <View style={[styles.container, { backgroundColor: colors.bg }]}>
+                <LinearGradient colors={['#2563EB', '#3B82F6']} style={styles.header}>
+                    <View style={styles.headerTop}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                            <Ionicons name="arrow-back" size={24} color="#FFF" />
+                        </TouchableOpacity>
+                        <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                            <Text style={styles.headerTitle}>Book Donation</Text>
+                            <Text style={styles.headerSub}>Find a hospital near you</Text>
                         </View>
-                        <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
-                            <TouchableOpacity
-                                style={[styles.filterListItem, !selectedCounty && styles.filterListItemSelected]}
-                                onPress={() => {
-                                    setSelectedCounty('');
-                                    setSelectedSubCounty('');
-                                    setIsCountyFilterExpanded(false);
-                                }}
-                            >
-                                <Text style={[styles.filterListItemText, !selectedCounty && styles.filterListItemTextSelected]}>All Counties</Text>
-                                {!selectedCounty && <Ionicons name="checkmark" size={16} color="#FFF" />}
-                            </TouchableOpacity>
-                            {KENYA_COUNTIES.filter(c => c.toLowerCase().includes(countySearch.toLowerCase())).map(c => (
+                    </View>
+
+                    <View style={styles.searchContainer}>
+                        <Ionicons name="search" size={20} color="rgba(255,255,255,0.6)" />
+                        <TextInput
+                            placeholder="Search hospital, county or sub-county..."
+                            style={styles.searchInput}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholderTextColor="rgba(255,255,255,0.4)"
+                        />
+                    </View>
+                </LinearGradient>
+
+                {/* Offline Warning Banner */}
+                {user?.userType === 'donor' && user.isAvailable === false && (
+                    <View style={styles.offlineBanner}>
+                        <Ionicons name="alert-circle" size={18} color="#991B1B" />
+                        <Text style={styles.offlineText}>
+                            You are currently not eligible to donate. Go to your profile to enable availability.
+                        </Text>
+                        <TouchableOpacity onPress={() => router.push('/(donor)/profile' as any)}>
+                            <Text style={styles.offlineAction}>Go Profile</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Filter Section */}
+                <View style={[styles.filterContainer, { backgroundColor: colors.surface }]}>
+                    <View style={styles.filterRow}>
+                        <TouchableOpacity
+                            style={[styles.filterPicker, isCountyFilterExpanded && styles.filterPickerExpanded]}
+                            onPress={() => {
+                                setIsCountyFilterExpanded(!isCountyFilterExpanded);
+                                setIsSubCountyFilterExpanded(false);
+                            }}
+                        >
+                            <Text style={[styles.filterPickerText, !selectedCounty && { color: colors.textSecondary }]}>
+                                {selectedCounty || 'All Counties'}
+                            </Text>
+                            <Ionicons name={isCountyFilterExpanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.filterPicker, isSubCountyFilterExpanded && styles.filterPickerExpanded]}
+                            onPress={() => {
+                                if (!selectedCounty) {
+                                    Alert.alert('Notice', 'Please select a county first');
+                                    return;
+                                }
+                                setIsSubCountyFilterExpanded(!isSubCountyFilterExpanded);
+                                setIsCountyFilterExpanded(false);
+                            }}
+                        >
+                            <Text style={[styles.filterPickerText, !selectedSubCounty && { color: colors.textSecondary }]}>
+                                {selectedSubCounty || 'All Sub-Counties'}
+                            </Text>
+                            <Ionicons name={isSubCountyFilterExpanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {isCountyFilterExpanded && (
+                        <View style={styles.filterDropdownList}>
+                            <View style={styles.filterSearchBox}>
+                                <Ionicons name="search" size={14} color={colors.textSecondary} />
+                                <TextInput
+                                    placeholder="Search county..."
+                                    style={styles.filterSearchInput}
+                                    value={countySearch}
+                                    onChangeText={setCountySearch}
+                                />
+                            </View>
+                            <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
                                 <TouchableOpacity
-                                    key={c}
-                                    style={[styles.filterListItem, selectedCounty === c && styles.filterListItemSelected]}
+                                    style={[styles.filterListItem, !selectedCounty && styles.filterListItemSelected]}
                                     onPress={() => {
-                                        setSelectedCounty(c);
+                                        setSelectedCounty('');
                                         setSelectedSubCounty('');
                                         setIsCountyFilterExpanded(false);
                                     }}
                                 >
-                                    <Text style={[styles.filterListItemText, selectedCounty === c && styles.filterListItemTextSelected]}>{c}</Text>
-                                    {selectedCounty === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                                    <Text style={[styles.filterListItemText, !selectedCounty && styles.filterListItemTextSelected]}>All Counties</Text>
+                                    {!selectedCounty && <Ionicons name="checkmark" size={16} color="#FFF" />}
                                 </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                )}
-
-                {isSubCountyFilterExpanded && (
-                    <View style={styles.filterDropdownList}>
-                        <View style={styles.filterSearchBox}>
-                            <Ionicons name="search" size={14} color={colors.textSecondary} />
-                            <TextInput
-                                placeholder="Search sub-county..."
-                                style={styles.filterSearchInput}
-                                value={subCountySearch}
-                                onChangeText={setSubCountySearch}
-                            />
+                                {KENYA_COUNTIES.filter(c => c.toLowerCase().includes(countySearch.toLowerCase())).map(c => (
+                                    <TouchableOpacity
+                                        key={c}
+                                        style={[styles.filterListItem, selectedCounty === c && styles.filterListItemSelected]}
+                                        onPress={() => {
+                                            setSelectedCounty(c);
+                                            setSelectedSubCounty('');
+                                            setIsCountyFilterExpanded(false);
+                                        }}
+                                    >
+                                        <Text style={[styles.filterListItemText, selectedCounty === c && styles.filterListItemTextSelected]}>{c}</Text>
+                                        {selectedCounty === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
                         </View>
-                        <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
-                            <TouchableOpacity
-                                style={[styles.filterListItem, !selectedSubCounty && styles.filterListItemSelected]}
-                                onPress={() => {
-                                    setSelectedSubCounty('');
-                                    setIsSubCountyFilterExpanded(false);
-                                }}
-                            >
-                                <Text style={[styles.filterListItemText, !selectedSubCounty && styles.filterListItemTextSelected]}>All Sub-Counties</Text>
-                                {!selectedSubCounty && <Ionicons name="checkmark" size={16} color="#FFF" />}
-                            </TouchableOpacity>
-                            {getSubCountiesByCounty(selectedCounty).filter(sc => sc.toLowerCase().includes(subCountySearch.toLowerCase())).map(sc => (
+                    )}
+
+                    {isSubCountyFilterExpanded && (
+                        <View style={styles.filterDropdownList}>
+                            <View style={styles.filterSearchBox}>
+                                <Ionicons name="search" size={14} color={colors.textSecondary} />
+                                <TextInput
+                                    placeholder="Search sub-county..."
+                                    style={styles.filterSearchInput}
+                                    value={subCountySearch}
+                                    onChangeText={setSubCountySearch}
+                                />
+                            </View>
+                            <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
                                 <TouchableOpacity
-                                    key={sc}
-                                    style={[styles.filterListItem, selectedSubCounty === sc && styles.filterListItemSelected]}
+                                    style={[styles.filterListItem, !selectedSubCounty && styles.filterListItemSelected]}
                                     onPress={() => {
-                                        setSelectedSubCounty(sc);
+                                        setSelectedSubCounty('');
                                         setIsSubCountyFilterExpanded(false);
                                     }}
                                 >
-                                    <Text style={[styles.filterListItemText, selectedSubCounty === sc && styles.filterListItemTextSelected]}>{sc}</Text>
-                                    {selectedSubCounty === sc && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                                    <Text style={[styles.filterListItemText, !selectedSubCounty && styles.filterListItemTextSelected]}>All Sub-Counties</Text>
+                                    {!selectedSubCounty && <Ionicons name="checkmark" size={16} color="#FFF" />}
                                 </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                )}
-            </View>
+                                {getSubCountiesByCounty(selectedCounty).filter(sc => sc.toLowerCase().includes(subCountySearch.toLowerCase())).map(sc => (
+                                    <TouchableOpacity
+                                        key={sc}
+                                        style={[styles.filterListItem, selectedSubCounty === sc && styles.filterListItemSelected]}
+                                        onPress={() => {
+                                            setSelectedSubCounty(sc);
+                                            setIsSubCountyFilterExpanded(false);
+                                        }}
+                                    >
+                                        <Text style={[styles.filterListItemText, selectedSubCounty === sc && styles.filterListItemTextSelected]}>{sc}</Text>
+                                        {selectedSubCounty === sc && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
+                </View>
 
-            {
-                loading ? (
-                    <View style={styles.center}>
-                        <ActivityIndicator size="large" color="#3B82F6" />
-                    </View>
-                ) : (
-                    <FlatList
-                        data={filteredHospitals}
-                        keyExtractor={(item) => item.id}
-                        onScroll={onScroll}
-                        scrollEventThrottle={16}
-                        contentContainerStyle={styles.listContent}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={[
-                                    styles.hospitalCard,
-                                    { backgroundColor: colors.surface },
-                                    selectedHospital?.id === item.id && styles.hospitalCardSelected
-                                ]}
-                                onPress={() => setSelectedHospital(item)}
-                            >
-                                <View style={styles.hospitalInfo}>
-                                    <View style={styles.hospitalHeader}>
-                                        <Text style={[styles.hospitalName, { color: colors.text }]}>{item.name}</Text>
-                                        {sortByDistance && userLocation && (
-                                            <View style={styles.distanceBadge}>
-                                                <Ionicons name="location" size={10} color="#3B82F6" />
-                                                <Text style={styles.distanceText}>
-                                                    {calculateDistance(
-                                                        userLocation.coords.latitude,
-                                                        userLocation.coords.longitude,
-                                                        item.location.latitude,
-                                                        item.location.longitude
-                                                    ).toFixed(1)} km
+                {
+                    loading ? (
+                        <View style={styles.center}>
+                            <ActivityIndicator size="large" color="#3B82F6" />
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={filteredHospitals}
+                            keyExtractor={(item) => item.id}
+                            onScroll={onScroll}
+                            scrollEventThrottle={16}
+                            contentContainerStyle={styles.listContent}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.hospitalCard,
+                                        { backgroundColor: colors.surface },
+                                        selectedHospital?.id === item.id && styles.hospitalCardSelected
+                                    ]}
+                                    onPress={() => setSelectedHospital(item)}
+                                >
+                                    <View style={styles.hospitalInfo}>
+                                        <View style={styles.hospitalHeader}>
+                                            <Text style={[styles.hospitalName, { color: colors.text }]}>{item.name}</Text>
+                                            {sortByDistance && userLocation && (
+                                                <View style={styles.distanceBadge}>
+                                                    <Ionicons name="location" size={10} color="#3B82F6" />
+                                                    <Text style={styles.distanceText}>
+                                                        {calculateDistance(
+                                                            userLocation.coords.latitude,
+                                                            userLocation.coords.longitude,
+                                                            item.location.latitude,
+                                                            item.location.longitude
+                                                        ).toFixed(1)} km
+                                                    </Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                        <Text style={styles.hospitalType}>{item.facilityType || 'Blood Bank'}</Text>
+                                        <Text style={[styles.hospitalAddress, { color: colors.textSecondary }]} numberOfLines={1}>
+                                            {item.address}
+                                        </Text>
+
+                                        <View style={styles.hospitalMeta}>
+                                            <View style={styles.metaItem}>
+                                                <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
+                                                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                                                    {item.operatingHours?.open} - {item.operatingHours?.close}
                                                 </Text>
                                             </View>
-                                        )}
+                                            {item.phoneNumber && (
+                                                <View style={styles.metaItem}>
+                                                    <Ionicons name="call-outline" size={12} color={colors.textSecondary} />
+                                                    <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.phoneNumber}</Text>
+                                                </View>
+                                            )}
+                                        </View>
                                     </View>
-                                    <Text style={styles.hospitalType}>{item.facilityType || 'Blood Bank'}</Text>
-                                    <Text style={[styles.hospitalAddress, { color: colors.textSecondary }]} numberOfLines={1}>
-                                        {item.address}
+                                    {item.criticalNeed && (
+                                        <View style={styles.criticalBadge}>
+                                            <Text style={styles.criticalText}>CRITICAL</Text>
+                                        </View>
+                                    )}
+                                    {selectedHospital?.id === item.id && (
+                                        <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                            ListEmptyComponent={
+                                <View style={styles.emptyState}>
+                                    <Ionicons name="business-outline" size={64} color={colors.textSecondary + '40'} />
+                                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                                        No hospitals found.
                                     </Text>
-
-                                    <View style={styles.hospitalMeta}>
-                                        <View style={styles.metaItem}>
-                                            <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
-                                            <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                                                {item.operatingHours?.open} - {item.operatingHours?.close}
-                                            </Text>
-                                        </View>
-                                        {item.phoneNumber && (
-                                            <View style={styles.metaItem}>
-                                                <Ionicons name="call-outline" size={12} color={colors.textSecondary} />
-                                                <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.phoneNumber}</Text>
-                                            </View>
-                                        )}
-                                    </View>
                                 </View>
-                                {item.criticalNeed && (
-                                    <View style={styles.criticalBadge}>
-                                        <Text style={styles.criticalText}>CRITICAL</Text>
-                                    </View>
-                                )}
-                                {selectedHospital?.id === item.id && (
-                                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                                )}
-                            </TouchableOpacity>
-                        )}
-                        ListEmptyComponent={
-                            <View style={styles.emptyState}>
-                                <Ionicons name="business-outline" size={64} color={colors.textSecondary + '40'} />
-                                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                                    No hospitals found.
-                                </Text>
-                            </View>
-                        }
-                    />
-                )
-            }
+                            }
+                        />
+                    )
+                }
 
-            {/* Booking Modal - Centered */}
-            <Modal
-                visible={!!selectedHospital}
-                animationType="fade"
-                transparent={true}
-                onRequestClose={closeModal}
-            >
-                <TouchableWithoutFeedback onPress={closeModal}>
-                    <View style={styles.modalOverlay}>
-                        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                            <KeyboardAvoidingView
-                                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-                                style={styles.keyboardView}
-                            >
-                                <View style={[styles.centeredModal, { backgroundColor: colors.surface }]}>
-                                    <View style={styles.modalHeader}>
-                                        <Text style={[styles.modalTitle, { color: colors.text }]}>Schedule Donation</Text>
-                                        <TouchableOpacity
-                                            style={styles.modalCloseButton}
-                                            onPress={closeModal}
-                                        >
-                                            <Ionicons name="close" size={24} color={colors.textSecondary} />
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    {/* Selected Hospital Info */}
-                                    <View style={[styles.selectedHospitalCard, { backgroundColor: colors.bg }]}>
-                                        <View style={styles.hospitalIcon}>
-                                            <Ionicons name="business" size={24} color="#2563EB" />
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={[styles.selectedHospitalName, { color: colors.text }]}>
-                                                {selectedHospital?.name}
-                                            </Text>
-                                            <Text style={[styles.selectedHospitalAddr, { color: colors.textSecondary }]}>
-                                                {selectedHospital?.address}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    <ScrollView showsVerticalScrollIndicator={false}>
-                                        <Text style={[styles.sectionLabel, { color: colors.text }]}>Select Time Slot</Text>
-                                        <View style={styles.timeGrid}>
-                                            {timeSlots.map(time => (
+                {/* Booking Modal - Centered */}
+                <Modal
+                    visible={!!selectedHospital}
+                    animationType="fade"
+                    transparent={true}
+                    onRequestClose={closeModal}
+                >
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                        style={{ flex: 1 }}
+                    >
+                        <TouchableWithoutFeedback onPress={closeModal}>
+                            <View style={styles.modalOverlay}>
+                                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                                    <View style={styles.keyboardView}>
+                                        <View style={[styles.centeredModal, { backgroundColor: colors.surface }]}>
+                                            <View style={styles.modalHeader}>
+                                                <Text style={[styles.modalTitle, { color: colors.text }]}>Schedule Donation</Text>
                                                 <TouchableOpacity
-                                                    key={time}
-                                                    style={[
-                                                        styles.timeSlot,
-                                                        { backgroundColor: colors.bg },
-                                                        selectedTimeSlot === time && styles.timeSlotActive
-                                                    ]}
-                                                    onPress={() => setSelectedTimeSlot(time)}
+                                                    style={styles.modalCloseButton}
+                                                    onPress={closeModal}
                                                 >
-                                                    <Text style={[
-                                                        styles.timeSlotText,
-                                                        { color: colors.textSecondary },
-                                                        selectedTimeSlot === time && styles.timeSlotTextActive
-                                                    ]}>{time}</Text>
+                                                    <Ionicons name="close" size={24} color={colors.textSecondary} />
                                                 </TouchableOpacity>
-                                            ))}
+                                            </View>
+
+                                            {/* Selected Hospital Info */}
+                                            <View style={[styles.selectedHospitalCard, { backgroundColor: colors.bg }]}>
+                                                <View style={styles.hospitalIcon}>
+                                                    <Ionicons name="business" size={24} color="#2563EB" />
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={[styles.selectedHospitalName, { color: colors.text }]}>
+                                                        {selectedHospital?.name}
+                                                    </Text>
+                                                    <Text style={[styles.selectedHospitalAddr, { color: colors.textSecondary }]}>
+                                                        {selectedHospital?.address}
+                                                    </Text>
+                                                </View>
+                                            </View>
+
+                                            <ScrollView showsVerticalScrollIndicator={false}>
+                                                <Text style={[styles.sectionLabel, { color: colors.text }]}>Select Time Slot</Text>
+                                                <View style={styles.timeGrid}>
+                                                    {timeSlots.map(time => (
+                                                        <TouchableOpacity
+                                                            key={time}
+                                                            style={[
+                                                                styles.timeSlot,
+                                                                { backgroundColor: colors.bg },
+                                                                selectedTimeSlot === time && styles.timeSlotActive
+                                                            ]}
+                                                            onPress={() => setSelectedTimeSlot(time)}
+                                                        >
+                                                            <Text style={[
+                                                                styles.timeSlotText,
+                                                                { color: colors.textSecondary },
+                                                                selectedTimeSlot === time && styles.timeSlotTextActive
+                                                            ]}>{time}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+
+                                                {/* Notes */}
+                                                <Text style={[styles.sectionLabel, { color: colors.text }]}>Additional Notes (Optional)</Text>
+                                                <TextInput
+                                                    placeholder="Add any special requests or notes..."
+                                                    placeholderTextColor={colors.textSecondary}
+                                                    style={[styles.notesInput, {
+                                                        backgroundColor: colors.bg,
+                                                        color: colors.text,
+                                                        borderColor: colors.textSecondary + '40'
+                                                    }]}
+                                                    value={notes}
+                                                    onChangeText={setNotes}
+                                                    multiline
+                                                    numberOfLines={3}
+                                                />
+
+                                                <TouchableOpacity
+                                                    style={styles.bookButton}
+                                                    onPress={handleBooking}
+                                                    disabled={bookingLoading}
+                                                >
+                                                    <LinearGradient colors={['#2563EB', '#1D4ED8']} style={styles.bookButtonGrad}>
+                                                        {bookingLoading ? (
+                                                            <ActivityIndicator size="small" color="#FFF" />
+                                                        ) : (
+                                                            <Text style={styles.bookButtonText}>Confirm Appointment</Text>
+                                                        )}
+                                                    </LinearGradient>
+                                                </TouchableOpacity>
+                                            </ScrollView>
                                         </View>
-
-                                        {/* Notes */}
-                                        <Text style={[styles.sectionLabel, { color: colors.text }]}>Additional Notes (Optional)</Text>
-                                        <TextInput
-                                            placeholder="Add any special requests or notes..."
-                                            placeholderTextColor={colors.textSecondary}
-                                            style={[styles.notesInput, {
-                                                backgroundColor: colors.bg,
-                                                color: colors.text,
-                                                borderColor: colors.textSecondary + '40'
-                                            }]}
-                                            value={notes}
-                                            onChangeText={setNotes}
-                                            multiline
-                                            numberOfLines={3}
-                                        />
-
-                                        <TouchableOpacity
-                                            style={styles.bookButton}
-                                            onPress={handleBooking}
-                                            disabled={bookingLoading}
-                                        >
-                                            <LinearGradient colors={['#2563EB', '#1D4ED8']} style={styles.bookButtonGrad}>
-                                                {bookingLoading ? (
-                                                    <ActivityIndicator size="small" color="#FFF" />
-                                                ) : (
-                                                    <Text style={styles.bookButtonText}>Confirm Appointment</Text>
-                                                )}
-                                            </LinearGradient>
-                                        </TouchableOpacity>
-                                    </ScrollView>
-                                </View>
-                            </KeyboardAvoidingView>
+                                    </View>
+                                </TouchableWithoutFeedback>
+                            </View>
                         </TouchableWithoutFeedback>
-                    </View>
-                </TouchableWithoutFeedback>
-            </Modal>
-        </SafeAreaView >
+                    </KeyboardAvoidingView>
+                </Modal>
+            </View>
+        </SafeAreaView>
     );
 }
 

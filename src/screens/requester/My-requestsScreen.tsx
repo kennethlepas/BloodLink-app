@@ -11,7 +11,7 @@ import {
   updateBloodRequest,
   updateRecipientBookingStatus,
   verifyDonationByRequester,
-} from '@/src/services/firebase/database';
+} from '@/src/services/offline/offlineDatabase';
 import { AcceptedRequest, BloodRequest, RecipientBooking } from '@/src/types/types';
 import { showRatingPrompt } from '@/src/utils/ratingPromptHelper';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +21,10 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -29,6 +32,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -462,6 +466,17 @@ const MyRequestsScreen: React.FC = () => {
     }
   };
 
+  const safeFormatDate = (dateStr: string | undefined | null) => {
+    if (!dateStr) return 'N/A';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'N/A';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch {
+      return 'N/A';
+    }
+  };
+
   const filteredRequests = useMemo(() => {
     let f = filter === 'all' ? requests : requests.filter(r => r.status === filter);
 
@@ -634,7 +649,7 @@ const MyRequestsScreen: React.FC = () => {
               <Ionicons name="time" size={13} color={BLUE} />
               <Text style={[st.chipLabel, { color: TEXT_SOFT }]}>Created</Text>
               <Text style={[st.chipValue, { color: BLUE }]}>
-                {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {safeFormatDate(item.createdAt)}
               </Text>
             </View>
           </View>
@@ -673,7 +688,7 @@ const MyRequestsScreen: React.FC = () => {
                       <Text style={st.verifyBloodText}>{v.bloodType}</Text>
                     </View>
                     <Text style={[st.verifyDate, { color: TEXT_MID }]}>
-                      {new Date(v.donorCompletedAt || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {safeFormatDate(v.donorCompletedAt)}
                     </Text>
                   </View>
                 </View>
@@ -959,12 +974,7 @@ const MyRequestsScreen: React.FC = () => {
           </TouchableOpacity>
           <View style={st.headerCenter}>
             <Text style={st.headerTitle}>My Requests</Text>
-            <Text style={st.headerSub}>
-              {activeTab === 'requests'
-                ? `${requests.length} request${requests.length !== 1 ? 's' : ''}`
-                : `${recipientBookings.length} booking${recipientBookings.length !== 1 ? 's' : ''}`
-              }
-            </Text>
+            <Text style={st.headerSub}>Track & manage your requests</Text>
           </View>
           <TouchableOpacity style={st.addBtn} onPress={() => router.push('/(requester)/needblood' as any)}>
             <Ionicons name="add" size={22} color="#FFFFFF" />
@@ -1033,8 +1043,8 @@ const MyRequestsScreen: React.FC = () => {
 
       <Modal visible={!!viewRequest} transparent animationType="fade">
         <View style={st.modalOverlay}>
-          <View style={[st.modalSheet, { maxHeight: '80%', backgroundColor: SURFACE }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={[st.modalSheet, { maxHeight: '90%', backgroundColor: SURFACE }]}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
               <View style={st.modalHeaderRow}>
                 <Text style={[st.modalTitle, { color: TEXT_DARK }]}>Request Details</Text>
                 <TouchableOpacity onPress={() => setViewRequest(null)} style={st.modalCloseBtn}>
@@ -1076,54 +1086,58 @@ const MyRequestsScreen: React.FC = () => {
       </Modal>
 
       <Modal visible={verifyModalVisible} transparent animationType="slide">
-        <View style={[st.modalOverlay, { justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-          <View style={[st.modalSheet, { backgroundColor: SURFACE, width: '100%', borderTopLeftRadius: 26, borderTopRightRadius: 26 }]}>
-            <View style={st.modalHeaderRow}>
-              <View style={[st.modalTitleIcon, { backgroundColor: colors.primary + '15' }]}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
-              </View>
-              <Text style={[st.modalTitle, { color: TEXT_DARK }]}>Verify Donation</Text>
-              <TouchableOpacity style={st.modalCloseBtn} onPress={() => setVerifyModalVisible(false)}>
-                <Ionicons name="close" size={24} color={TEXT_SOFT} />
-              </TouchableOpacity>
-            </View>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={[st.modalOverlay, { justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+              <View style={[st.modalSheet, { backgroundColor: SURFACE, width: '100%', maxHeight: '85%', borderTopLeftRadius: 26, borderTopRightRadius: 26 }]}>
+                <View style={st.modalHeaderRow}>
+                  <View style={[st.modalTitleIcon, { backgroundColor: colors.primary + '15' }]}>
+                    <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
+                  </View>
+                  <Text style={[st.modalTitle, { color: TEXT_DARK }]}>Verify Donation</Text>
+                  <TouchableOpacity style={st.modalCloseBtn} onPress={() => setVerifyModalVisible(false)}>
+                    <Ionicons name="close" size={24} color={TEXT_SOFT} />
+                  </TouchableOpacity>
+                </View>
 
-            {selectedVerification && (
-              <View style={[st.donorInfoCard, { backgroundColor: colors.surfaceTint, borderLeftColor: colors.primary }]}>
-                <View style={st.donorInfoRow}>
-                  <LinearGradient colors={[colors.primary, colors.primary + 'B3']} style={st.donorInfoAvatar}>
-                    <Text style={st.donorInfoAvatarText}>{selectedVerification.donorName?.charAt(0).toUpperCase()}</Text>
-                  </LinearGradient>
-                  <View>
-                    <Text style={[st.donorInfoName, { color: TEXT_DARK }]}>{selectedVerification.donorName}</Text>
-                    <View style={st.donorInfoMeta}>
-                      <Text style={[st.donorInfoBlood, { color: colors.danger }]}>{selectedVerification.bloodType}</Text>
-                      <Text style={[st.donorInfoDate, { color: TEXT_SOFT }]}>received {new Date(selectedVerification.donorCompletedAt || '').toLocaleDateString()}</Text>
+                {selectedVerification && (
+                  <View style={[st.donorInfoCard, { backgroundColor: colors.surfaceTint, borderLeftColor: colors.primary }]}>
+                    <View style={st.donorInfoRow}>
+                      <LinearGradient colors={[colors.primary, colors.primary + 'B3']} style={st.donorInfoAvatar}>
+                        <Text style={st.donorInfoAvatarText}>{selectedVerification.donorName?.charAt(0).toUpperCase()}</Text>
+                      </LinearGradient>
+                      <View>
+                        <Text style={[st.donorInfoName, { color: TEXT_DARK }]}>{selectedVerification.donorName}</Text>
+                        <View style={st.donorInfoMeta}>
+                          <Text style={[st.donorInfoBlood, { color: colors.danger }]}>{selectedVerification.bloodType}</Text>
+                          <Text style={[st.donorInfoDate, { color: TEXT_SOFT }]}>received {new Date(selectedVerification.donorCompletedAt || '').toLocaleDateString()}</Text>
+                        </View>
+                      </View>
                     </View>
                   </View>
+                )}
+
+                <Text style={[st.modalInputLabel, { color: TEXT_DARK }]}>Notes (Optional)</Text>
+                <TextInput
+                  style={[st.modalInput, { backgroundColor: colors.surfaceTint, borderColor: BORDER, color: TEXT_DARK }]}
+                  placeholder="Any feedback?" placeholderTextColor={TEXT_SOFT}
+                  multiline value={verificationNotes} onChangeText={setVerificationNotes}
+                />
+
+                <View style={st.modalBtnsRow}>
+                  <TouchableOpacity style={[st.modalDisputeBtn, { borderColor: BORDER }]} onPress={handleDisputeDonation}>
+                    <Text style={[st.modalDisputeText, { color: colors.danger }]}>Report Issue</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={st.modalVerifyBtn} onPress={confirmVerifyDonation}>
+                    <LinearGradient colors={[colors.primary, colors.primary + 'B3']} style={st.modalVerifyGrad}>
+                      <Text style={st.modalVerifyText}>Confirm Received</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </View>
               </View>
-            )}
-
-            <Text style={[st.modalInputLabel, { color: TEXT_DARK }]}>Notes (Optional)</Text>
-            <TextInput
-              style={[st.modalInput, { backgroundColor: colors.surfaceTint, borderColor: BORDER, color: TEXT_DARK }]}
-              placeholder="Any feedback?" placeholderTextColor={TEXT_SOFT}
-              multiline value={verificationNotes} onChangeText={setVerificationNotes}
-            />
-
-            <View style={st.modalBtnsRow}>
-              <TouchableOpacity style={[st.modalDisputeBtn, { borderColor: BORDER }]} onPress={handleDisputeDonation}>
-                <Text style={[st.modalDisputeText, { color: colors.danger }]}>Report Issue</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={st.modalVerifyBtn} onPress={confirmVerifyDonation}>
-                <LinearGradient colors={[colors.primary, colors.primary + 'B3']} style={st.modalVerifyGrad}>
-                  <Text style={st.modalVerifyText}>Confirm Received</Text>
-                </LinearGradient>
-              </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

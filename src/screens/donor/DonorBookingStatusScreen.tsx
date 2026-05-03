@@ -5,7 +5,7 @@ import {
     getOrCreateChat,
     subscribeToDonorBooking,
     updateDonorBookingStatus
-} from '@/src/services/firebase/database';
+} from '@/src/services/offline/offlineDatabase';
 import { DonorBooking, DonorBookingStatus } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -161,115 +161,119 @@ export default function DonorBookingStatusScreen() {
     const statusCfg = getStatusConfig(booking.status);
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
-            <StatusBar barStyle="light-content" />
-            <LinearGradient colors={['#1E40AF', '#3B82F6']} style={styles.header}>
-                <View style={styles.headerContent}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
-                        <Ionicons name="arrow-back" size={24} color="#FFF" />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Booking Status</Text>
-                    <Text style={styles.headerSub}>Track your appointment</Text>
-                    <View style={{ width: 24 }} />
-                </View>
-
-                <View style={styles.statusCard}>
-                    <View style={[styles.statusIconCircle, { backgroundColor: statusCfg.bg }]}>
-                        <Ionicons name={statusCfg.icon as any} size={32} color={statusCfg.color} />
-                    </View>
-                    <Text style={[styles.statusLabel, { color: statusCfg.color }]}>{statusCfg.label}</Text>
-                    <Text style={styles.bookingId}>ID: {booking.bookingId}</Text>
-                </View>
-            </LinearGradient>
-
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <View style={[styles.section, { backgroundColor: colors.surface }]}>
-                    <View style={styles.sectionHeader}>
-                        <Ionicons name="business" size={20} color="#2563EB" />
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Hospital Information</Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Facility Name</Text>
-                        <Text style={[styles.infoValue, { color: colors.text }]}>{booking.hospitalName}</Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Address</Text>
-                        <Text style={[styles.infoValue, { color: colors.text }]}>{booking.hospitalAddress}</Text>
-                    </View>
-                </View>
-
-                <View style={[styles.section, { backgroundColor: colors.surface }]}>
-                    <View style={styles.sectionHeader}>
-                        <Ionicons name="calendar" size={20} color="#2563EB" />
-                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Appointment Details</Text>
-                    </View>
-                    <View style={styles.doubleRow}>
-                        <View style={styles.halfCol}>
-                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date</Text>
-                            <Text style={[styles.infoValue, { color: colors.text }]}>{booking.scheduledDate}</Text>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#1E40AF' }} edges={['top']}>
+            <StatusBar barStyle="light-content" backgroundColor="#1E40AF" />
+            <View style={[styles.container, { backgroundColor: colors.bg }]}>
+                <LinearGradient colors={['#1E40AF', '#3B82F6']} style={styles.header}>
+                    <View style={styles.headerContent}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.backIcon}>
+                            <Ionicons name="arrow-back" size={24} color="#FFF" />
+                        </TouchableOpacity>
+                        <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                            <Text style={styles.headerTitle}>Booking Status</Text>
+                            <Text style={styles.headerSub}>Track your appointment</Text>
                         </View>
-                        <View style={styles.halfCol}>
-                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Time Slot</Text>
-                            <Text style={[styles.infoValue, { color: colors.text }]}>{booking.scheduledTime}</Text>
-                        </View>
+                        <View style={{ width: 24 }} />
                     </View>
-                    <View style={styles.infoRow}>
-                        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Blood Type</Text>
-                        <View style={styles.bloodBadge}>
-                            <Text style={styles.bloodText}>{booking.bloodType}</Text>
-                        </View>
-                    </View>
-                </View>
 
-                {booking.notes && (
+                    <View style={styles.statusCard}>
+                        <View style={[styles.statusIconCircle, { backgroundColor: statusCfg.bg }]}>
+                            <Ionicons name={statusCfg.icon as any} size={32} color={statusCfg.color} />
+                        </View>
+                        <Text style={[styles.statusLabel, { color: statusCfg.color }]}>{statusCfg.label}</Text>
+                        <Text style={styles.bookingId}>ID: {booking.bookingId}</Text>
+                    </View>
+                </LinearGradient>
+
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     <View style={[styles.section, { backgroundColor: colors.surface }]}>
                         <View style={styles.sectionHeader}>
-                            <Ionicons name="document-text" size={20} color="#2563EB" />
-                            <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Notes</Text>
+                            <Ionicons name="business" size={20} color="#2563EB" />
+                            <Text style={[styles.sectionTitle, { color: colors.text }]}>Hospital Information</Text>
                         </View>
-                        <Text style={[styles.notesText, { color: colors.textSecondary }]}>{booking.notes}</Text>
+                        <View style={styles.infoRow}>
+                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Facility Name</Text>
+                            <Text style={[styles.infoValue, { color: colors.text }]}>{booking.hospitalName}</Text>
+                        </View>
+                        <View style={styles.infoRow}>
+                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Address</Text>
+                            <Text style={[styles.infoValue, { color: colors.text }]}>{booking.hospitalAddress}</Text>
+                        </View>
                     </View>
-                )}
 
-                {booking.status === 'rejected' && booking.rejectionReason && (
-                    <View style={[styles.section, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', borderWidth: 1 }]}>
+                    <View style={[styles.section, { backgroundColor: colors.surface }]}>
                         <View style={styles.sectionHeader}>
-                            <Ionicons name="alert-circle" size={20} color="#EF4444" />
-                            <Text style={[styles.sectionTitle, { color: '#991B1B' }]}>Rejection Reason</Text>
+                            <Ionicons name="calendar" size={20} color="#2563EB" />
+                            <Text style={[styles.sectionTitle, { color: colors.text }]}>Appointment Details</Text>
                         </View>
-                        <Text style={[styles.notesText, { color: '#B91C1C' }]}>{booking.rejectionReason}</Text>
+                        <View style={styles.doubleRow}>
+                            <View style={styles.halfCol}>
+                                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Date</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>{booking.scheduledDate}</Text>
+                            </View>
+                            <View style={styles.halfCol}>
+                                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Time Slot</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>{booking.scheduledTime}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.infoRow}>
+                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Blood Type</Text>
+                            <View style={styles.bloodBadge}>
+                                <Text style={styles.bloodText}>{booking.bloodType}</Text>
+                            </View>
+                        </View>
                     </View>
-                )}
 
-                <TouchableOpacity
-                    style={styles.chatButton}
-                    onPress={handleChatWithHospital}
-                    activeOpacity={0.8}
-                >
-                    <LinearGradient colors={['#2563EB', '#1D4ED8']} style={styles.chatButtonGrad}>
-                        <Ionicons name="chatbubble-ellipses" size={20} color="#FFF" />
-                        <Text style={styles.chatButtonText}>Message Hospital</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+                    {booking.notes && (
+                        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+                            <View style={styles.sectionHeader}>
+                                <Ionicons name="document-text" size={20} color="#2563EB" />
+                                <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Notes</Text>
+                            </View>
+                            <Text style={[styles.notesText, { color: colors.textSecondary }]}>{booking.notes}</Text>
+                        </View>
+                    )}
 
-                {booking.status === 'pending' && (
+                    {booking.status === 'rejected' && booking.rejectionReason && (
+                        <View style={[styles.section, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', borderWidth: 1 }]}>
+                            <View style={styles.sectionHeader}>
+                                <Ionicons name="alert-circle" size={20} color="#EF4444" />
+                                <Text style={[styles.sectionTitle, { color: '#991B1B' }]}>Rejection Reason</Text>
+                            </View>
+                            <Text style={[styles.notesText, { color: '#B91C1C' }]}>{booking.rejectionReason}</Text>
+                        </View>
+                    )}
+
                     <TouchableOpacity
-                        style={styles.cancelButton}
-                        onPress={handleCancelBooking}
+                        style={styles.chatButton}
+                        onPress={handleChatWithHospital}
                         activeOpacity={0.8}
                     >
-                        <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
-                        <Text style={styles.cancelButtonText}>Cancel Booking</Text>
+                        <LinearGradient colors={['#2563EB', '#1D4ED8']} style={styles.chatButtonGrad}>
+                            <Ionicons name="chatbubble-ellipses" size={20} color="#FFF" />
+                            <Text style={styles.chatButtonText}>Message Hospital</Text>
+                        </LinearGradient>
                     </TouchableOpacity>
-                )}
 
-                <TouchableOpacity
-                    style={[styles.outlineBtn, { borderColor: colors.divider }]}
-                    onPress={() => router.back()}
-                >
-                    <Text style={[styles.outlineBtnText, { color: colors.textSecondary }]}>Back to History</Text>
-                </TouchableOpacity>
-            </ScrollView>
+                    {booking.status === 'pending' && (
+                        <TouchableOpacity
+                            style={styles.cancelButton}
+                            onPress={handleCancelBooking}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
+                            <Text style={styles.cancelButtonText}>Cancel Booking</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.outlineBtn, { borderColor: colors.divider }]}
+                        onPress={() => router.back()}
+                    >
+                        <Text style={[styles.outlineBtnText, { color: colors.textSecondary }]}>Back to History</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+            </View>
         </SafeAreaView>
     );
 }

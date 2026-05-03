@@ -4,7 +4,7 @@ import {
   createTicket,
   getAcceptedRequest,
   getBloodRequest,
-} from '@/src/services/firebase/database';
+} from '@/src/services/offline/offlineDatabase';
 import { notifyAdminsOfNewTicket } from '@/src/services/notification/notificationService';
 import {
   CreateTicketFormData,

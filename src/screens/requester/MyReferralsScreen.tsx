@@ -424,8 +424,10 @@ export default function MyReferralsScreen() {
                     <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
                         <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <Text style={st.headerTitle}>My Referrals</Text>
-                    <Text style={st.headerSub}>Hospital referral history</Text>
+                    <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                        <Text style={st.headerTitle}>My Referrals</Text>
+                        <Text style={st.headerSub}>Hospital referral history</Text>
+                    </View>
                     <View style={st.headerRight}>
                         <Text style={st.countText}>{referrals.length}</Text>
                     </View>

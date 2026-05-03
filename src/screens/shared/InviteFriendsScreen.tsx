@@ -39,8 +39,10 @@ export default function InviteFriendsScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Invite a Hero</Text>
-                <Text style={styles.headerSub}>Grow the BloodLink community</Text>
+                <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                    <Text style={styles.headerTitle}>Invite a Hero</Text>
+                    <Text style={styles.headerSub}>Grow the BloodLink community</Text>
+                </View>
             </LinearGradient>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

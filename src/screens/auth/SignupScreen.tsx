@@ -2,7 +2,7 @@ import { useImagePicker } from '@/hooks/useImagePicker';
 import { KENYA_COUNTIES, getSubCountiesByCounty } from '@/src/constants/kenyaLocations';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
-import { createUser } from '@/src/services/firebase/database';
+import { createUser } from '@/src/services/offline/offlineDatabase';
 import { auth, db } from '@/src/services/firebase/firebase';
 import { getCurrentLocation } from '@/src/services/location/locationService';
 import { BloodType, SignupFormData, UserType } from '@/src/types/types';

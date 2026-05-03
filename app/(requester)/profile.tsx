@@ -2,7 +2,7 @@ import { useImagePicker } from '@/hooks/useImagePicker';
 import { LogoutModal } from '@/src/components/LogoutModal';
 import { useUser } from '@/src/contexts/UserContext';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
-import { getUserBloodRequests, updateUser } from '@/src/services/firebase/database';
+import { getUserBloodRequests, updateUser } from '@/src/services/offline/offlineDatabase';
 import { BloodRequest } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,18 +33,18 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // ═══════════════════════════════════════════════════════════════════════════
 
 const COLORS = {
-  // Primary - Medical Teal (Requester theme)
+  // Primary - Medical Blue
   primary: {
-    50: '#F0FDFA',
-    100: '#CCFBF1',
-    200: '#99F6E4',
-    300: '#5EEAD4',
-    400: '#2DD4BF',
-    500: '#14B8A6',
-    600: '#0D9488',
-    700: '#0F766E',
-    800: '#115E59',
-    900: '#134E4A',
+    50: '#EFF6FF',
+    100: '#DBEAFE',
+    200: '#BFDBFE',
+    300: '#93C5FD',
+    400: '#60A5FA',
+    500: '#3B82F6',
+    600: '#2563EB',
+    700: '#1D4ED8',
+    800: '#1E40AF',
+    900: '#1E3A8A',
   },
   // Secondary - Medical Blue
   secondary: {
@@ -565,375 +565,377 @@ const RequesterProfileScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.primary[600] }} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary[600]} />
+      <View style={styles.container}>
 
-      {/* Header with Gradient */}
-      <LinearGradient
-        colors={[COLORS.primary[600], COLORS.primary[700]]}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerBadge}>REQUESTER PROFILE</Text>
-            <Text style={styles.headerTitle}>My Dashboard</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={() => router.push('/(shared)/settings' as any)}
-          >
-            <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        onTouchStart={showTabBar}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[COLORS.primary[500]]}
-            tintColor={COLORS.primary[500]}
-          />
-        }
-      >
-        {/* Profile Card */}
-        <View style={styles.profileSection}>
-          <View style={styles.profileCard}>
-            <View style={styles.profileHeader}>
-              <TouchableOpacity
-                style={styles.avatarContainer}
-                onPress={handleUpdateProfilePicture}
-                disabled={imageUploading}
-                activeOpacity={0.8}
-              >
-                {user.profilePicture ? (
-                  <Image source={{ uri: user.profilePicture }} style={styles.avatar} />
-                ) : (
-                  <LinearGradient
-                    colors={[COLORS.primary[100], COLORS.primary[200]]}
-                    style={styles.avatarPlaceholder}
-                  >
-                    <Ionicons name="person" size={48} color={COLORS.primary[600]} />
-                  </LinearGradient>
-                )}
-                <View style={styles.cameraOverlay}>
-                  {imageUploading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Ionicons name="camera" size={18} color="#FFFFFF" />
-                  )}
-                </View>
-              </TouchableOpacity>
-
-              <View style={styles.profileInfo}>
-                <Text style={styles.userName}>
-                  {user.firstName} {user.lastName}
-                </Text>
-                <View style={styles.bloodTypeBadge}>
-                  <Ionicons name="water" size={14} color="#FFFFFF" />
-                  <Text style={styles.bloodTypeText}>{user.bloodType}</Text>
-                </View>
-              </View>
+        {/* Header with Gradient */}
+        <LinearGradient
+          colors={[COLORS.primary[600], COLORS.primary[700]]}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.headerBadge}>REQUESTER PROFILE</Text>
+              <Text style={styles.headerTitle}>My Dashboard</Text>
             </View>
-
-            <View style={styles.contactInfo}>
-              <View style={styles.contactRow}>
-                <View style={styles.contactIconWrapper}>
-                  <Ionicons name="mail-outline" size={16} color={COLORS.primary[600]} />
-                </View>
-                <Text style={styles.contactText} numberOfLines={1}>
-                  {user.email}
-                </Text>
-              </View>
-              <View style={styles.contactRow}>
-                <View style={styles.contactIconWrapper}>
-                  <Ionicons name="call-outline" size={16} color={COLORS.primary[600]} />
-                </View>
-                <Text style={styles.contactText}>{user.phoneNumber}</Text>
-              </View>
-            </View>
-
             <TouchableOpacity
-              style={styles.editProfileButton}
-              onPress={handleEditProfile}
-              activeOpacity={0.7}
+              style={styles.headerIconButton}
+              onPress={() => router.push('/(shared)/settings' as any)}
             >
-              <Ionicons name="create-outline" size={18} color={COLORS.primary[600]} />
-              <Text style={styles.editProfileText}>Edit Profile</Text>
+              <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        </View>
+        </LinearGradient>
 
-        {/* Create Request CTA */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.ctaCard} onPress={handleCreateRequest} activeOpacity={0.85}>
-            <LinearGradient
-              colors={[COLORS.primary[500], COLORS.primary[600]]}
-              style={styles.ctaGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <View style={styles.ctaIconWrapper}>
-                <Ionicons name="add-circle" size={48} color="rgba(255,255,255,0.9)" />
-              </View>
-              <View style={styles.ctaContent}>
-                <Text style={styles.ctaTitle}>Need Blood Urgently?</Text>
-                <Text style={styles.ctaSubtitle}>
-                  Create a new request to connect with donors
-                </Text>
-              </View>
-              <View style={styles.ctaArrow}>
-                <Ionicons name="arrow-forward" size={24} color="rgba(255,255,255,0.8)" />
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Statistics Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Request Overview</Text>
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="document-text-outline"
-              value={totalRequests}
-              label="Total Requests"
-              color={COLORS.primary[600]}
-              bgColor={COLORS.primary[50]}
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          onTouchStart={showTabBar}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary[500]]}
+              tintColor={COLORS.primary[500]}
             />
-            <StatCard
-              icon="time-outline"
-              value={activeRequests.length}
-              label="Active"
-              color={COLORS.warning[600]}
-              bgColor={COLORS.warning[50]}
-            />
-            <StatCard
-              icon="checkmark-done-circle-outline"
-              value={completedRequests.length}
-              label="Completed"
-              color={COLORS.success[600]}
-              bgColor={COLORS.success[50]}
-            />
-          </View>
-        </View>
-
-        {/* Request History Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Request History</Text>
-            <View style={styles.historyCountBadge}>
-              <Text style={styles.historyCountText}>{totalRequests}</Text>
-            </View>
-          </View>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={COLORS.primary[500]} />
-              <Text style={styles.loadingText}>Loading history...</Text>
-            </View>
-          ) : requestHistory.length > 0 ? (
-            <>
-              {/* Active Requests Section */}
-              {activeRequests.length > 0 && (
-                <View style={styles.requestsSubsection}>
-                  <Text style={styles.subsectionTitle}>ACTIVE REQUESTS</Text>
-                  <View style={styles.requestsList}>
-                    {activeRequests.slice(0, 3).map((request) => (
-                      <RequestListItem
-                        key={request.id}
-                        request={request}
-                        onPress={() => setSelectedRequest(request)}
-                      />
-                    ))}
-                  </View>
-                  {activeRequests.length > 3 && (
-                    <TouchableOpacity
-                      style={styles.viewMoreButton}
-                      onPress={handleViewAllRequests}
-                    >
-                      <Text style={styles.viewMoreText}>View All Active Requests</Text>
-                      <Ionicons name="arrow-forward" size={14} color={COLORS.primary[600]} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              {/* Completed Requests Section */}
-              {completedRequests.length > 0 && (
-                <View style={styles.requestsSubsection}>
-                  <Text style={styles.subsectionTitle}>COMPLETED REQUESTS</Text>
-                  <View style={styles.requestsList}>
-                    {completedRequests.slice(0, 2).map((request) => (
-                      <RequestListItem
-                        key={request.id}
-                        request={request}
-                        onPress={() => setSelectedRequest(request)}
-                      />
-                    ))}
-                  </View>
-                  {completedRequests.length > 2 && (
-                    <TouchableOpacity
-                      style={styles.viewMoreButton}
-                      onPress={handleViewAllRequests}
-                    >
-                      <Text style={styles.viewMoreText}>View All Completed Requests</Text>
-                      <Ionicons name="arrow-forward" size={14} color={COLORS.primary[600]} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconWrapper}>
-                <LinearGradient
-                  colors={[COLORS.primary[50], COLORS.primary[100]]}
-                  style={styles.emptyIcon}
+          }
+        >
+          {/* Profile Card */}
+          <View style={styles.profileSection}>
+            <View style={styles.profileCard}>
+              <View style={styles.profileHeader}>
+                <TouchableOpacity
+                  style={styles.avatarContainer}
+                  onPress={handleUpdateProfilePicture}
+                  disabled={imageUploading}
+                  activeOpacity={0.8}
                 >
-                  <Ionicons
-                    name="document-text-outline"
-                    size={52}
-                    color={COLORS.primary[400]}
-                  />
-                </LinearGradient>
+                  {user.profilePicture ? (
+                    <Image source={{ uri: user.profilePicture }} style={styles.avatar} />
+                  ) : (
+                    <LinearGradient
+                      colors={[COLORS.primary[100], COLORS.primary[200]]}
+                      style={styles.avatarPlaceholder}
+                    >
+                      <Ionicons name="person" size={48} color={COLORS.primary[600]} />
+                    </LinearGradient>
+                  )}
+                  <View style={styles.cameraOverlay}>
+                    {imageUploading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="camera" size={18} color="#FFFFFF" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+
+                <View style={styles.profileInfo}>
+                  <Text style={styles.userName}>
+                    {user.firstName} {user.lastName}
+                  </Text>
+                  <View style={styles.bloodTypeBadge}>
+                    <Ionicons name="water" size={14} color="#FFFFFF" />
+                    <Text style={styles.bloodTypeText}>{user.bloodType}</Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.emptyTitle}>No Requests Yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Create your first blood request to connect with donors
-              </Text>
+
+              <View style={styles.contactInfo}>
+                <View style={styles.contactRow}>
+                  <View style={styles.contactIconWrapper}>
+                    <Ionicons name="mail-outline" size={16} color={COLORS.primary[600]} />
+                  </View>
+                  <Text style={styles.contactText} numberOfLines={1}>
+                    {user.email}
+                  </Text>
+                </View>
+                <View style={styles.contactRow}>
+                  <View style={styles.contactIconWrapper}>
+                    <Ionicons name="call-outline" size={16} color={COLORS.primary[600]} />
+                  </View>
+                  <Text style={styles.contactText}>{user.phoneNumber}</Text>
+                </View>
+              </View>
+
               <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={handleCreateRequest}
+                style={styles.editProfileButton}
+                onPress={handleEditProfile}
                 activeOpacity={0.7}
               >
-                <Ionicons name="add" size={20} color="#FFFFFF" />
-                <Text style={styles.emptyButtonText}>Create Request</Text>
+                <Ionicons name="create-outline" size={18} color={COLORS.primary[600]} />
+                <Text style={styles.editProfileText}>Edit Profile</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionsList}>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/(shared)/find-bloodbank' as any)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.primary[50] }]}>
-                <Ionicons name="business-outline" size={24} color={COLORS.primary[600]} />
-              </View>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>Find Blood Banks</Text>
-                <Text style={styles.actionSubtitle}>Locate nearby medical facilities</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/(requester)/find-donors' as any)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.secondary[50] }]}>
-                <Ionicons name="people-outline" size={24} color={COLORS.secondary[600]} />
-              </View>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>Find Donors</Text>
-                <Text style={styles.actionSubtitle}>Search available blood donors</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={handleViewAllRequests}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.warning[50] }]}>
-                <Ionicons name="list-outline" size={24} color={COLORS.warning[600]} />
-              </View>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>My Requests</Text>
-                <Text style={styles.actionSubtitle}>View all your blood requests</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => Linking.openURL('https://blood-link-webguide.vercel.app/')}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#F5F3FF' }]}>
-                <Ionicons name="book-outline" size={24} color="#8B5CF6" />
-              </View>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>User Guide</Text>
-                <Text style={styles.actionSubtitle}>Full online documentation</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
-            </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Logout Button */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="log-out-outline" size={20} color={COLORS.accent[600]} />
-            <Text style={styles.logoutText}>Logout from Account</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
-
-      {/* Request Detail Modal */}
-      <Modal
-        visible={!!selectedRequest}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedRequest(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Request Details</Text>
-              <TouchableOpacity
-                onPress={() => setSelectedRequest(null)}
-                style={styles.modalCloseButton}
+          {/* Create Request CTA */}
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.ctaCard} onPress={handleCreateRequest} activeOpacity={0.85}>
+              <LinearGradient
+                colors={[COLORS.primary[500], COLORS.primary[600]]}
+                style={styles.ctaGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
               >
-                <Ionicons name="close" size={22} color={COLORS.neutral[500]} />
+                <View style={styles.ctaIconWrapper}>
+                  <Ionicons name="add-circle" size={48} color="rgba(255,255,255,0.9)" />
+                </View>
+                <View style={styles.ctaContent}>
+                  <Text style={styles.ctaTitle}>Need Blood Urgently?</Text>
+                  <Text style={styles.ctaSubtitle}>
+                    Create a new request to connect with donors
+                  </Text>
+                </View>
+                <View style={styles.ctaArrow}>
+                  <Ionicons name="arrow-forward" size={24} color="rgba(255,255,255,0.8)" />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Statistics Grid */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Request Overview</Text>
+            <View style={styles.statsGrid}>
+              <StatCard
+                icon="document-text-outline"
+                value={totalRequests}
+                label="Total Requests"
+                color={COLORS.primary[600]}
+                bgColor={COLORS.primary[50]}
+              />
+              <StatCard
+                icon="time-outline"
+                value={activeRequests.length}
+                label="Active"
+                color={COLORS.warning[600]}
+                bgColor={COLORS.warning[50]}
+              />
+              <StatCard
+                icon="checkmark-done-circle-outline"
+                value={completedRequests.length}
+                label="Completed"
+                color={COLORS.success[600]}
+                bgColor={COLORS.success[50]}
+              />
+            </View>
+          </View>
+
+          {/* Request History Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Request History</Text>
+              <View style={styles.historyCountBadge}>
+                <Text style={styles.historyCountText}>{totalRequests}</Text>
+              </View>
+            </View>
+
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={COLORS.primary[500]} />
+                <Text style={styles.loadingText}>Loading history...</Text>
+              </View>
+            ) : requestHistory.length > 0 ? (
+              <>
+                {/* Active Requests Section */}
+                {activeRequests.length > 0 && (
+                  <View style={styles.requestsSubsection}>
+                    <Text style={styles.subsectionTitle}>ACTIVE REQUESTS</Text>
+                    <View style={styles.requestsList}>
+                      {activeRequests.slice(0, 3).map((request) => (
+                        <RequestListItem
+                          key={request.id}
+                          request={request}
+                          onPress={() => setSelectedRequest(request)}
+                        />
+                      ))}
+                    </View>
+                    {activeRequests.length > 3 && (
+                      <TouchableOpacity
+                        style={styles.viewMoreButton}
+                        onPress={handleViewAllRequests}
+                      >
+                        <Text style={styles.viewMoreText}>View All Active Requests</Text>
+                        <Ionicons name="arrow-forward" size={14} color={COLORS.primary[600]} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Completed Requests Section */}
+                {completedRequests.length > 0 && (
+                  <View style={styles.requestsSubsection}>
+                    <Text style={styles.subsectionTitle}>COMPLETED REQUESTS</Text>
+                    <View style={styles.requestsList}>
+                      {completedRequests.slice(0, 2).map((request) => (
+                        <RequestListItem
+                          key={request.id}
+                          request={request}
+                          onPress={() => setSelectedRequest(request)}
+                        />
+                      ))}
+                    </View>
+                    {completedRequests.length > 2 && (
+                      <TouchableOpacity
+                        style={styles.viewMoreButton}
+                        onPress={handleViewAllRequests}
+                      >
+                        <Text style={styles.viewMoreText}>View All Completed Requests</Text>
+                        <Ionicons name="arrow-forward" size={14} color={COLORS.primary[600]} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconWrapper}>
+                  <LinearGradient
+                    colors={[COLORS.primary[50], COLORS.primary[100]]}
+                    style={styles.emptyIcon}
+                  >
+                    <Ionicons
+                      name="document-text-outline"
+                      size={52}
+                      color={COLORS.primary[400]}
+                    />
+                  </LinearGradient>
+                </View>
+                <Text style={styles.emptyTitle}>No Requests Yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Create your first blood request to connect with donors
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyButton}
+                  onPress={handleCreateRequest}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                  <Text style={styles.emptyButtonText}>Create Request</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.actionsList}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => router.push('/(shared)/find-bloodbank' as any)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.primary[50] }]}>
+                  <Ionicons name="business-outline" size={24} color={COLORS.primary[600]} />
+                </View>
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionTitle}>Find Blood Banks</Text>
+                  <Text style={styles.actionSubtitle}>Locate nearby medical facilities</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => router.push('/(requester)/find-donors' as any)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.secondary[50] }]}>
+                  <Ionicons name="people-outline" size={24} color={COLORS.secondary[600]} />
+                </View>
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionTitle}>Find Donors</Text>
+                  <Text style={styles.actionSubtitle}>Search available blood donors</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={handleViewAllRequests}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.warning[50] }]}>
+                  <Ionicons name="list-outline" size={24} color={COLORS.warning[600]} />
+                </View>
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionTitle}>My Requests</Text>
+                  <Text style={styles.actionSubtitle}>View all your blood requests</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => Linking.openURL('https://blood-link-webguide.vercel.app/')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIcon, { backgroundColor: '#F5F3FF' }]}>
+                  <Ionicons name="book-outline" size={24} color="#8B5CF6" />
+                </View>
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionTitle}>User Guide</Text>
+                  <Text style={styles.actionSubtitle}>Full online documentation</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.neutral[400]} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {selectedRequest && getRequestDetailView(selectedRequest)}
-            </ScrollView>
           </View>
-        </View>
-      </Modal>
 
-      <LogoutModal
-        visible={showLogoutModal}
-        onCancel={() => setShowLogoutModal(false)}
-        onLogout={handleConfirmLogout}
-        isLoggingOut={isLoggingOut}
-      />
+          {/* Logout Button */}
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="log-out-outline" size={20} color={COLORS.accent[600]} />
+              <Text style={styles.logoutText}>Logout from Account</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+
+        {/* Request Detail Modal */}
+        <Modal
+          visible={!!selectedRequest}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSelectedRequest(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Request Details</Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedRequest(null)}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={22} color={COLORS.neutral[500]} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {selectedRequest && getRequestDetailView(selectedRequest)}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <LogoutModal
+          visible={showLogoutModal}
+          onCancel={() => setShowLogoutModal(false)}
+          onLogout={handleConfirmLogout}
+          isLoggingOut={isLoggingOut}
+        />
+      </View>
     </SafeAreaView>
   );
 };

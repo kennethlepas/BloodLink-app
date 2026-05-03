@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LogoutModal } from '@/src/components/LogoutModal';
 import { useAppTheme, type ThemeColors } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
-import { updateUser } from '@/src/services/firebase/database';
+import { updateUser } from '@/src/services/offline/offlineDatabase';
 import { getDonorEligibilityStatus } from '@/src/services/firebase/donationEligibilityService';
 
 

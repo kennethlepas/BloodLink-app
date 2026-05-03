@@ -1,7 +1,7 @@
 import { AWARENESS_FACTS, AwarenessFact } from '@/src/constants/awarenessData';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -94,7 +94,7 @@ export const AwarenessModal: React.FC<AwarenessModalProps> = ({ visible, onClose
             statusBarTranslucent
         >
             <View style={st.overlay}>
-                <BlurView intensity={20} style={StyleSheet.absoluteFill} tint={isDark ? 'dark' : 'light'} />
+
 
                 <Animated.View style={[
                     st.container,

@@ -1,6 +1,6 @@
 import { useUser } from '@/src/contexts/UserContext';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
-import { deleteChat, getUserChats } from '@/src/services/firebase/database';
+import { deleteChat, getUserChats } from '@/src/services/offline/offlineDatabase';
 import { Chat } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';

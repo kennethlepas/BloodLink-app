@@ -1,25 +1,25 @@
 import { useUser } from '@/src/contexts/UserContext';
-import { getInterestedDonorsForRequest, selectDonorForRequest } from '@/src/services/firebase/database';
+import { getInterestedDonorsForRequest, selectDonorForRequest } from '@/src/services/offline/offlineDatabase';
 import { InterestedDonor } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const DonorSelectionScreen: React.FC = () => {
   const router = useRouter();
   const { user } = useUser();
   const { requestId } = useLocalSearchParams<{ requestId: string }>();
-  
+
   const [loading, setLoading] = useState(true);
   const [donors, setDonors] = useState<InterestedDonor[]>([]);
 
@@ -93,7 +93,7 @@ const DonorSelectionScreen: React.FC = () => {
             <Ionicons name="person" size={24} color="#64748B" />
           </View>
         )}
-        
+
         <View style={styles.donorDetails}>
           <Text style={styles.donorName}>{item.donorName}</Text>
           <View style={styles.bloodTypeBadge}>

@@ -1,6 +1,8 @@
 import AppLogo from '@/src/components/shared/AppLogo';
 import { useUser } from '@/src/contexts/UserContext';
 import { auth, db } from '@/src/services/firebase/firebase';
+import { isOnline } from '@/src/services/offline/networkMonitor';
+import { offlineLogin, saveOfflineCredentials } from '@/src/services/offline/offlineAuth';
 import { transformFirebaseUser } from '@/src/types/userTransform';
 import { mapErrorMessage } from '@/src/utils/errorMapper';
 import { Ionicons } from '@expo/vector-icons';
@@ -211,6 +213,34 @@ const LoginScreen: React.FC = () => {
 
     setLoading(true);
     try {
+      const online = isOnline();
+
+      // ── OFFLINE LOGIN PATH ──
+      if (!online) {
+        console.log('[Login] Device is offline, attempting offline login...');
+        const offlineResult = await offlineLogin(formData.email, formData.password);
+
+        if (offlineResult.success && offlineResult.cachedUser) {
+          console.log('[Login] Offline login successful');
+          await login(offlineResult.cachedUser);
+
+          if (offlineResult.cachedUser.userType === 'donor') {
+            router.replace('/(donor)' as any);
+          } else if (offlineResult.cachedUser.userType === 'requester') {
+            router.replace('/(requester)' as any);
+          }
+          return;
+        }
+
+        // Offline login failed
+        Alert.alert(
+          'Offline Login Failed',
+          offlineResult.error || 'No cached credentials found. Please connect to the internet to login for the first time.'
+        );
+        return;
+      }
+
+      // ── ONLINE LOGIN PATH ──
       const result = await signInUser(formData.email, formData.password);
 
       console.log('Login successful:', {
@@ -224,6 +254,10 @@ const LoginScreen: React.FC = () => {
       console.log('Transformed user data for context:', userContextData);
 
       await login(userContextData);
+
+      // Cache credentials for future offline use
+      await saveOfflineCredentials(formData.email, formData.password, userContextData);
+      console.log('[Login] Credentials cached for offline use');
 
       if (!result.user.emailVerified) {
         router.replace('/(auth)/verify-email' as any);

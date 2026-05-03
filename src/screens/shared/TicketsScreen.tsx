@@ -1,7 +1,7 @@
 import { TicketCard } from '@/src/components/ticket';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
-import { getUserTickets } from '@/src/services/firebase/database';
+import { getUserTickets } from '@/src/services/offline/offlineDatabase';
 import { Ticket } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

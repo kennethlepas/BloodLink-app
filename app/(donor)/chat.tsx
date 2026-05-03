@@ -1,6 +1,6 @@
 import { useUser } from '@/src/contexts/UserContext';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
-import { deleteChat, getUserChats } from '@/src/services/firebase/database';
+import { deleteChat, getUserChats } from '@/src/services/offline/offlineDatabase';
 import { Chat } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -339,113 +339,114 @@ const ChatListScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.headerDark} />
-
-      {/* ── Header ── */}
-      {selectionMode ? (
-        <View style={[styles.header, { backgroundColor: '#333333' }]}>
-          <TouchableOpacity
-            style={styles.hBtn}
-            onPress={() => { setSelectionMode(false); setSelectedChats(new Set()); }}
-          >
-            <Ionicons name="close" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={styles.hTitle}>{selectedChats.size} selected</Text>
-          <TouchableOpacity
-            style={[styles.hBtn, !selectedChats.size && { opacity: 0.4 }]}
-            onPress={confirmDeleteSelected}
-            disabled={!selectedChats.size}
-          >
-            <Ionicons name="trash-outline" size={22} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.hBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={styles.hTitle}>Messages</Text>
-          <View style={styles.hActions}>
-            <TouchableOpacity style={styles.hBtn} onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }}>
-              <Ionicons name={showSearch ? 'close' : 'search-outline'} size={22} color="#FFF" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: selectionMode ? '#333333' : C.headerDark }} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={selectionMode ? '#333333' : C.headerDark} />
+      <View style={styles.container}>
+        {/* ── Header ── */}
+        {selectionMode ? (
+          <View style={[styles.header, { backgroundColor: '#333333' }]}>
+            <TouchableOpacity
+              style={styles.hBtn}
+              onPress={() => { setSelectionMode(false); setSelectedChats(new Set()); }}
+            >
+              <Ionicons name="close" size={24} color="#FFF" />
             </TouchableOpacity>
-            {/* ── Plus / New chat button ── */}
-            <TouchableOpacity style={styles.hBtn} onPress={goToNewChat}>
-              <Ionicons name="create-outline" size={22} color="#FFF" />
+            <Text style={styles.hTitle}>{selectedChats.size} selected</Text>
+            <TouchableOpacity
+              style={[styles.hBtn, !selectedChats.size && { opacity: 0.4 }]}
+              onPress={confirmDeleteSelected}
+              disabled={!selectedChats.size}
+            >
+              <Ionicons name="trash-outline" size={22} color="#FFF" />
             </TouchableOpacity>
           </View>
-        </View>
-      )}
-
-      {/* ── Search Bar ── */}
-      {showSearch && (
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={16} color={C.textTertiary} />
-          <TextInput
-            placeholder="Search conversations..."
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor={C.textTertiary}
-            autoFocus
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={18} color={C.textTertiary} />
+        ) : (
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.hBtn} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={24} color="#FFF" />
             </TouchableOpacity>
-          )}
-        </View>
-      )}
+            <Text style={styles.hTitle}>Messages</Text>
+            <View style={styles.hActions}>
+              <TouchableOpacity style={styles.hBtn} onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }}>
+                <Ionicons name={showSearch ? 'close' : 'search-outline'} size={22} color="#FFF" />
+              </TouchableOpacity>
+              {/* ── Plus / New chat button ── */}
+              <TouchableOpacity style={styles.hBtn} onPress={goToNewChat}>
+                <Ionicons name="create-outline" size={22} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
-      {/* ── Tabs (All + Plus) ── */}
-      <View style={styles.tabs}>
-        <View style={styles.tabActive}>
-          <Text style={styles.tabActiveText}>All</Text>
-        </View>
-        {/* Tapping + opens new chat picker */}
-        <TouchableOpacity style={styles.tabPlus} onPress={goToNewChat}>
-          <Ionicons name="add" size={20} color={C.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* ── List ── */}
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={C.accent} />
-          <Text style={styles.loadingText}>Loading conversations...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={sorted}
-          renderItem={renderItem}
-          keyExtractor={item => getOtherId(item) || item.id}
-          contentContainerStyle={[
-            sorted.length === 0 ? styles.emptyList : undefined,
-            { paddingBottom: 110 }
-          ]}
-          ListEmptyComponent={renderEmpty}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[C.accent]}
-              tintColor={C.accent}
-              progressBackgroundColor={C.card}
+        {/* ── Search Bar ── */}
+        {showSearch && (
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={16} color={C.textTertiary} />
+            <TextInput
+              placeholder="Search conversations..."
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor={C.textTertiary}
+              autoFocus
             />
-          }
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={18} color={C.textTertiary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-      {/* ── FAB ── */}
-      {!selectionMode && (
-        <TouchableOpacity style={styles.fab} onPress={goToNewChat} activeOpacity={0.85}>
-          <Ionicons name="chatbubble-ellipses-outline" size={22} color="#FFF" />
-        </TouchableOpacity>
-      )}
+        {/* ── Tabs (All + Plus) ── */}
+        <View style={styles.tabs}>
+          <View style={styles.tabActive}>
+            <Text style={styles.tabActiveText}>All</Text>
+          </View>
+          {/* Tapping + opens new chat picker */}
+          <TouchableOpacity style={styles.tabPlus} onPress={goToNewChat}>
+            <Ionicons name="add" size={20} color={C.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── List ── */}
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={C.accent} />
+            <Text style={styles.loadingText}>Loading conversations...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={sorted}
+            renderItem={renderItem}
+            keyExtractor={item => getOtherId(item) || item.id}
+            contentContainerStyle={[
+              sorted.length === 0 ? styles.emptyList : undefined,
+              { paddingBottom: 110 }
+            ]}
+            ListEmptyComponent={renderEmpty}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[C.accent]}
+                tintColor={C.accent}
+                progressBackgroundColor={C.card}
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        {/* ── FAB ── */}
+        {!selectionMode && (
+          <TouchableOpacity style={styles.fab} onPress={goToNewChat} activeOpacity={0.85}>
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#FFF" />
+          </TouchableOpacity>
+        )}
+      </View>
     </SafeAreaView>
   );
 };

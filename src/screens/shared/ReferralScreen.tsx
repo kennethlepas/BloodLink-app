@@ -63,8 +63,10 @@ export default function ReferralScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Refer & Save Lives</Text>
-                <Text style={styles.headerSub}>Invite friends to save lives</Text>
+                <View style={{ flex: 1, paddingHorizontal: 10 }}>
+                    <Text style={styles.headerTitle}>Refer & Save Lives</Text>
+                    <Text style={styles.headerSub}>Invite friends to save lives</Text>
+                </View>
             </LinearGradient>
 
             <ScrollView

@@ -1,6 +1,6 @@
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { useUser } from '@/src/contexts/UserContext';
-import { updateUser } from '@/src/services/firebase/database';
+import { updateUser } from '@/src/services/offline/offlineDatabase';
 import { BloodType, Requester } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
@@ -8,17 +8,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -65,7 +65,7 @@ const RequesterEditProfileScreen: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [bloodType, setBloodType] = useState<BloodType>(user?.bloodType || 'O+');
   const [profilePicture, setProfilePicture] = useState(user?.profilePicture || '');
-  
+
   // Emergency contact fields
   const [emergencyContactName, setEmergencyContactName] = useState(getInitialEmergencyContactName());
   const [emergencyContactPhone, setEmergencyContactPhone] = useState(getInitialEmergencyContactPhone());
@@ -603,12 +603,12 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? { boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' } as any
       : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 12,
-          elevation: 5,
-        }),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 5,
+      }),
   },
   profileSection: {
     alignItems: 'center',

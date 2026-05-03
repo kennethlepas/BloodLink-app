@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -52,7 +52,7 @@ import { moderateScale, scale, verticalScale } from '../../utils/scaling';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const REQUEST_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2.05;
 const DONOR_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2.05;
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.50;
+const DRAWER_WIDTH = SCREEN_WIDTH * 0.60;
 const NOTIF_DRAWER_WIDTH = SCREEN_WIDTH * 0.50;
 const FEAT_CARD_WIDTH = (SCREEN_WIDTH - 32 - 12) / 2;
 
@@ -173,6 +173,17 @@ export default function HomeScreen() {
   const [eligibility, setEligibility] = useState<{ isEligible: boolean; message: string }>({ isEligible: true, message: '' });
   const [hasActiveCommitment, setHasActiveCommitment] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState(0);
+
+  // ── Auto-scroll refs & state ──
+  const actionsScrollRef = useRef<ScrollView>(null);
+  const requestsScrollRef = useRef<ScrollView>(null);
+  const donorsScrollRef = useRef<ScrollView>(null);
+  const stocksScrollRef = useRef<ScrollView>(null);
+  const actionsIdx = useRef(0);
+  const requestsIdx = useRef(0);
+  const donorsIdx = useRef(0);
+  const stocksIdx = useRef(0);
+  const userTouchRef = useRef(0); // timestamp of last user touch on a scroll
 
 
   const isDonor = user?.userType === 'donor';
@@ -396,14 +407,7 @@ export default function HomeScreen() {
   };
 
   const toggleNotifDrawer = () => {
-    const toValue = notifOpen ? 0 : 1;
-    setNotifOpen(!notifOpen);
-    Animated.spring(notifAnim, {
-      toValue,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 9,
-    }).start();
+    router.push('/(shared)/notifications' as any);
   };
 
   const handleAvailabilityToggle = async (value: boolean) => {
@@ -439,6 +443,24 @@ export default function HomeScreen() {
     return map[donor]?.includes(recipient) || false;
   };
 
+  const donorActions = [
+    { icon: 'calendar', title: 'Book Donation', desc: 'Schedule a slot', clr: ['#10B981', '#059669'] as [string, string], bg: '#F0FDF4', route: '/(donor)/book-donation' },
+    { icon: 'notifications', title: 'Requests', desc: 'Urgent needs', clr: [brand.orange, '#C2410C'] as [string, string], bg: brand.orangePale, route: '/(donor)/requests' },
+    { icon: 'time', title: 'History', desc: 'Past donations', clr: [brand.sky, brand.light] as [string, string], bg: brand.soft, route: '/(donor)/donation-history' },
+    { icon: 'business', title: 'Blood Banks', desc: 'Find centers', clr: ['#8B5CF6', '#7C3AED'] as [string, string], bg: '#F5F3FF', route: '/(shared)/find-bloodbank' },
+    { icon: 'chatbubbles', title: 'Messages', desc: 'Chats & inbox', clr: ['#0EA5E9', '#0284C7'] as [string, string], bg: '#F0F9FF', route: '/(shared)/chat-list' },
+    { icon: 'book', title: 'Health Guide', desc: 'Tips & info', clr: ['#EF4444', '#DC2626'] as [string, string], bg: '#FEF2F2', route: '/(shared)/guide' },
+  ];
+  const requesterActions = [
+    { icon: 'add-circle', title: 'New Request', desc: 'Ask for blood', clr: [brand.orange, '#C2410C'] as [string, string], bg: brand.orangePale, route: '/(requester)/needblood' },
+    { icon: 'list', title: 'My Requests', desc: 'Track updates', clr: [brand.sky, brand.light] as [string, string], bg: brand.soft, route: '/(requester)/my-requests' },
+    { icon: 'people', title: 'Find Donors', desc: 'Local heroes', clr: ['#10B981', '#059669'] as [string, string], bg: '#F0FDF4', route: '/(requester)/find-donors' },
+    { icon: 'document-text', title: 'Referrals', desc: 'Hospital transfers', clr: ['#F59E0B', '#D97706'] as [string, string], bg: '#FFFBEB', route: '/(requester)/referrals' },
+    { icon: 'business', title: 'Blood Banks', desc: 'Find centers', clr: ['#8B5CF6', '#7C3AED'] as [string, string], bg: '#F5F3FF', route: '/(shared)/find-bloodbank' },
+    { icon: 'chatbubbles', title: 'Messages', desc: 'Chats & inbox', clr: ['#0EA5E9', '#0284C7'] as [string, string], bg: '#F0F9FF', route: '/(shared)/chat-list' },
+  ];
+  const actions = isDonor ? donorActions : requesterActions;
+
   const onRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
@@ -454,6 +476,49 @@ export default function HomeScreen() {
       setTimeout(() => setRefreshing(false), 800);
     }
   }, [isDonor, isRequester, user]);
+
+  // ── Auto-scroll effect ──
+  useEffect(() => {
+    const INTERVAL_MS = 3000;
+    const PAUSE_MS = 5000;
+    const ACTION_W = 120 + 12;
+    const REQ_W = REQUEST_CARD_WIDTH + 12;
+    const DONOR_W = DONOR_CARD_WIDTH + 16;
+    const STOCK_W = REQUEST_CARD_WIDTH + 16;
+
+    const scrollNext = (
+      ref: React.RefObject<ScrollView | null> | React.MutableRefObject<ScrollView | null>,
+      idx: React.MutableRefObject<number>,
+      itemWidth: number,
+      count: number
+    ) => {
+      if (!ref.current || count <= 1) return;
+      // Don't auto-scroll if user recently interacted
+      if (Date.now() - userTouchRef.current < PAUSE_MS) return;
+      const next = (idx.current + 1) % count;
+      idx.current = next;
+      ref.current.scrollTo({ x: next * itemWidth, animated: true });
+    };
+
+    const timer = setInterval(() => {
+      // Quick actions
+      scrollNext(actionsScrollRef, actionsIdx, ACTION_W, actions.length);
+      // Donor-side requests
+      if (isDonor && recentRequests.length > 0) {
+        scrollNext(requestsScrollRef, requestsIdx, REQ_W, recentRequests.length);
+      }
+      // Requester-side donors
+      if (!isDonor && availableDonors.length > 0) {
+        scrollNext(donorsScrollRef, donorsIdx, DONOR_W, availableDonors.length);
+      }
+      // Blood bank stocks
+      if (!isDonor && bloodBankStocks.length > 0) {
+        scrollNext(stocksScrollRef, stocksIdx, STOCK_W, bloodBankStocks.length);
+      }
+    }, INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [isDonor, actions.length, recentRequests.length, availableDonors.length, bloodBankStocks.length]);
 
 
   const handleLogout = () => {
@@ -517,24 +582,6 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 
-  const donorActions = [
-    { icon: 'calendar', title: 'Book Donation', clr: ['#10B981', '#059669'] as [string, string], bg: '#F0FDF4', route: '/(donor)/book-donation' },
-    { icon: 'notifications', title: 'Requests', clr: [brand.orange, '#C2410C'] as [string, string], bg: brand.orangePale, route: '/(donor)/requests' },
-    { icon: 'time', title: 'History', clr: [brand.sky, brand.light] as [string, string], bg: brand.soft, route: '/(donor)/donation-history' },
-    { icon: 'business', title: 'Blood Banks', clr: ['#8B5CF6', '#7C3AED'] as [string, string], bg: '#F5F3FF', route: '/(shared)/find-bloodbank' },
-    { icon: 'chatbubbles', title: 'Messages', clr: ['#0EA5E9', '#0284C7'] as [string, string], bg: '#F0F9FF', route: '/(shared)/chat-list' },
-    { icon: 'book', title: 'Health Guide', clr: ['#EF4444', '#DC2626'] as [string, string], bg: '#FEF2F2', route: '/(shared)/guide' },
-  ];
-  const requesterActions = [
-    { icon: 'add-circle', title: 'New Request', clr: [brand.orange, '#C2410C'] as [string, string], bg: brand.orangePale, route: '/(requester)/needblood' },
-    { icon: 'list', title: 'My Requests', clr: [brand.sky, brand.light] as [string, string], bg: brand.soft, route: '/(requester)/my-requests' },
-    { icon: 'people', title: 'Find Donors', clr: ['#10B981', '#059669'] as [string, string], bg: '#F0FDF4', route: '/(requester)/find-donors' },
-    { icon: 'document-text', title: 'Referrals', clr: ['#F59E0B', '#D97706'] as [string, string], bg: '#FFFBEB', route: '/(requester)/referrals' },
-    { icon: 'business', title: 'Blood Banks', clr: ['#8B5CF6', '#7C3AED'] as [string, string], bg: '#F5F3FF', route: '/(shared)/find-bloodbank' },
-    { icon: 'chatbubbles', title: 'Messages', clr: ['#0EA5E9', '#0284C7'] as [string, string], bg: '#F0F9FF', route: '/(shared)/chat-list' },
-  ];
-  const actions = isDonor ? donorActions : requesterActions;
-
   const features = [
     { icon: 'shield-checkmark', bg: [brand.sky, brand.light] as [string, string], title: 'Verified & Safe', desc: 'Every donor and recipient is identity-verified before going live on the platform.' },
     { icon: 'flash', bg: [brand.orange, brand.orangeDeep] as [string, string], title: 'Real-Time Matching', desc: 'Smart engine connects compatible donors by blood type, location and urgency level.' },
@@ -554,974 +601,922 @@ export default function HomeScreen() {
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={brand.sky} />
+    <SafeAreaView style={[styles.container, { backgroundColor: brand.sky }]} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={brand.sky} />
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
 
-      {/* ══ SIDE DRAWER - IMPROVED VISIBILITY WITH ORIGINAL SIZES ══ */}
-      <Animated.View style={[styles.drawer, { transform: [{ translateX: drawerAnim }] }]}>
-        <LinearGradient
-          colors={isDark ? ['#0F172A', '#1E293B', '#111827'] : [brand.sky, brand.light, '#3B82F6']}
-          style={styles.drawerGrad}
-        >
-          <View style={styles.drawerProfile}>
-            <TouchableOpacity style={styles.drawerAvatarWrap} onPress={navigateToProfile} activeOpacity={0.8}>
-              {user.profilePicture
-                ? <Image source={{ uri: user.profilePicture }} style={styles.drawerAvatarImg} />
-                : <LinearGradient
-                  colors={[brand.orangeLite, brand.orange]}
-                  style={styles.drawerAvatarFallback}
-                >
-                  <Text style={styles.drawerAvatarInitial}>
-                    {user.firstName.charAt(0).toUpperCase()}
-                  </Text>
-                </LinearGradient>
-              }
-            </TouchableOpacity>
-            <Text style={styles.drawerName}>{user.firstName} {user.lastName}</Text>
-            <Text style={styles.drawerEmail} numberOfLines={1}>{user.email}</Text>
-            <View style={[styles.drawerBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Ionicons name={isDonor ? 'heart' : 'medkit'} size={13} color="#FFFFFF" />
-              <Text style={[styles.drawerBadgeText, { color: '#FFFFFF' }]}>
-                {isDonor ? 'Donor' : 'Requester'}
-              </Text>
-            </View>
-          </View>
-
-          {isDonor && (
-            <View style={styles.drawerToggleBox}>
-              <View style={styles.drawerToggleHeader}>
-                <View style={styles.drawerToggleRow}>
-                  <Ionicons name="pulse" size={14} color="#FFFFFF" />
-                  <Text style={styles.drawerToggleTitle}>Availability Status</Text>
-                </View>
-              </View>
-              <View style={styles.drawerToggleCtrl}>
-                <View style={styles.drawerToggleStatus}>
-                  <View style={[styles.drawerStatusDot, { backgroundColor: user.isAvailable ? '#10B981' : '#EF4444' }]} />
-                  <Text style={styles.drawerToggleLbl}>
-                    {togglingAvail ? 'Updating…' : user.isAvailable ? 'Available' : 'Unavailable'}
-                  </Text>
-                </View>
-                <Switch
-                  value={user.isAvailable || false}
-                  onValueChange={handleAvailabilityToggle}
-                  trackColor={{ false: 'rgba(255,255,255,0.25)', true: '#10B981' }}
-                  thumbColor={user.isAvailable ? '#FFFFFF' : '#E2E8F0'}
-                  ios_backgroundColor="rgba(255,255,255,0.25)"
-                  disabled={togglingAvail}
-                  style={{ transform: [{ scaleX: 1.0 }, { scaleY: 1.0 }] }}
-                />
-              </View>
-            </View>
-          )}
-
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 50 + insets.bottom }} showsVerticalScrollIndicator={false}>
-            <View style={styles.drawerMenu}>
-              {[
-                {
-                  icon: 'person-outline',
-                  label: 'My Profile',
-                  iconColor: '#FFFFFF',
-                  bgColor: 'rgba(255,255,255,0.25)'
-                },
-                {
-                  icon: 'notifications-outline',
-                  label: 'Notifications',
-                  iconColor: '#FFD700',
-                  bgColor: 'rgba(255,215,0,0.25)'
-                },
-                {
-                  icon: 'star-outline',
-                  label: 'Ratings & Reviews',
-                  iconColor: '#FFB347',
-                  bgColor: 'rgba(255,179,71,0.25)'
-                },
-                {
-                  icon: 'information-circle-outline',
-                  label: 'About Us',
-                  iconColor: '#87CEEB',
-                  bgColor: 'rgba(135,206,235,0.25)'
-                },
-                {
-                  icon: 'settings-outline',
-                  label: 'Settings',
-                  iconColor: '#E0E0E0',
-                  bgColor: 'rgba(224,224,224,0.25)'
-                },
-                {
-                  icon: 'chatbubbles-outline',
-                  label: 'Messages',
-                  iconColor: '#87CEFA',
-                  bgColor: 'rgba(135,206,250,0.25)'
-                },
-                {
-                  icon: 'help-circle-outline',
-                  label: 'Help & Support',
-                  iconColor: '#98FB98',
-                  bgColor: 'rgba(152,251,152,0.25)'
-                },
-              ].map((item, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.drawerMenuItem}
-                  onPress={() => {
-                    toggleDrawer();
-                    if (item.label === 'My Profile') navigateToProfile();
-                    else if (item.label === 'Notifications') router.push('/(shared)/notifications' as any);
-                    else if (item.label === 'Ratings & Reviews') router.push('/(shared)/allreviews-screen' as any);
-                    else if (item.label === 'About Us') router.push('/(shared)/about-us' as any);
-                    else if (item.label === 'Settings') router.push('/(shared)/settings' as any);
-                    else if (item.label === 'Messages') router.push('/(shared)/chat-list' as any);
-                    else if (item.label === 'Help & Support') router.push('/(shared)/help-support' as any);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.drawerMenuIcon, { backgroundColor: item.bgColor }]}>
-                    <Ionicons name={item.icon as any} size={16} color={item.iconColor} />
-                    {item.label === 'Messages' && unreadTotal > 0 && (
-                      <View style={styles.drawerIconBadge} />
-                    )}
-                  </View>
-                  <Text style={[styles.drawerMenuLabel, { color: '#FFFFFF' }]} adjustsFontSizeToFit>{item.label}</Text>
-                  <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.5)" />
-                </TouchableOpacity>
-              ))}
-
-              <View style={styles.drawerDivider} />
-
-              <TouchableOpacity
-                style={styles.drawerMenuItem}
-                onPress={() => { toggleDrawer(); handleLogout(); }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.drawerMenuIcon, { backgroundColor: 'rgba(251,146,60,0.3)' }]}>
-                  <Ionicons name="log-out-outline" size={16} color={brand.orangeLite} />
-                </View>
-                <Text style={[styles.drawerMenuLabel, { color: brand.orangeLite }]}>Logout</Text>
-                <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.4)" />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-
-          <TouchableOpacity style={styles.drawerCloseBtn} onPress={toggleDrawer}>
-            <Ionicons name="close" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        </LinearGradient>
-      </Animated.View>
-
-      {/* ══ NOTIFICATION SIDE PANEL (HANGING CARD) ══ */}
-      <Animated.View
-        pointerEvents={notifOpen ? 'auto' : 'none'}
-        style={[styles.notifDrawer, {
-          opacity: notifAnim,
-          transform: [
-            {
-              translateY: notifAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [-20, 0]
-              })
-            },
-            {
-              scale: notifAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.95, 1]
-              })
-            }
-          ]
-        }]}>
-        <LinearGradient
-          colors={isDark ? ['#1E293B', '#111827'] : ['#F8FAFC', '#F1F5F9']}
-          style={styles.drawerGrad}
-        >
-          {/* Header area with dark gray background and improved spacing */}
-          <View style={[styles.notifHeader, { backgroundColor: isDark ? '#1F2937' : '#374151' }]}>
-            <Text style={[styles.notifTitle, { color: '#FFFFFF', paddingLeft: 16 }]}>Notifications</Text>
-            <TouchableOpacity onPress={toggleNotifDrawer} style={{ paddingRight: 16 }}>
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-            {notifList.length === 0 ? (
-              <View style={styles.emptyNotifs}>
-                <Ionicons name="notifications-off-outline" size={48} color={colors.textMuted} />
-                <Text style={[styles.emptyNotifText, { color: colors.textSecondary }]}>No notifications yet</Text>
-              </View>
-            ) : (
-              notifList.map((notif, index) => (
-                <TouchableOpacity
-                  key={notif.id || index}
-                  style={[styles.notifItem, { borderBottomColor: colors.divider }]}
-                  onPress={() => {
-                    toggleNotifDrawer();
-                    // Navigate to notifications screen as requested
-                    router.push('/(shared)/notifications' as any);
-                  }}
-                >
-                  <View style={[styles.notifIconBox, { backgroundColor: brand.sky + '20' }]}>
-                    <Ionicons name="notifications" size={20} color={brand.sky} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.notifItemTitle, { color: colors.text }]} numberOfLines={1}>{formatNotifMessage(notif.title)}</Text>
-                    <Text style={[styles.notifItemMsg, { color: colors.textSecondary }]}>{formatNotifMessage(notif.message)}</Text>
-                    <Text style={styles.notifTime}>{new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            )}
-          </ScrollView>
-
-          <TouchableOpacity
-            style={styles.viewAllNotifsBtn}
-            onPress={() => { toggleNotifDrawer(); router.push('/(shared)/notifications' as any); }}
+        {/* ══ SIDE DRAWER - IMPROVED VISIBILITY WITH ORIGINAL SIZES ══ */}
+        <Animated.View style={[styles.drawer, { transform: [{ translateX: drawerAnim }] }]}>
+          <LinearGradient
+            colors={isDark ? ['#0F172A', '#1E293B', '#111827'] : [brand.sky, brand.light, '#3B82F6']}
+            style={styles.drawerGrad}
           >
-            <Text style={styles.viewAllNotifsText}>View Full History</Text>
-          </TouchableOpacity>
-        </LinearGradient>
-      </Animated.View>
-
-      {(drawerOpen || notifOpen) && (
-        <TouchableOpacity
-          style={styles.drawerOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            if (drawerOpen) toggleDrawer();
-            if (notifOpen) toggleNotifDrawer();
-          }}
-        />
-      )}
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={true}
-        persistentScrollbar={true}
-        indicatorStyle="default"
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[brand.sky]} tintColor={brand.sky} />
-        }
-        onTouchStart={showTabBar}
-      >
-        <LinearGradient colors={[brand.sky, brand.light]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-          <View style={styles.hCircle1} /><View style={styles.hCircle2} />
-
-          <View style={styles.hTopBar}>
-            <TouchableOpacity style={styles.menuBtn} onPress={toggleDrawer} activeOpacity={0.7}>
-              <View style={[styles.menuLine, { width: 18 }]} />
-              <View style={[styles.menuLine, { width: 13 }]} />
-            </TouchableOpacity>
-
-            <View style={styles.hBrand}>
-              <AppLogo
-                variant="header"
-                style={styles.hBrandIconWrapper}
-              />
-              <View style={styles.hBrandTextContainer}>
-                <Text style={styles.hAppName}>BloodLink</Text>
-                <Text style={styles.hTagline}>Every Drop Counts</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity onPress={toggleNotifDrawer} style={styles.hNotifBtn} activeOpacity={0.8}>
-              <NotificationBell iconSize={28} iconColor="#FFFFFF" badgeColor={brand.orangeLite} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.hGreetRow}>
-            <View style={styles.hAvatarSmall}>
-              {user.profilePicture
-                ? <Image source={{ uri: user.profilePicture }} style={styles.hAvatarImg} />
-                : <Text style={styles.hAvatarInitial}>{user.firstName.charAt(0).toUpperCase()}</Text>
-              }
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.hGreeting}>{getGreeting()}, {user.firstName}!</Text>
-              <Text style={styles.hRole}>{isDonor ? '💉 Donor' : '🔎 Seeking help'}</Text>
-            </View>
-            {isDonor ? (
-              <View
-                style={[styles.statusPill, { backgroundColor: user.isAvailable ? 'rgba(16,185,129,0.25)' : 'rgba(100,116,139,0.25)' }]}
-              >
-                {togglingAvail ? (
-                  <ActivityIndicator size="small" color={user.isAvailable ? '#10B981' : '#94A3B8'} style={{ marginRight: 6 }} />
-                ) : (
-                  <View style={[styles.statusDot, { backgroundColor: user.isAvailable ? '#10B981' : '#94A3B8' }]} />
-                )}
-                <Text style={[styles.statusPillText, { color: '#FFFFFF' }]}>
-                  {togglingAvail ? 'Updating...' : user.isAvailable ? 'Active' : 'Away'}
+            <View style={styles.drawerProfile}>
+              <TouchableOpacity style={styles.drawerAvatarWrap} onPress={navigateToProfile} activeOpacity={0.8}>
+                {user.profilePicture
+                  ? <Image source={{ uri: user.profilePicture }} style={styles.drawerAvatarImg} />
+                  : <LinearGradient
+                    colors={[brand.orangeLite, brand.orange]}
+                    style={styles.drawerAvatarFallback}
+                  >
+                    <Text style={styles.drawerAvatarInitial}>
+                      {user.firstName.charAt(0).toUpperCase()}
+                    </Text>
+                  </LinearGradient>
+                }
+              </TouchableOpacity>
+              <Text style={styles.drawerName}>{user.firstName} {user.lastName}</Text>
+              <Text style={styles.drawerEmail} numberOfLines={1}>{user.email}</Text>
+              <View style={[styles.drawerBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Ionicons name={isDonor ? 'heart' : 'medkit'} size={13} color="#FFFFFF" />
+                <Text style={[styles.drawerBadgeText, { color: '#FFFFFF' }]}>
+                  {isDonor ? 'Donor' : 'Requester'}
                 </Text>
               </View>
-            ) : (
-              <View style={[styles.statusPill, { backgroundColor: 'rgba(16,185,129,0.25)' }]}>
-                <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
-                <Text style={[styles.statusPillText, { color: '#FFFFFF' }]}>Online</Text>
+            </View>
+
+            {isDonor && (
+              <View style={styles.drawerToggleBox}>
+                <View style={styles.drawerToggleHeader}>
+                  <View style={styles.drawerToggleRow}>
+                    <Ionicons name="pulse" size={14} color="#FFFFFF" />
+                    <Text style={styles.drawerToggleTitle}>Availability Status</Text>
+                  </View>
+                </View>
+                <View style={styles.drawerToggleCtrl}>
+                  <View style={styles.drawerToggleStatus}>
+                    <View style={[styles.drawerStatusDot, { backgroundColor: user.isAvailable ? '#10B981' : '#EF4444' }]} />
+                    <Text style={styles.drawerToggleLbl}>
+                      {togglingAvail ? 'Updating…' : user.isAvailable ? 'Available' : 'Unavailable'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={user.isAvailable || false}
+                    onValueChange={handleAvailabilityToggle}
+                    trackColor={{ false: 'rgba(255,255,255,0.25)', true: '#10B981' }}
+                    thumbColor={user.isAvailable ? '#FFFFFF' : '#E2E8F0'}
+                    ios_backgroundColor="rgba(255,255,255,0.25)"
+                    disabled={togglingAvail}
+                    style={{ transform: [{ scaleX: 1.0 }, { scaleY: 1.0 }] }}
+                  />
+                </View>
               </View>
             )}
-          </View>
 
-          <View style={styles.bloodCard}>
-            <View style={styles.bloodCardLeft}>
-              <View style={styles.bloodTypeCircle}>
-                <Ionicons name="water" size={scale(16)} color={brand.orange} />
-                <Text style={styles.bloodType}>{user.bloodType}</Text>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 50 + insets.bottom }} showsVerticalScrollIndicator={false}>
+              <View style={styles.drawerMenu}>
+                {[
+                  {
+                    icon: 'person-outline',
+                    label: 'My Profile',
+                    iconColor: '#FFFFFF',
+                    bgColor: 'rgba(255,255,255,0.25)'
+                  },
+                  {
+                    icon: 'notifications-outline',
+                    label: 'Notifications',
+                    iconColor: '#FFD700',
+                    bgColor: 'rgba(255,215,0,0.25)'
+                  },
+                  {
+                    icon: 'star-outline',
+                    label: 'Ratings & Reviews',
+                    iconColor: '#FFB347',
+                    bgColor: 'rgba(255,179,71,0.25)'
+                  },
+                  {
+                    icon: 'information-circle-outline',
+                    label: 'About Us',
+                    iconColor: '#87CEEB',
+                    bgColor: 'rgba(135,206,235,0.25)'
+                  },
+                  {
+                    icon: 'settings-outline',
+                    label: 'Settings',
+                    iconColor: '#E0E0E0',
+                    bgColor: 'rgba(224,224,224,0.25)'
+                  },
+                  {
+                    icon: 'chatbubbles-outline',
+                    label: 'Messages',
+                    iconColor: '#87CEFA',
+                    bgColor: 'rgba(135,206,250,0.25)'
+                  },
+                  {
+                    icon: 'help-circle-outline',
+                    label: 'Help & Support',
+                    iconColor: '#98FB98',
+                    bgColor: 'rgba(152,251,152,0.25)'
+                  },
+                ].map((item, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.drawerMenuItem}
+                    onPress={() => {
+                      toggleDrawer();
+                      if (item.label === 'My Profile') navigateToProfile();
+                      else if (item.label === 'Notifications') router.push('/(shared)/notifications' as any);
+                      else if (item.label === 'Ratings & Reviews') router.push('/(shared)/allreviews-screen' as any);
+                      else if (item.label === 'About Us') router.push('/(shared)/about-us' as any);
+                      else if (item.label === 'Settings') router.push('/(shared)/settings' as any);
+                      else if (item.label === 'Messages') router.push('/(shared)/chat-list' as any);
+                      else if (item.label === 'Help & Support') router.push('/(shared)/help-support' as any);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.drawerMenuIcon, { backgroundColor: item.bgColor }]}>
+                      <Ionicons name={item.icon as any} size={16} color={item.iconColor} />
+                      {item.label === 'Messages' && unreadTotal > 0 && (
+                        <View style={styles.drawerIconBadge} />
+                      )}
+                    </View>
+                    <Text style={[styles.drawerMenuLabel, { color: '#FFFFFF' }]} adjustsFontSizeToFit>{item.label}</Text>
+                    <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.5)" />
+                  </TouchableOpacity>
+                ))}
+
+                <View style={styles.drawerDivider} />
+
+                <TouchableOpacity
+                  style={styles.drawerMenuItem}
+                  onPress={() => { toggleDrawer(); handleLogout(); }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.drawerMenuIcon, { backgroundColor: 'rgba(251,146,60,0.3)' }]}>
+                    <Ionicons name="log-out-outline" size={16} color={brand.orangeLite} />
+                  </View>
+                  <Text style={[styles.drawerMenuLabel, { color: brand.orangeLite }]}>Logout</Text>
+                  <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.4)" />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.bloodTypeLabel}>Blood Type</Text>
-            </View>
-            <View style={styles.bloodCardStats}>
-              {isDonor ? (
-                <>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
-                      <Ionicons name="heart" size={14} color={brand.orange} />
-                    </View>
-                    <Text style={styles.statValue}>{totalDonations}</Text>
-                    <Text style={styles.statLabel}>Donations</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
-                      <Ionicons name="star" size={14} color={brand.orange} />
-                    </View>
-                    <Text style={styles.statValue}>{user.points || 0}</Text>
-                    <Text style={styles.statLabel}>Points</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
-                      <Ionicons name="time" size={14} color={brand.orange} />
-                    </View>
-                    <Text style={styles.statValue}>{compatibleRequestsCount}</Text>
-                    <Text style={styles.statLabel}>Compatible</Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
-                      <Ionicons name="people" size={14} color={brand.orange} />
-                    </View>
-                    <Text style={styles.statValue}>{compatibleDonorsCount}</Text>
-                    <Text style={styles.statLabel}>Donors</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
-                      <Ionicons name="checkmark-circle" size={14} color={brand.orange} />
-                    </View>
-                    <Text style={styles.statValue}>{fulfilledRequests}</Text>
-                    <Text style={styles.statLabel}>Fulfilled</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
-                      <Ionicons name="time" size={14} color={brand.orange} />
-                    </View>
-                    <Text style={styles.statValue}>{pendingRequests}</Text>
-                    <Text style={styles.statLabel}>Pending</Text>
-                  </View>
-                </>
-              )}
-            </View>
-          </View>
-        </LinearGradient>
+            </ScrollView>
 
-        {/* VERIFICATION BANNER */}
-        {isDonor && (
-          <VerificationBanner
-            status={user.verificationStatus}
-            userType={user.userType as 'donor' | 'requester'}
-            rejectionReason={user.verificationRejectionReason}
+            <TouchableOpacity style={styles.drawerCloseBtn} onPress={toggleDrawer}>
+              <Ionicons name="close" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </LinearGradient>
+        </Animated.View>
+
+        {drawerOpen && (
+          <TouchableOpacity
+            style={styles.drawerOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              if (drawerOpen) toggleDrawer();
+            }}
           />
         )}
 
-        {/* DONOR STATUS WARNINGS (Synchronized with Requests Screen) */}
-        {isDonor && (
-          <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-            {hasActiveCommitment ? (
-              <LinearGradient colors={['#FEF3C7', '#FFFBEB']} style={styles.warningBanner}>
-                <Ionicons name="alert-circle" size={20} color="#D97706" />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.warningText}>You have an active donation commitment.</Text>
-                  <TouchableOpacity onPress={() => router.push('/(donor)/donation-history' as any)}>
-                    <Text style={styles.warningAction}>View Commitments</Text>
-                  </TouchableOpacity>
-                </View>
-              </LinearGradient>
-            ) : !user.isAvailable ? (
-              <LinearGradient colors={['#FEF3C7', '#FFFBEB']} style={styles.warningBanner}>
-                <Ionicons name="moon" size={20} color="#D97706" />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.warningText}>Your availability is currently turned off.</Text>
-                  <TouchableOpacity onPress={() => router.push('/(donor)/profile' as any)}>
-                    <Text style={styles.warningAction}>Go to Profile to Change</Text>
-                  </TouchableOpacity>
-                </View>
-              </LinearGradient>
-            ) : !eligibility.isEligible ? (
-              <LinearGradient colors={['#FEE2E2', '#FEF2F2']} style={styles.warningBanner}>
-                <Ionicons name="time" size={20} color="#DC2626" />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={[styles.warningText, { color: '#991B1B' }]}>Not currently eligible to donate.</Text>
-                  <TouchableOpacity onPress={() => router.push('/(shared)/guide' as any)}>
-                    <Text style={[styles.warningAction, { color: '#DC2626' }]}>View Health Guide</Text>
-                  </TouchableOpacity>
-                </View>
-              </LinearGradient>
-            ) : null}
-          </View>
-        )}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={!drawerOpen}
+          persistentScrollbar={true}
+          indicatorStyle="default"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[brand.sky]} tintColor={brand.sky} />
+          }
+          onTouchStart={showTabBar}
+        >
+          <LinearGradient colors={[brand.sky, brand.light]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+            <View style={styles.hCircle1} /><View style={styles.hCircle2} />
 
-        <View style={styles.section}>
-          <View style={styles.sectionHdr}>
-            <View style={[styles.sectionBar, { backgroundColor: brand.orange }]} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
-          </View>
-          <View style={styles.actionsGrid}>
-            {actions.slice(0, 6).map((a, i) => (
-              <TouchableOpacity key={i} style={styles.actionCard} onPress={() => router.push(a.route as any)} activeOpacity={0.75}>
-                <View style={[styles.actionIconBg, { backgroundColor: a.bg }]}>
-                  <LinearGradient colors={a.clr} style={styles.actionIconGrad}>
-                    <Ionicons name={a.icon as any} size={20} color="#FFFFFF" />
-                  </LinearGradient>
-                </View>
-                <Text style={styles.actionTitle} numberOfLines={1}>{a.title}</Text>
-                {a.title === 'Messages' && unreadTotal > 0 && (
-                  <View style={styles.actionBadge}>
-                    <Text style={styles.actionBadgeText}>{unreadTotal > 9 ? '9+' : unreadTotal}</Text>
-                  </View>
-                )}
-                <LinearGradient colors={a.clr} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.actionCardAccent} />
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {!isDonor && (
-            <View style={styles.actionsRow3}>
-              <TouchableOpacity
-                style={[styles.actionCardHalf, { backgroundColor: colors.surface }]}
-                onPress={() => router.push('/(shared)/guide')}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: '#FEF2F2' }]}>
-                  <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.actionIconGrad}>
-                    <Ionicons name="book" size={20} color="#FFFFFF" />
-                  </LinearGradient>
-                </View>
-                <Text style={styles.actionTitle}>Health Guide</Text>
+            <View style={styles.hTopBar}>
+              <TouchableOpacity style={styles.menuBtn} onPress={toggleDrawer} activeOpacity={0.7}>
+                <View style={[styles.menuLine, { width: 18 }]} />
+                <View style={[styles.menuLine, { width: 13 }]} />
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.actionCardHalf, styles.inviteBadge, { backgroundColor: '#ECFDF5' }]}
-                onPress={() => router.push('/(shared)/invite')}
-                activeOpacity={0.75}
-              >
-                <LinearGradient colors={['#10B981', '#059669']} style={styles.inviteBadgeGrad}>
-                  <Ionicons name="people" size={18} color="#FFFFFF" />
-                  <Text style={styles.inviteBadgeText}>Invite a Hero</Text>
-                  <Ionicons name="chevron-forward" size={14} color="#FFF" style={{ marginLeft: 'auto' }} />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* INVITE BANNER */}
-        {isDonor && (
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={styles.referralBanner}
-              activeOpacity={0.9}
-              onPress={() => router.push('/(shared)/invite' as any)}
-            >
-              <LinearGradient colors={['#0D9488', '#0F766E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.referralGrad}>
-                <View style={styles.referralContent}>
-                  <View style={styles.referralTextSide}>
-                    <Text style={styles.referralTitle}>Invite a Hero</Text>
-                    <Text style={styles.referralDesc}>Every friend you invite helps build a stronger life-saving community in Kenya.</Text>
-                    <View style={styles.referralBadge}>
-                      <Ionicons name="heart" size={12} color="#FFF" />
-                      <Text style={styles.referralBadgeText}>Save lives together</Text>
-                    </View>
-                  </View>
-                  <View style={styles.referralIconSide}>
-                    <Ionicons name="people" size={60} color="rgba(255,255,255,0.2)" style={styles.referralIconLarge} />
-                    <View style={styles.referralIconCircle}>
-                      <Ionicons name="share-social" size={24} color="#0D9488" />
-                    </View>
-                  </View>
+              <View style={styles.hBrand}>
+                <AppLogo
+                  variant="header"
+                  style={styles.hBrandIconWrapper}
+                />
+                <View style={styles.hBrandTextContainer}>
+                  <Text style={styles.hAppName}>BloodLink</Text>
+                  <Text style={styles.hTagline}>Every Drop Counts</Text>
                 </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        )}
+              </View>
 
-        {isDonor ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHdr}>
-              <View style={[styles.sectionBar, { backgroundColor: brand.orange }]} />
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Urgent Requests Near You</Text>
-              <TouchableOpacity onPress={() => router.push('/(donor)/requests' as any)} style={styles.seeAllBtn}>
-                <Text style={styles.seeAllText}>View All</Text>
-                <Ionicons name="arrow-forward" size={13} color={brand.sky} />
+              <TouchableOpacity onPress={toggleNotifDrawer} style={styles.hNotifBtn} activeOpacity={0.8}>
+                <NotificationBell iconSize={28} iconColor="#FFFFFF" badgeColor={brand.orangeLite} />
               </TouchableOpacity>
             </View>
 
-            {loadingRequests ? (
-              <View style={styles.loadingCard}>
-                <ActivityIndicator size="small" color={brand.orange} />
-                <Text style={styles.loadingCardText}>Loading requests…</Text>
+            <View style={styles.hGreetRow}>
+              <View style={styles.hAvatarSmall}>
+                {user.profilePicture
+                  ? <Image source={{ uri: user.profilePicture }} style={styles.hAvatarImg} />
+                  : <Text style={styles.hAvatarInitial}>{user.firstName.charAt(0).toUpperCase()}</Text>
+                }
               </View>
-            ) : recentRequests.length > 0 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.hScrollCont} snapToInterval={REQUEST_CARD_WIDTH + 12} decelerationRate="fast">
-                {recentRequests.map(req => (
-                  <View key={req.id} style={[styles.requestCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
-                    <View style={[styles.cardStripe, { backgroundColor: getUrgencyColor(req.urgencyLevel, colors) }]} />
-                    <TouchableOpacity onPress={handleRequestPress} activeOpacity={0.85}>
-                      <View style={styles.requestHdrCompact}>
-                        <View style={styles.requestHdrLeft}>
-                          <Text style={[styles.reqBloodTypeSmall, { color: colors.text }]}>{req.bloodType}</Text>
-                          <Text style={[styles.reqBloodLabelSmall, { color: colors.textSecondary }]}>needed</Text>
-                        </View>
-                        <View style={[styles.urgencyBadgeSmall, { backgroundColor: getUrgencyColor(req.urgencyLevel, colors) + '18', borderColor: getUrgencyColor(req.urgencyLevel, colors) }]}>
-                          <Text style={[styles.urgencyTextSmall, { color: getUrgencyColor(req.urgencyLevel, colors) }]}>{req.urgencyLevel.toUpperCase()}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.requestBodyCompact}>
-                        {[
-                          { icon: 'business', val: req.hospitalName || 'Medical Center' },
-                          { icon: 'location', val: req.location?.city || 'Nearby' },
-                        ].map((row, ri) => (
-                          <View key={ri} style={styles.reqRowCompact}>
-                            <Ionicons name={row.icon as any} size={11} color={colors.textSecondary} />
-                            <Text style={[styles.reqTextSmall, { color: colors.textSecondary }]} numberOfLines={1}>{row.val}</Text>
-                          </View>
-                        ))}
-                      </View>
-                      <LinearGradient colors={[brand.orange, '#C2410C']} style={styles.cardFooterSmall}>
-                        <Text style={styles.cardFooterTextSmall}>Respond</Text>
-                        <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
-                <LinearGradient colors={[brand.orangePale, '#FED7AA']} style={styles.emptyIconBox}>
-                  <Ionicons name="heart-outline" size={42} color={brand.orange} />
-                </LinearGradient>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Urgent Requests</Text>
-                <Text style={[styles.emptySub, { color: colors.textSecondary }]}>We'll notify you when someone needs your blood type</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.hGreeting}>{getGreeting()}, {user.firstName}!</Text>
+                <Text style={styles.hRole}>{isDonor ? '💉 Donor' : '🔎 Seeking help'}</Text>
               </View>
-            )}
-          </View>
-        ) : (
-          <View style={styles.section}>
-            <View style={styles.sectionHdr}>
-              <View style={[styles.sectionBar, { backgroundColor: brand.sky }]} />
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Available Donors</Text>
-              <TouchableOpacity onPress={() => router.push('/(requester)/find-donors' as any)} style={styles.seeAllBtn}>
-                <Text style={styles.seeAllText}>View All</Text>
-                <Ionicons name="arrow-forward" size={13} color={brand.sky} />
-              </TouchableOpacity>
-            </View>
-
-            {loadingDonors ? (
-              <View style={styles.loadingCard}>
-                <ActivityIndicator size="small" color={brand.sky} />
-                <Text style={styles.loadingCardText}>Loading donors…</Text>
-              </View>
-            ) : availableDonors.length > 0 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.hScrollCont} snapToInterval={DONOR_CARD_WIDTH + 16} decelerationRate="fast">
-                {availableDonors.map(donor => (
-                  <View key={donor.id} style={[styles.donorCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
-                    <TouchableOpacity onPress={() => handleDonorPress(donor)} activeOpacity={0.85}>
-                      <View style={styles.donorHdrCompact}>
-                        {donor.profilePicture
-                          ? <Image source={{ uri: donor.profilePicture }} style={styles.donorAvatarCompact} />
-                          : <LinearGradient colors={[brand.sky, brand.light]} style={styles.donorAvatarFallbackCompact}>
-                            <Text style={styles.donorInitialsCompact}>{getInitials(donor.firstName, donor.lastName)}</Text>
-                          </LinearGradient>
-                        }
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.donorNameCompact, { color: colors.text }]} numberOfLines={1}>{donor.firstName}</Text>
-                          <View style={styles.donorBloodBadgeCompact}>
-                            <Ionicons name="water" size={10} color={brand.orange} />
-                            <Text style={styles.donorBloodTypeCompact}>{donor.bloodType}</Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      <View style={styles.donorStatsBoxCompact}>
-                        <View style={styles.donorStatCompact}>
-                          <Text style={[styles.donorStatValCompact, { color: colors.text }]}>{donor.totalDonations || 0}</Text>
-                          <Text style={[styles.donorStatLblCompact, { color: colors.textSecondary }]}>Donations</Text>
-                        </View>
-                        <View style={styles.donorStatDivCompact} />
-                        <View style={styles.donorStatCompact}>
-                          <Text style={[styles.donorStatValCompact, { color: brand.orange }]}>{donor.points || 0}</Text>
-                          <Text style={[styles.donorStatLblCompact, { color: colors.textSecondary }]}>Points</Text>
-                        </View>
-                      </View>
-
-                      {donor.location?.city && (
-                        <View style={styles.donorLocCompact}>
-                          <Ionicons name="location" size={12} color={brand.sky} />
-                          <Text style={[styles.donorLocTextCompact, { color: colors.textSecondary }]} numberOfLines={1}>{donor.location.city}</Text>
-                        </View>
-                      )}
-
-                      <LinearGradient colors={[brand.sky, brand.light]} style={styles.donorFooterCompact}>
-                        <Text style={styles.donorFooterTextCompact}>View Profile</Text>
-                        <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={styles.emptyState}>
-                <LinearGradient colors={[brand.soft, '#BFDBFE']} style={styles.emptyIconBox}>
-                  <Ionicons name="people-outline" size={42} color={brand.sky} />
-                </LinearGradient>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Available Donors</Text>
-                <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Check back later or browse all donors</Text>
-                <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/(requester)/find-donors' as any)}>
-                  <LinearGradient colors={[brand.sky, brand.light]} style={styles.emptyBtnGrad}>
-                    <Text style={styles.emptyBtnText}>Browse Donors</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Blood Bank Stock Suggestions for Requesters */}
-            <View style={{ marginTop: 24 }}>
-              <View style={styles.sectionHdr}>
-                <View style={[styles.sectionBar, { backgroundColor: brand.sky }]} />
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Nearby Stocks for {user.bloodType}</Text>
-                <TouchableOpacity onPress={() => router.push('/(shared)/find-bloodbank' as any)} style={styles.seeAllBtn}>
-                  <Text style={styles.seeAllText}>Find More</Text>
-                  <Ionicons name="location" size={13} color={brand.sky} />
-                </TouchableOpacity>
-              </View>
-
-              {loadingStocks ? (
-                <View style={styles.loadingCard}>
-                  <ActivityIndicator size="small" color={brand.sky} />
-                </View>
-              ) : bloodBankStocks.length > 0 ? (
-                <View style={styles.stockGrid}>
-                  {bloodBankStocks.map(stock => (
-                    <TouchableOpacity
-                      key={stock.id}
-                      style={[styles.stockCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}
-                      onPress={() => router.push('/(shared)/find-bloodbank' as any)}
-                    >
-                      <View style={styles.stockIcon}>
-                        <Ionicons name="business" size={18} color={brand.sky} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.stockName, { color: colors.text }]} numberOfLines={1}>{stock.name}</Text>
-                        <Text style={[styles.stockLoc, { color: colors.textSecondary }]} numberOfLines={1}>{stock.location}</Text>
-                      </View>
-                      <View style={styles.stockAmountBadge}>
-                        <Text style={styles.stockAmountText}>{stock.amount}U</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+              {isDonor ? (
+                <View
+                  style={[styles.statusPill, { backgroundColor: user.isAvailable ? 'rgba(16,185,129,0.25)' : 'rgba(100,116,139,0.25)' }]}
+                >
+                  {togglingAvail ? (
+                    <ActivityIndicator size="small" color={user.isAvailable ? '#10B981' : '#94A3B8'} style={{ marginRight: 6 }} />
+                  ) : (
+                    <View style={[styles.statusDot, { backgroundColor: user.isAvailable ? '#10B981' : '#94A3B8' }]} />
+                  )}
+                  <Text style={[styles.statusPillText, { color: '#FFFFFF' }]}>
+                    {togglingAvail ? 'Updating...' : user.isAvailable ? 'Active' : 'Away'}
+                  </Text>
                 </View>
               ) : (
-                <View style={[styles.emptyStateMinimal, { backgroundColor: colors.surface }]}>
-                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>No nearby stocks found for {user.bloodType}</Text>
+                <View style={[styles.statusPill, { backgroundColor: 'rgba(16,185,129,0.25)' }]}>
+                  <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+                  <Text style={[styles.statusPillText, { color: '#FFFFFF' }]}>Online</Text>
                 </View>
               )}
             </View>
-          </View>
-        )}
 
-        <DashboardInsights
-          user={user}
-          onDonorRequestPress={(id: string) => router.push({ pathname: '/(donor)/request-details' as any, params: { requestId: id } })}
-          onSeeAllUrgentNeeds={() => router.push(isDonor ? '/(donor)/requests' : '/(requester)/my-requests' as any)}
-          onSeeAllDemand={() => router.push(isDonor ? '/(shared)/find-bloodbank' : '/(requester)/needblood' as any)}
-          onSeeAllNearby={() => router.push(isDonor ? '/(shared)/find-bloodbank' : '/(requester)/find-donors' as any)}
-        />
-
-        <View style={styles.section}>
-          <View style={styles.sectionHdr}>
-            <View style={[styles.sectionBar, { backgroundColor: brand.sky }]} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{isDonor ? 'Donation Tips' : 'Helpful Guidance'}</Text>
-          </View>
-          <View style={[styles.tipsCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
-            {(isDonor ? [
-              { icon: 'water', tip: 'Drink plenty of water before and after donating' },
-              { icon: 'moon', tip: 'Get adequate sleep the night before your donation' },
-              { icon: 'nutrition', tip: 'Eat iron-rich foods regularly' },
-              { icon: 'timer', tip: 'Wait 56 days between whole blood donations' },
-            ] : [
-              { icon: 'document-text', tip: 'Provide accurate blood type information' },
-              { icon: 'business', tip: 'Include hospital name and ward details' },
-              { icon: 'alert-circle', tip: 'Set the correct urgency level' },
-              { icon: 'call', tip: 'Keep contact details updated' },
-            ]).map((item, i) => (
-              <View key={i} style={styles.tipRow}>
-                <View style={styles.tipIconWrap}>
-                  <Ionicons name={item.icon as any} size={15} color={brand.sky} />
+            <View style={styles.bloodCard}>
+              <View style={styles.bloodCardLeft}>
+                <View style={styles.bloodTypeCircle}>
+                  <Ionicons name="water" size={scale(16)} color={brand.orange} />
+                  <Text style={styles.bloodType}>{user.bloodType}</Text>
                 </View>
-                <Text style={[styles.tipText, { color: colors.textSecondary }]}>{item.tip}</Text>
+                <Text style={styles.bloodTypeLabel}>Blood Type</Text>
               </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHdr}>
-            <View style={[styles.sectionBar, { backgroundColor: brand.sky }]} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Community Stories</Text>
-            <TouchableOpacity onPress={handleViewAllReviews} style={styles.seeAllBtn}>
-              <Text style={styles.seeAllText}>View All</Text>
-              <Ionicons name="arrow-forward" size={13} color={brand.sky} />
-            </TouchableOpacity>
-          </View>
-
-          {loadingReviews ? (
-            <View style={styles.ratingBannerSkeleton}>
-              <ActivityIndicator size="small" color={brand.sky} />
-              <Text style={styles.loadingCardText}>Loading ratings…</Text>
-            </View>
-          ) : totalReviews > 0 ? (
-            <TouchableOpacity style={[styles.ratingBanner, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]} onPress={handleViewAllReviews} activeOpacity={0.8}>
-              <View style={styles.ratingScoreCircle}>
-                <Text style={styles.ratingScoreValue}>{averageRating.toFixed(1)}</Text>
-                <Text style={styles.ratingScoreMax}>/5</Text>
-              </View>
-              <View style={styles.ratingBannerMid}>
-                <Text style={[styles.ratingBannerLabel, { color: colors.text }]}>{getRatingLabelLocal(averageRating)}</Text>
-                <View style={styles.ratingBannerStars}>
-                  {renderStarsLocal(averageRating, 14)}
-                </View>
-                <Text style={[styles.ratingBannerCount, { color: colors.textSecondary }]}>
-                  Based on {totalReviews} verified review{totalReviews !== 1 ? 's' : ''}
-                </Text>
-              </View>
-              <View style={styles.ratingBannerArrow}>
-                <Ionicons name="chevron-forward" size={20} color={brand.sky} />
-              </View>
-            </TouchableOpacity>
-          ) : null}
-
-          {loadingReviews ? (
-            <View style={styles.loadingCard}>
-              <ActivityIndicator size="small" color={brand.sky} />
-              <Text style={styles.loadingCardText}>Loading reviews…</Text>
-            </View>
-          ) : previewReviews.length > 0 ? (
-            <>
-              <View style={styles.reviewsRow}>
-                {previewReviews.map((review, i) => (
-                  <View key={review.id || i} style={[styles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
-                    <View style={styles.reviewQuoteBg}>
-                      <Text style={styles.reviewQuoteChar}>"</Text>
-                    </View>
-                    <View style={styles.reviewCardHeader}>
-                      <LinearGradient
-                        colors={review.userType === 'donor' ? [brand.orange, '#C2410C'] : [brand.sky, brand.light]}
-                        style={styles.reviewAvatar}
-                      >
-                        <Text style={styles.reviewAvatarLetter}>
-                          {review.userName?.charAt(0)?.toUpperCase() || 'U'}
-                        </Text>
-                      </LinearGradient>
-                      <View style={styles.reviewCardMeta}>
-                        <Text style={[styles.reviewCardName, { color: colors.text }]}>
-                          {review.userName || 'Anonymous'}
-                        </Text>
-                        <View style={styles.reviewCardRoleRow}>
-                          <Ionicons
-                            name={review.userType === 'donor' ? 'heart' : 'medkit'}
-                            size={10}
-                            color={review.userType === 'donor' ? brand.orange : brand.sky}
-                          />
-                          <Text style={[styles.reviewCardRole, { color: review.userType === 'donor' ? brand.orange : brand.sky }]}>
-                            {review.userType === 'donor' ? 'Donor' : 'Requester'}
-                          </Text>
-                        </View>
+              <View style={styles.bloodCardStats}>
+                {isDonor ? (
+                  <>
+                    <View style={styles.statItem}>
+                      <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
+                        <Ionicons name="heart" size={14} color={brand.orange} />
                       </View>
+                      <Text style={styles.statValue}>{totalDonations}</Text>
+                      <Text style={styles.statLabel}>Donations</Text>
                     </View>
-                    {review.bloodType && (
-                      <View style={styles.reviewBloodBadge}>
-                        <Ionicons name="water" size={9} color="#FFFFFF" />
-                        <Text style={styles.reviewBloodBadgeText}>{review.bloodType}</Text>
+                    <View style={styles.statItem}>
+                      <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
+                        <Ionicons name="star" size={14} color={brand.orange} />
                       </View>
-                    )}
-                    <View style={styles.reviewStarsRow}>
-                      {renderStarsLocal(review.rating || 5, 12)}
+                      <Text style={styles.statValue}>{user.points || 0}</Text>
+                      <Text style={styles.statLabel}>Points</Text>
                     </View>
-                    <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={5}>
-                      {review.review}
-                    </Text>
-                    {review.category && (
-                      <View style={styles.reviewCategoryChip}>
-                        <Text style={styles.reviewCategoryText}>#{review.category}</Text>
+                    <View style={styles.statItem}>
+                      <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
+                        <Ionicons name="time" size={14} color={brand.orange} />
                       </View>
-                    )}
-                  </View>
-                ))}
-                {previewReviews.length === 1 && (
-                  <TouchableOpacity
-                    style={[styles.reviewCard, styles.reviewCardCta, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}
-                    onPress={() => router.push('/(shared)/rate-app' as any)}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient colors={[brand.sky, brand.light]} style={styles.reviewCtaGrad}>
-                      <Ionicons name="create-outline" size={28} color="#FFFFFF" />
-                      <Text style={styles.reviewCtaText}>Write a Review</Text>
-                      <Text style={styles.reviewCtaSub}>Share your experience with the community</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                      <Text style={styles.statValue}>{compatibleRequestsCount}</Text>
+                      <Text style={styles.statLabel}>Compatible</Text>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.statItem}>
+                      <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
+                        <Ionicons name="people" size={14} color={brand.orange} />
+                      </View>
+                      <Text style={styles.statValue}>{compatibleDonorsCount}</Text>
+                      <Text style={styles.statLabel}>Donors</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
+                        <Ionicons name="checkmark-circle" size={14} color={brand.orange} />
+                      </View>
+                      <Text style={styles.statValue}>{fulfilledRequests}</Text>
+                      <Text style={styles.statLabel}>Fulfilled</Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <View style={[styles.statIconCircle, { backgroundColor: brand.orangePale }]}>
+                        <Ionicons name="time" size={14} color={brand.orange} />
+                      </View>
+                      <Text style={styles.statValue}>{pendingRequests}</Text>
+                      <Text style={styles.statLabel}>Pending</Text>
+                    </View>
+                  </>
                 )}
               </View>
+            </View>
+          </LinearGradient>
 
-              <TouchableOpacity style={styles.viewAllReviewsBtn} onPress={handleViewAllReviews} activeOpacity={0.8}>
-                <LinearGradient colors={[brand.sky, brand.light]} style={styles.viewAllReviewsGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                  <Ionicons name="star" size={16} color="#FFFFFF" />
-                  <Text style={styles.viewAllReviewsText}>
-                    View All {totalReviews} Review{totalReviews !== 1 ? 's' : ''}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+          {/* VERIFICATION BANNER */}
+          {isDonor && (
+            <VerificationBanner
+              status={user.verificationStatus}
+              userType={user.userType as 'donor' | 'requester'}
+              rejectionReason={user.verificationRejectionReason}
+            />
+          )}
+
+          {/* DONOR STATUS WARNINGS (Synchronized with Requests Screen) */}
+          {isDonor && (
+            <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+              {hasActiveCommitment ? (
+                <LinearGradient colors={['#FEF3C7', '#FFFBEB']} style={styles.warningBanner}>
+                  <Ionicons name="alert-circle" size={20} color="#D97706" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.warningText}>You have an active donation commitment.</Text>
+                    <TouchableOpacity onPress={() => router.push('/(donor)/donation-history' as any)}>
+                      <Text style={styles.warningAction}>View Commitments</Text>
+                    </TouchableOpacity>
+                  </View>
                 </LinearGradient>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
-              <LinearGradient colors={[brand.soft, '#BFDBFE']} style={styles.emptyIconBox}>
-                <Ionicons name="star-outline" size={42} color={brand.sky} />
-              </LinearGradient>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Reviews Yet</Text>
-              <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Be the first to share your experience!</Text>
-              <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/(shared)/rate-app' as any)}>
-                <LinearGradient colors={[brand.sky, brand.light]} style={styles.emptyBtnGrad}>
-                  <Text style={styles.emptyBtnText}>Write a Review</Text>
+              ) : !user.isAvailable ? (
+                <LinearGradient colors={['#FEF3C7', '#FFFBEB']} style={styles.warningBanner}>
+                  <Ionicons name="moon" size={20} color="#D97706" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.warningText}>Your availability is currently turned off.</Text>
+                    <TouchableOpacity onPress={() => router.push('/(donor)/profile' as any)}>
+                      <Text style={styles.warningAction}>Go to Profile to Change</Text>
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+              ) : !eligibility.isEligible ? (
+                <LinearGradient colors={['#FEE2E2', '#FEF2F2']} style={styles.warningBanner}>
+                  <Ionicons name="time" size={20} color="#DC2626" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.warningText, { color: '#991B1B' }]}>Not currently eligible to donate.</Text>
+                    <TouchableOpacity onPress={() => router.push('/(shared)/guide' as any)}>
+                      <Text style={[styles.warningAction, { color: '#DC2626' }]}>View Health Guide</Text>
+                    </TouchableOpacity>
+                  </View>
+                </LinearGradient>
+              ) : null}
+            </View>
+          )}
+
+          <View style={styles.section}>
+            <View style={styles.sectionHdr}>
+              <View style={[styles.sectionBar, { backgroundColor: brand.orange }]} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
+            </View>
+            <ScrollView
+              ref={actionsScrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.actionsScrollContent}
+              snapToInterval={120 + 12}
+              decelerationRate="fast"
+              onTouchStart={() => { userTouchRef.current = Date.now(); }}
+            >
+              {actions.map((a, i) => (
+                <TouchableOpacity key={i} style={[styles.actionCard, { width: 120 }]} onPress={() => router.push(a.route as any)} activeOpacity={0.75}>
+                  <View style={[styles.actionIconBg, { backgroundColor: a.bg }]}>
+                    <LinearGradient colors={a.clr} style={styles.actionIconGrad}>
+                      <Ionicons name={a.icon as any} size={20} color="#FFFFFF" />
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.actionTitle} numberOfLines={1}>{a.title}</Text>
+                  <Text style={styles.actionDesc} numberOfLines={2}>{a.desc}</Text>
+                  {a.title === 'Messages' && unreadTotal > 0 && (
+                    <View style={styles.actionBadge}>
+                      <Text style={styles.actionBadgeText}>{unreadTotal > 9 ? '9+' : unreadTotal}</Text>
+                    </View>
+                  )}
+                  <LinearGradient colors={a.clr} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.actionCardAccent} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {!isDonor && (
+              <View style={styles.actionsRow3}>
+                <TouchableOpacity
+                  style={[styles.actionCardHalf, { backgroundColor: colors.surface }]}
+                  onPress={() => router.push('/(shared)/guide')}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.actionIconBg, { backgroundColor: '#FEF2F2' }]}>
+                    <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.actionIconGrad}>
+                      <Ionicons name="book" size={20} color="#FFFFFF" />
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.actionTitle}>Health Guide</Text>
+                  <Text style={styles.actionDesc} numberOfLines={2}>Tips & info</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionCardHalf, styles.inviteBadge, { backgroundColor: '#ECFDF5' }]}
+                  onPress={() => router.push('/(shared)/invite')}
+                  activeOpacity={0.75}
+                >
+                  <LinearGradient colors={['#10B981', '#059669']} style={styles.inviteBadgeGrad}>
+                    <Ionicons name="people" size={18} color="#FFFFFF" />
+                    <Text style={styles.inviteBadgeText}>Invite a Hero</Text>
+                    <Ionicons name="chevron-forward" size={14} color="#FFF" style={{ marginLeft: 'auto' }} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* INVITE BANNER */}
+          {isDonor && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.referralBanner}
+                activeOpacity={0.9}
+                onPress={() => router.push('/(shared)/invite' as any)}
+              >
+                <LinearGradient colors={['#0D9488', '#0F766E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.referralGrad}>
+                  <View style={styles.referralContent}>
+                    <View style={styles.referralTextSide}>
+                      <Text style={styles.referralTitle}>Invite a Hero</Text>
+                      <Text style={styles.referralDesc}>Every friend you invite helps build a stronger life-saving community in Kenya.</Text>
+                      <View style={styles.referralBadge}>
+                        <Ionicons name="heart" size={12} color="#FFF" />
+                        <Text style={styles.referralBadgeText}>Save lives together</Text>
+                      </View>
+                    </View>
+                    <View style={styles.referralIconSide}>
+                      <Ionicons name="people" size={60} color="rgba(255,255,255,0.2)" style={styles.referralIconLarge} />
+                      <View style={styles.referralIconCircle}>
+                        <Ionicons name="share-social" size={24} color="#0D9488" />
+                      </View>
+                    </View>
+                  </View>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* Impact Stats */}
-          <LinearGradient colors={[brand.sky, brand.light]} style={styles.impactCard}>
-            <Text style={styles.impactCardTitle}>Our Impact Together</Text>
-            <View style={styles.impactStatsRow}>
-              <View style={styles.impactStatItem}>
-                <Text style={styles.impactStatValue}>10,000+</Text>
-                <Text style={styles.impactStatLabel}>Active Donors</Text>
-              </View>
-              <View style={styles.impactStatDivider} />
-              <View style={styles.impactStatItem}>
-                <Text style={styles.impactStatValue}>4,500+</Text>
-                <Text style={styles.impactStatLabel}>Lives Saved</Text>
-              </View>
-              <View style={styles.impactStatDivider} />
-              <View style={styles.impactStatItem}>
-                <Text style={styles.impactStatValue}>47</Text>
-                <Text style={styles.impactStatLabel}>Counties</Text>
-              </View>
-            </View>
-            <Text style={styles.impactCardSubtext}>Every donation makes a difference. Join our life-saving community today.</Text>
-          </LinearGradient>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHdr}>
-            <View style={[styles.sectionBar, { backgroundColor: brand.orange }]} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>About BloodLink</Text>
-          </View>
-
-          {/* Streamlined About Us Section */}
-          <View style={styles.aboutSection}>
-            {/* Mission Hero - Restored & Refined */}
-            <LinearGradient
-              colors={[isDark ? '#1E293B' : '#F8FAFC', isDark ? '#0F172A' : '#F1F5F9']}
-              style={[styles.missionHero, { borderColor: colors.surfaceBorder }]}
-            >
-              <View style={styles.missionQuoteIcon}>
-                <Ionicons name="chatbubble-ellipses" size={24} color={brand.orange} />
-              </View>
-              <Text style={[styles.missionHeroText, { color: colors.text }]}>
-                Bridging the gap between <Text style={{ color: brand.orange, fontWeight: '800' }}>donors</Text> and <Text style={{ color: brand.sky, fontWeight: '800' }}>patients</Text> across Kenya.
-              </Text>
-              <View style={styles.missionDivider} />
-              <Text style={[styles.missionHeroSub, { color: colors.textSecondary }]}>
-                We leverage technology to ensure reaching donors and managing blood requests is easier than ever, creating a seamless, verified, and efficient lifesaving network.
-              </Text>
-            </LinearGradient>
-
-            <View style={styles.aboutList}>
-              {features.map((f, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.aboutItem}
-                  onPress={f.onPress}
-                  disabled={!f.onPress}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient colors={f.bg} style={styles.aboutItemIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                    <Ionicons name={f.icon as any} size={16} color="#FFFFFF" />
-                  </LinearGradient>
-                  <View style={styles.aboutItemText}>
-                    <Text style={styles.aboutItemTitle}>{f.title}</Text>
-                    <Text style={styles.aboutItemDesc}>{f.desc}</Text>
-                  </View>
+          {isDonor ? (
+            <View style={styles.section}>
+              <View style={styles.sectionHdr}>
+                <View style={[styles.sectionBar, { backgroundColor: brand.orange }]} />
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Urgent Requests Near You</Text>
+                <TouchableOpacity onPress={() => router.push('/(donor)/requests' as any)} style={styles.seeAllBtn}>
+                  <Text style={styles.seeAllText}>View All</Text>
+                  <Ionicons name="arrow-forward" size={13} color={brand.sky} />
                 </TouchableOpacity>
-              ))}
-            </View>
+              </View>
 
-            <Text style={styles.aboutWhoHeading}>Who We Serve</Text>
-            <View style={styles.aboutWhoRow}>
-              {[
-                { label: 'Donors', icon: 'heart', tint: brand.orange },
-                { label: 'Patients', icon: 'medkit', tint: brand.sky },
-                { label: 'Hospitals', icon: 'business', tint: '#16A34A' }
-              ].map((item, i) => (
-                <View key={i} style={styles.aboutWhoItem}>
-                  <View style={styles.aboutWhoCircle}>
-                    <Ionicons name={item.icon as any} size={20} color={item.tint} />
+              {loadingRequests ? (
+                <View style={styles.loadingCard}>
+                  <ActivityIndicator size="small" color={brand.orange} />
+                  <Text style={styles.loadingCardText}>Loading requests…</Text>
+                </View>
+              ) : recentRequests.length > 0 ? (
+                <ScrollView ref={requestsScrollRef} horizontal showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.hScrollCont} snapToInterval={REQUEST_CARD_WIDTH + 12} decelerationRate="fast"
+                  onTouchStart={() => { userTouchRef.current = Date.now(); }}>
+                  {recentRequests.map(req => (
+                    <View key={req.id} style={[styles.requestCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+                      <View style={[styles.cardStripe, { backgroundColor: getUrgencyColor(req.urgencyLevel, colors) }]} />
+                      <TouchableOpacity onPress={handleRequestPress} activeOpacity={0.85}>
+                        <View style={styles.requestHdrCompact}>
+                          <View style={styles.requestHdrLeft}>
+                            <Text style={[styles.reqBloodTypeSmall, { color: colors.text }]}>{req.bloodType}</Text>
+                            <Text style={[styles.reqBloodLabelSmall, { color: colors.textSecondary }]}>needed</Text>
+                          </View>
+                          <View style={[styles.urgencyBadgeSmall, { backgroundColor: getUrgencyColor(req.urgencyLevel, colors) + '18', borderColor: getUrgencyColor(req.urgencyLevel, colors) }]}>
+                            <Text style={[styles.urgencyTextSmall, { color: getUrgencyColor(req.urgencyLevel, colors) }]}>{req.urgencyLevel.toUpperCase()}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.requestBodyCompact}>
+                          {[
+                            { icon: 'business', val: req.hospitalName || 'Medical Center' },
+                            { icon: 'location', val: req.location?.city || 'Nearby' },
+                          ].map((row, ri) => (
+                            <View key={ri} style={styles.reqRowCompact}>
+                              <Ionicons name={row.icon as any} size={11} color={colors.textSecondary} />
+                              <Text style={[styles.reqTextSmall, { color: colors.textSecondary }]} numberOfLines={1}>{row.val}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        <LinearGradient colors={[brand.orange, '#C2410C']} style={styles.cardFooterSmall}>
+                          <Text style={styles.cardFooterTextSmall}>Respond</Text>
+                          <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+                  <LinearGradient colors={[brand.orangePale, '#FED7AA']} style={styles.emptyIconBox}>
+                    <Ionicons name="heart-outline" size={42} color={brand.orange} />
+                  </LinearGradient>
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>No Urgent Requests</Text>
+                  <Text style={[styles.emptySub, { color: colors.textSecondary }]}>We'll notify you when someone needs your blood type</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.section}>
+              <View style={styles.sectionHdr}>
+                <View style={[styles.sectionBar, { backgroundColor: brand.sky }]} />
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Available Donors</Text>
+                <TouchableOpacity onPress={() => router.push('/(requester)/find-donors' as any)} style={styles.seeAllBtn}>
+                  <Text style={styles.seeAllText}>View All</Text>
+                  <Ionicons name="arrow-forward" size={13} color={brand.sky} />
+                </TouchableOpacity>
+              </View>
+
+              {loadingDonors ? (
+                <View style={styles.loadingCard}>
+                  <ActivityIndicator size="small" color={brand.sky} />
+                  <Text style={styles.loadingCardText}>Loading donors…</Text>
+                </View>
+              ) : availableDonors.length > 0 ? (
+                <ScrollView ref={donorsScrollRef} horizontal showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.hScrollCont} snapToInterval={DONOR_CARD_WIDTH + 16} decelerationRate="fast"
+                  onTouchStart={() => { userTouchRef.current = Date.now(); }}>
+                  {availableDonors.map(donor => (
+                    <View key={donor.id} style={[styles.donorCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+                      <TouchableOpacity onPress={() => handleDonorPress(donor)} activeOpacity={0.85}>
+                        <View style={styles.donorHdrCompact}>
+                          {donor.profilePicture
+                            ? <Image source={{ uri: donor.profilePicture }} style={styles.donorAvatarCompact} />
+                            : <LinearGradient colors={[brand.sky, brand.light]} style={styles.donorAvatarFallbackCompact}>
+                              <Text style={styles.donorInitialsCompact}>{getInitials(donor.firstName, donor.lastName)}</Text>
+                            </LinearGradient>
+                          }
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.donorNameCompact, { color: colors.text }]} numberOfLines={1}>{donor.firstName}</Text>
+                            <View style={styles.donorBloodBadgeCompact}>
+                              <Ionicons name="water" size={10} color={brand.orange} />
+                              <Text style={styles.donorBloodTypeCompact}>{donor.bloodType}</Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={styles.donorStatsBoxCompact}>
+                          <View style={styles.donorStatCompact}>
+                            <Text style={[styles.donorStatValCompact, { color: colors.text }]}>{donor.totalDonations || 0}</Text>
+                            <Text style={[styles.donorStatLblCompact, { color: colors.textSecondary }]}>Donations</Text>
+                          </View>
+                          <View style={styles.donorStatDivCompact} />
+                          <View style={styles.donorStatCompact}>
+                            <Text style={[styles.donorStatValCompact, { color: brand.orange }]}>{donor.points || 0}</Text>
+                            <Text style={[styles.donorStatLblCompact, { color: colors.textSecondary }]}>Points</Text>
+                          </View>
+                        </View>
+
+                        {donor.location?.city && (
+                          <View style={styles.donorLocCompact}>
+                            <Ionicons name="location" size={12} color={brand.sky} />
+                            <Text style={[styles.donorLocTextCompact, { color: colors.textSecondary }]} numberOfLines={1}>{donor.location.city}</Text>
+                          </View>
+                        )}
+
+                        <LinearGradient colors={[brand.sky, brand.light]} style={styles.donorFooterCompact}>
+                          <Text style={styles.donorFooterTextCompact}>View Profile</Text>
+                          <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.emptyState}>
+                  <LinearGradient colors={[brand.soft, '#BFDBFE']} style={styles.emptyIconBox}>
+                    <Ionicons name="people-outline" size={42} color={brand.sky} />
+                  </LinearGradient>
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>No Available Donors</Text>
+                  <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Check back later or browse all donors</Text>
+                  <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/(requester)/find-donors' as any)}>
+                    <LinearGradient colors={[brand.sky, brand.light]} style={styles.emptyBtnGrad}>
+                      <Text style={styles.emptyBtnText}>Browse Donors</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Blood Bank Stock Suggestions for Requesters */}
+              <View style={{ marginTop: 24 }}>
+                <View style={styles.sectionHdr}>
+                  <View style={[styles.sectionBar, { backgroundColor: brand.sky }]} />
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Nearby Stocks for {user.bloodType}</Text>
+                  <TouchableOpacity onPress={() => router.push('/(shared)/find-bloodbank' as any)} style={styles.seeAllBtn}>
+                    <Text style={styles.seeAllText}>Find More</Text>
+                    <Ionicons name="location" size={13} color={brand.sky} />
+                  </TouchableOpacity>
+                </View>
+
+                {loadingStocks ? (
+                  <View style={styles.loadingCard}>
+                    <ActivityIndicator size="small" color={brand.sky} />
                   </View>
-                  <Text style={styles.aboutWhoLabel}>{item.label}</Text>
+                ) : bloodBankStocks.length > 0 ? (
+                  <ScrollView ref={stocksScrollRef} horizontal showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.hScrollCont} snapToInterval={REQUEST_CARD_WIDTH + 16} decelerationRate="fast"
+                    onTouchStart={() => { userTouchRef.current = Date.now(); }}>
+                    {bloodBankStocks.map(stock => (
+                      <TouchableOpacity
+                        key={stock.id}
+                        style={[styles.stockCardCompact, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}
+                        onPress={() => router.push({ pathname: '/(shared)/find-bloodbank', params: { selectedBankId: stock.id } } as any)}
+                      >
+                        <View style={styles.stockHdrCompact}>
+                          <View style={styles.stockIconBg}>
+                            <Ionicons name="business" size={16} color={brand.sky} />
+                          </View>
+                          <View style={styles.stockAmountBadgeSmall}>
+                            <Text style={styles.stockAmountTextSmall}>{stock.amount} Units</Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.stockNameCompact, { color: colors.text }]} numberOfLines={1}>{stock.name}</Text>
+                        <View style={styles.stockLocRow}>
+                          <Ionicons name="location" size={12} color={brand.sky} />
+                          <Text style={[styles.stockLocCompact, { color: colors.textSecondary }]} numberOfLines={1}>{stock.location}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View style={[styles.emptyStateMinimal, { backgroundColor: colors.surface }]}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>No nearby stocks found for {user.bloodType}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          <DashboardInsights
+            user={user}
+            nearbyStocks={bloodBankStocks}
+            onDonorRequestPress={(id: string) => router.push({ pathname: '/(donor)/request-details' as any, params: { requestId: id } })}
+            onSeeAllUrgentNeeds={() => router.push(isDonor ? '/(donor)/requests' : '/(requester)/my-requests' as any)}
+            onSeeAllDemand={() => router.push(isDonor ? '/(shared)/find-bloodbank' : '/(requester)/needblood' as any)}
+            onSeeAllNearby={() => router.push(isDonor ? '/(shared)/find-bloodbank' : '/(requester)/find-donors' as any)}
+          />
+
+          <View style={styles.section}>
+            <View style={styles.sectionHdr}>
+              <View style={[styles.sectionBar, { backgroundColor: brand.sky }]} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{isDonor ? 'Donation Tips' : 'Helpful Guidance'}</Text>
+            </View>
+            <View style={[styles.tipsCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+              {(isDonor ? [
+                { icon: 'water', tip: 'Drink plenty of water before and after donating' },
+                { icon: 'moon', tip: 'Get adequate sleep the night before your donation' },
+                { icon: 'nutrition', tip: 'Eat iron-rich foods regularly' },
+                { icon: 'timer', tip: 'Wait 56 days between whole blood donations' },
+              ] : [
+                { icon: 'document-text', tip: 'Provide accurate blood type information' },
+                { icon: 'business', tip: 'Include hospital name and ward details' },
+                { icon: 'alert-circle', tip: 'Set the correct urgency level' },
+                { icon: 'call', tip: 'Keep contact details updated' },
+              ]).map((item, i) => (
+                <View key={i} style={styles.tipRow}>
+                  <View style={styles.tipIconWrap}>
+                    <Ionicons name={item.icon as any} size={15} color={brand.sky} />
+                  </View>
+                  <Text style={[styles.tipText, { color: colors.textSecondary }]}>{item.tip}</Text>
                 </View>
               ))}
             </View>
+          </View>
 
-            <Text style={styles.aboutSocialHeader}>Connect With Us</Text>
-            <View style={styles.aboutSocialRow}>
-              {socialLinks.map((link, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.aboutSocialIcon}
-                  onPress={() => Linking.openURL(link.url)}
-                >
-                  <Ionicons name={link.icon as any} size={18} color={link.color} />
-                </TouchableOpacity>
-              ))}
+          <View style={styles.section}>
+            <View style={styles.sectionHdr}>
+              <View style={[styles.sectionBar, { backgroundColor: brand.sky }]} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Community Stories</Text>
+              <TouchableOpacity onPress={handleViewAllReviews} style={styles.seeAllBtn}>
+                <Text style={styles.seeAllText}>View All</Text>
+                <Ionicons name="arrow-forward" size={13} color={brand.sky} />
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.aboutVersion}>
-              <Text style={styles.aboutVersionText}>
-                BloodLink v2.1.0 · Made with ❤️ in Kenya 🇰🇪
-              </Text>
+            {loadingReviews ? (
+              <View style={styles.ratingBannerSkeleton}>
+                <ActivityIndicator size="small" color={brand.sky} />
+                <Text style={styles.loadingCardText}>Loading ratings…</Text>
+              </View>
+            ) : totalReviews > 0 ? (
+              <TouchableOpacity style={[styles.ratingBanner, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]} onPress={handleViewAllReviews} activeOpacity={0.8}>
+                <View style={styles.ratingScoreCircle}>
+                  <Text style={styles.ratingScoreValue}>{averageRating.toFixed(1)}</Text>
+                  <Text style={styles.ratingScoreMax}>/5</Text>
+                </View>
+                <View style={styles.ratingBannerMid}>
+                  <Text style={[styles.ratingBannerLabel, { color: colors.text }]}>{getRatingLabelLocal(averageRating)}</Text>
+                  <View style={styles.ratingBannerStars}>
+                    {renderStarsLocal(averageRating, 14)}
+                  </View>
+                  <Text style={[styles.ratingBannerCount, { color: colors.textSecondary }]}>
+                    Based on {totalReviews} verified review{totalReviews !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                <View style={styles.ratingBannerArrow}>
+                  <Ionicons name="chevron-forward" size={20} color={brand.sky} />
+                </View>
+              </TouchableOpacity>
+            ) : null}
+
+            {loadingReviews ? (
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="small" color={brand.sky} />
+                <Text style={styles.loadingCardText}>Loading reviews…</Text>
+              </View>
+            ) : previewReviews.length > 0 ? (
+              <>
+                <View style={styles.reviewsRow}>
+                  {previewReviews.map((review, i) => (
+                    <View key={review.id || i} style={[styles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+                      <View style={styles.reviewQuoteBg}>
+                        <Text style={styles.reviewQuoteChar}>"</Text>
+                      </View>
+                      <View style={styles.reviewCardHeader}>
+                        <LinearGradient
+                          colors={review.userType === 'donor' ? [brand.orange, '#C2410C'] : [brand.sky, brand.light]}
+                          style={styles.reviewAvatar}
+                        >
+                          <Text style={styles.reviewAvatarLetter}>
+                            {review.userName?.charAt(0)?.toUpperCase() || 'U'}
+                          </Text>
+                        </LinearGradient>
+                        <View style={styles.reviewCardMeta}>
+                          <Text style={[styles.reviewCardName, { color: colors.text }]}>
+                            {review.userName || 'Anonymous'}
+                          </Text>
+                          <View style={styles.reviewCardRoleRow}>
+                            <Ionicons
+                              name={review.userType === 'donor' ? 'heart' : 'medkit'}
+                              size={10}
+                              color={review.userType === 'donor' ? brand.orange : brand.sky}
+                            />
+                            <Text style={[styles.reviewCardRole, { color: review.userType === 'donor' ? brand.orange : brand.sky }]}>
+                              {review.userType === 'donor' ? 'Donor' : 'Requester'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      {review.bloodType && (
+                        <View style={styles.reviewBloodBadge}>
+                          <Ionicons name="water" size={9} color="#FFFFFF" />
+                          <Text style={styles.reviewBloodBadgeText}>{review.bloodType}</Text>
+                        </View>
+                      )}
+                      <View style={styles.reviewStarsRow}>
+                        {renderStarsLocal(review.rating || 5, 12)}
+                      </View>
+                      <Text style={[styles.reviewText, { color: colors.textSecondary }]} numberOfLines={5}>
+                        {review.review}
+                      </Text>
+                      {review.category && (
+                        <View style={styles.reviewCategoryChip}>
+                          <Text style={styles.reviewCategoryText}>#{review.category}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                  {previewReviews.length === 1 && (
+                    <TouchableOpacity
+                      style={[styles.reviewCard, styles.reviewCardCta, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}
+                      onPress={() => router.push('/(shared)/rate-app' as any)}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient colors={[brand.sky, brand.light]} style={styles.reviewCtaGrad}>
+                        <Ionicons name="create-outline" size={28} color="#FFFFFF" />
+                        <Text style={styles.reviewCtaText}>Write a Review</Text>
+                        <Text style={styles.reviewCtaSub}>Share your experience with the community</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <TouchableOpacity style={styles.viewAllReviewsBtn} onPress={handleViewAllReviews} activeOpacity={0.8}>
+                  <LinearGradient colors={[brand.sky, brand.light]} style={styles.viewAllReviewsGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    <Ionicons name="star" size={16} color="#FFFFFF" />
+                    <Text style={styles.viewAllReviewsText}>
+                      View All {totalReviews} Review{totalReviews !== 1 ? 's' : ''}
+                    </Text>
+                    <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+                <LinearGradient colors={[brand.soft, '#BFDBFE']} style={styles.emptyIconBox}>
+                  <Ionicons name="star-outline" size={42} color={brand.sky} />
+                </LinearGradient>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Reviews Yet</Text>
+                <Text style={[styles.emptySub, { color: colors.textSecondary }]}>Be the first to share your experience!</Text>
+                <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push('/(shared)/rate-app' as any)}>
+                  <LinearGradient colors={[brand.sky, brand.light]} style={styles.emptyBtnGrad}>
+                    <Text style={styles.emptyBtnText}>Write a Review</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Impact Stats */}
+            <LinearGradient colors={[brand.sky, brand.light]} style={styles.impactCard}>
+              <Text style={styles.impactCardTitle}>Our Impact Together</Text>
+              <View style={styles.impactStatsRow}>
+                <View style={styles.impactStatItem}>
+                  <Text style={styles.impactStatValue}>10,000+</Text>
+                  <Text style={styles.impactStatLabel}>Active Donors</Text>
+                </View>
+                <View style={styles.impactStatDivider} />
+                <View style={styles.impactStatItem}>
+                  <Text style={styles.impactStatValue}>4,500+</Text>
+                  <Text style={styles.impactStatLabel}>Lives Saved</Text>
+                </View>
+                <View style={styles.impactStatDivider} />
+                <View style={styles.impactStatItem}>
+                  <Text style={styles.impactStatValue}>47</Text>
+                  <Text style={styles.impactStatLabel}>Counties</Text>
+                </View>
+              </View>
+              <Text style={styles.impactCardSubtext}>Every donation makes a difference. Join our life-saving community today.</Text>
+            </LinearGradient>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHdr}>
+              <View style={[styles.sectionBar, { backgroundColor: brand.orange }]} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>About BloodLink</Text>
+            </View>
+
+            {/* Streamlined About Us Section */}
+            <View style={styles.aboutSection}>
+              {/* Mission Hero - Restored & Refined */}
+              <LinearGradient
+                colors={[isDark ? '#1E293B' : '#F8FAFC', isDark ? '#0F172A' : '#F1F5F9']}
+                style={[styles.missionHero, { borderColor: colors.surfaceBorder }]}
+              >
+                <View style={styles.missionQuoteIcon}>
+                  <Ionicons name="chatbubble-ellipses" size={24} color={brand.orange} />
+                </View>
+                <Text style={[styles.missionHeroText, { color: colors.text }]}>
+                  Bridging the gap between <Text style={{ color: brand.orange, fontWeight: '800' }}>donors</Text> and <Text style={{ color: brand.sky, fontWeight: '800' }}>patients</Text> across Kenya.
+                </Text>
+                <View style={styles.missionDivider} />
+                <Text style={[styles.missionHeroSub, { color: colors.textSecondary }]}>
+                  We leverage technology to ensure reaching donors and managing blood requests is easier than ever, creating a seamless, verified, and efficient lifesaving network.
+                </Text>
+              </LinearGradient>
+
+              <View style={styles.aboutList}>
+                {features.map((f, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.aboutItem}
+                    onPress={f.onPress}
+                    disabled={!f.onPress}
+                    activeOpacity={0.7}
+                  >
+                    <LinearGradient colors={f.bg} style={styles.aboutItemIcon} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                      <Ionicons name={f.icon as any} size={16} color="#FFFFFF" />
+                    </LinearGradient>
+                    <View style={styles.aboutItemText}>
+                      <Text style={styles.aboutItemTitle}>{f.title}</Text>
+                      <Text style={styles.aboutItemDesc}>{f.desc}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.aboutWhoHeading}>Who We Serve</Text>
+              <View style={styles.aboutWhoRow}>
+                {[
+                  { label: 'Donors', icon: 'heart', tint: brand.orange },
+                  { label: 'Patients', icon: 'medkit', tint: brand.sky },
+                  { label: 'Hospitals', icon: 'business', tint: '#16A34A' }
+                ].map((item, i) => (
+                  <View key={i} style={styles.aboutWhoItem}>
+                    <View style={styles.aboutWhoCircle}>
+                      <Ionicons name={item.icon as any} size={20} color={item.tint} />
+                    </View>
+                    <Text style={styles.aboutWhoLabel}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={styles.aboutSocialHeader}>Connect With Us</Text>
+              <View style={styles.aboutSocialRow}>
+                {socialLinks.map((link, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.aboutSocialIcon}
+                    onPress={() => Linking.openURL(link.url)}
+                  >
+                    <Ionicons name={link.icon as any} size={18} color={link.color} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.aboutVersion}>
+                <Text style={styles.aboutVersionText}>
+                  BloodLink v2.1.0 · Made with ❤️ in Kenya 🇰🇪
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View style={{ height: 32 }} />
-      </ScrollView>
+          <View style={{ height: 32 }} />
+        </ScrollView>
 
-      <LogoutModal
-        visible={showLogoutModal}
-        onCancel={() => setShowLogoutModal(false)}
-        onLogout={handleConfirmLogout}
-        isLoggingOut={isLoggingOut}
-      />
+        <LogoutModal
+          visible={showLogoutModal}
+          onCancel={() => setShowLogoutModal(false)}
+          onLogout={handleConfirmLogout}
+          isLoggingOut={isLoggingOut}
+        />
+      </View>
     </SafeAreaView >
   );
 }
@@ -1532,7 +1527,7 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 12, fontSize: 16, color: colors.textSecondary, fontWeight: '500' },
   scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: 20 },
+  scrollContent: { paddingBottom: 100 },
 
   drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: DRAWER_WIDTH, zIndex: 1005, ...shadow('#000', 0.2, 16, 12) },
   notifDrawer: { position: 'absolute', right: 12, top: Platform.OS === 'ios' ? 65 : 45, width: NOTIF_DRAWER_WIDTH + 40, maxHeight: SCREEN_HEIGHT * 0.50, zIndex: 1005, borderRadius: 24, overflow: 'hidden', ...shadow('#000', 0.25, 20, 10) },
@@ -1724,8 +1719,8 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
     width: (SCREEN_WIDTH - 32 - 8 - 8) / 3,
     backgroundColor: colors.surface,
     borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
@@ -1734,7 +1729,8 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
   },
   actionIconBg: { width: 48, height: 48, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 8, backgroundColor: colors.surfaceAlt },
   actionIconGrad: { width: 42, height: 42, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
-  actionTitle: { fontSize: 11, fontWeight: '700', color: colors.text, textAlign: 'center', lineHeight: 14 },
+  actionTitle: { fontSize: 13, fontWeight: '800', color: colors.text, textAlign: 'center', lineHeight: 16 },
+  actionDesc: { fontSize: 9.5, color: colors.textSecondary, textAlign: 'center', lineHeight: 12, marginTop: 4, fontWeight: '500' },
   actionCardAccent: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
   actionsScroll: { marginTop: 12 },
   actionsScrollContent: { gap: 12, paddingRight: 16 },
@@ -1951,11 +1947,20 @@ const getStyles = (colors: any, insets: any, isDark: boolean, brand: any) => Sty
 
   stockGrid: { gap: 12 },
   stockCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1, gap: 12, ...shadow('#000', 0.04, 8, 2) },
-  stockIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: brand.soft, justifyContent: 'center', alignItems: 'center' },
+  stockIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(59, 130, 246, 0.1)', justifyContent: 'center', alignItems: 'center' },
   stockName: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  stockLoc: { fontSize: 11, fontWeight: '500' },
-  stockAmountBadge: { backgroundColor: brand.orange, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  stockAmountText: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
+  stockLoc: { fontSize: 11 },
+  stockAmountBadge: { backgroundColor: 'rgba(59, 130, 246, 0.15)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  stockAmountText: { fontSize: 13, fontWeight: '800', color: '#2563EB' },
+
+  stockCardCompact: { width: REQUEST_CARD_WIDTH, padding: 12, borderRadius: 16, borderWidth: 1, ...shadow('#000', 0.04, 8, 2) },
+  stockHdrCompact: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  stockIconBg: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(59, 130, 246, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  stockAmountBadgeSmall: { backgroundColor: 'rgba(59, 130, 246, 0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  stockAmountTextSmall: { fontSize: 10, fontWeight: '800', color: '#2563EB' },
+  stockNameCompact: { fontSize: 13, fontWeight: '700', marginBottom: 6 },
+  stockLocRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  stockLocCompact: { fontSize: 11, flex: 1 },
 
   tipsCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.surfaceBorder, ...shadow(colors.primary, 0.05, 6, 2) },
   tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },

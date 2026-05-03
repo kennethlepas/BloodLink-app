@@ -29,6 +29,7 @@ import {
 
 interface DashboardInsightsProps {
     user: User;
+    nearbyStocks?: any[];
     onDonorRequestPress?: (requestId: string) => void;
     onBloodTypeDemandPress?: (bloodType: BloodType) => void;
     onSeeAllUrgentNeeds?: () => void;
@@ -38,6 +39,7 @@ interface DashboardInsightsProps {
 
 export const DashboardInsights: React.FC<DashboardInsightsProps> = ({
     user,
+    nearbyStocks,
     onDonorRequestPress,
     onBloodTypeDemandPress,
     onSeeAllUrgentNeeds,
@@ -98,6 +100,7 @@ export const DashboardInsights: React.FC<DashboardInsightsProps> = ({
         return (
             <RequesterInsightsSection
                 insights={requesterInsights}
+                nearbyStocks={nearbyStocks}
                 onBloodTypeDemandPress={onBloodTypeDemandPress}
                 onSeeAllDemand={onSeeAllDemand}
                 onSeeAllNearby={onSeeAllNearby}
@@ -196,6 +199,7 @@ const DonorInsightsSection: React.FC<DonorInsightsSectionProps> = ({
 
 interface RequesterInsightsSectionProps {
     insights: RequesterInsights;
+    nearbyStocks?: any[];
     onBloodTypeDemandPress?: (bloodType: BloodType) => void;
     onSeeAllDemand?: () => void;
     onSeeAllNearby?: () => void;
@@ -203,11 +207,14 @@ interface RequesterInsightsSectionProps {
 
 const RequesterInsightsSection: React.FC<RequesterInsightsSectionProps> = ({
     insights,
+    nearbyStocks,
     onBloodTypeDemandPress,
     onSeeAllDemand,
     onSeeAllNearby,
 }) => {
     const { colors } = useAppTheme();
+
+    const totalBloodBanks = nearbyStocks?.length || 0;
 
     // Build insight cards for carousel
     const insightCards: React.ReactNode[] = [];
@@ -289,6 +296,17 @@ const RequesterInsightsSection: React.FC<RequesterInsightsSectionProps> = ({
                             </Text>
                             <Text style={[styles.supplyLabel, { color: colors.textSecondary }]}>
                                 Compatible
+                            </Text>
+                        </View>
+
+                        <View style={{ width: 1, height: 40, backgroundColor: '#E5E7EB', marginHorizontal: 8 }} />
+
+                        <View style={styles.supplyStat}>
+                            <Text style={[styles.supplyValue, { color: colors.primary }]}>
+                                {totalBloodBanks}
+                            </Text>
+                            <Text style={[styles.supplyLabel, { color: colors.textSecondary }]}>
+                                Blood Banks
                             </Text>
                         </View>
 
@@ -380,5 +398,35 @@ const styles = StyleSheet.create({
         height: 40,
         backgroundColor: '#E5E7EB',
         marginHorizontal: 8,
+    },
+    supplyDividerHorizontal: {
+        height: 1,
+        width: '100%',
+        marginVertical: 14,
+    },
+    supplyTitleSmall: {
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 10,
+    },
+    stockListRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    stockListText: {
+        flex: 1,
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    stockListBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    stockListBadgeText: {
+        fontSize: 11,
+        fontWeight: '800',
     },
 });

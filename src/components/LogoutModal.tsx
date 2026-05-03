@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import React from 'react';
-import { ActivityIndicator, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface LogoutModalProps {
     visible: boolean;
@@ -37,9 +36,6 @@ export const LogoutModal: React.FC<LogoutModalProps> = ({
             statusBarTranslucent
         >
             <View style={styles.overlay}>
-                {Platform.OS === 'ios' && (
-                    <BlurView intensity={20} style={styles.blur} tint="dark" />
-                )}
 
                 <View style={styles.modalContainer}>
                     <View style={styles.iconContainer}>
@@ -92,9 +88,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
-    },
-    blur: {
-        ...StyleSheet.absoluteFillObject,
     },
     modalContainer: {
         width: '100%',

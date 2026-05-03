@@ -1,6 +1,6 @@
 import { useAppTheme, type ThemeColors } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
-import { getVerificationRequest } from '@/src/services/firebase/database';
+import { getVerificationRequest } from '@/src/services/offline/offlineDatabase';
 import { VerificationRequest } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

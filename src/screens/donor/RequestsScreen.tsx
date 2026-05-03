@@ -2,6 +2,7 @@ import { VerificationBanner } from '@/src/components/VerificationBanner';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
+import { getDonorEligibilityStatus } from '@/src/services/firebase/donationEligibilityService';
 import {
   acceptBloodRequest,
   createAcceptedRequest,
@@ -10,8 +11,7 @@ import {
   createRejectedRequest,
   getActiveBloodRequestsForDonor,
   updateDonorAvailability
-} from '@/src/services/firebase/database';
-import { getDonorEligibilityStatus } from '@/src/services/firebase/donationEligibilityService';
+} from '@/src/services/offline/offlineDatabase';
 import { BloodRequest } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -308,6 +308,17 @@ const RequestsScreen: React.FC = () => {
     }
   };
 
+  const safeFormatDate = (dateStr: string | undefined) => {
+    if (!dateStr) return 'Recent';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'Recent';
+      return d.toLocaleDateString();
+    } catch {
+      return 'Recent';
+    }
+  };
+
   const renderActiveCommitmentWarning = () => (
     <View style={st.warningContainer}>
       <LinearGradient colors={['#FEF3C7', '#FFFBEB']} style={st.warningCard}>
@@ -333,7 +344,7 @@ const RequestsScreen: React.FC = () => {
         <View style={st.warningContent}>
           <Ionicons name="moon" size={24} color={WARN} />
           <View style={st.warningTextContainer}>
-            <Text style={st.warningTitle}>Status: Offline</Text>
+            <Text style={st.warningTitle}>Status: Unavailable</Text>
             <Text style={st.warningMessage}>Mark yourself as available in your profile to see requests.</Text>
             <TouchableOpacity style={st.warningButton} onPress={() => router.push('/(donor)/profile' as any)}>
               <LinearGradient colors={[WARN, '#EA580C']} style={st.warningButtonGrad}>
@@ -433,7 +444,7 @@ const RequestsScreen: React.FC = () => {
             </View>
             <View style={st.chip}>
               <Text style={st.chipLabel}>Posted</Text>
-              <Text style={st.chipValue}>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Recent'}</Text>
+              <Text style={st.chipValue}>{safeFormatDate(item.createdAt as any)}</Text>
             </View>
           </View>
         </View>
@@ -459,102 +470,121 @@ const RequestsScreen: React.FC = () => {
     else if (!eligibility.isEligible) warningRender = renderIneligibilityWarning;
 
     return (
-      <SafeAreaView style={st.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={TEAL} />
-        <LinearGradient colors={[TEAL, TEAL_MID]} style={st.header}>
-          <Text style={st.headerTitle}>Blood Requests</Text>
-        </LinearGradient>
-        {warningRender()}
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#3B82F6' }} edges={['top']}>
+        <StatusBar barStyle="light-content" backgroundColor="#3B82F6" />
+        <View style={st.container}>
+          <LinearGradient colors={['#3B82F6', '#2563EB']} style={st.header}>
+            <View style={st.headerTop}>
+              <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
+                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              <View style={st.headerCenter}>
+                <Text style={st.headerTitle}>Blood Requests</Text>
+                <Text style={st.headerSub}>Help patients in need near you</Text>
+              </View>
+              <View style={{ width: 40 }} />
+            </View>
+          </LinearGradient>
+          {warningRender()}
+        </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={st.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={HEADER_BG} />
-      <LinearGradient colors={[HEADER_BLUE, '#1A5BB0']} style={st.header}>
-        <View style={st.headerTop}>
-          <Text style={st.headerTitle}>Blood Requests</Text>
-          <Text style={st.headerSub}>{requests.length} compatible requests</Text>
-        </View>
-      </LinearGradient>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#3B82F6' }} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor="#3B82F6" />
+      <View style={st.container}>
+        <LinearGradient colors={['#3B82F6', '#2563EB']} style={st.header}>
+          <View style={st.headerTop}>
+            <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <View style={st.headerCenter}>
+              <Text style={st.headerTitle}>Blood Requests</Text>
+              <Text style={st.headerSub}>Help patients in need near you</Text>
+            </View>
+            <View style={{ width: 40 }} />
+          </View>
+        </LinearGradient>
 
-      {user?.verificationStatus !== 'approved' && (
-        <VerificationBanner status={user?.verificationStatus || 'pending'} userType="donor" />
-      )}
-
-      <View style={st.searchBarBox}>
-        <Ionicons name="search" size={16} color={TEXT_SOFT} />
-        <TextInput
-          placeholder="Search by patient or hospital..."
-          style={st.searchBarInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor={TEXT_SOFT}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={16} color={TEXT_SOFT} />
-          </TouchableOpacity>
+        {user?.verificationStatus !== 'approved' && (
+          <VerificationBanner status={user?.verificationStatus || 'pending'} userType="donor" />
         )}
-      </View>
 
-      <View style={st.filterBar}>
-        {['all', 'critical', 'urgent', 'moderate'].map((id) => (
-          <TouchableOpacity
-            key={id}
-            style={[st.filterTab, filter === id && st.filterTabActive]}
-            onPress={() => setFilter(id as any)}
-          >
-            <Text style={[st.filterTabText, filter === id && st.filterTabTextActive]}>{id.toUpperCase()}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <View style={st.searchBarBox}>
+          <Ionicons name="search" size={16} color={TEXT_SOFT} />
+          <TextInput
+            placeholder="Search by patient or hospital..."
+            style={st.searchBarInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={TEXT_SOFT}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={16} color={TEXT_SOFT} />
+            </TouchableOpacity>
+          )}
+        </View>
 
-      {isLoading && requests.length === 0 ? (
-        <View style={st.loadingWrap}><ActivityIndicator size="large" color={TEAL} /></View>
-      ) : (
-        <FlatList
-          data={requests}
-          renderItem={renderRequestListItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={st.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[TEAL]} />}
-          ListEmptyComponent={<View style={st.emptyWrap}><Text>No requests found</Text></View>}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-          onTouchStart={showTabBar}
-        />
-      )}
+        <View style={st.filterBar}>
+          {['all', 'critical', 'urgent', 'moderate'].map((id) => (
+            <TouchableOpacity
+              key={id}
+              style={[st.filterTab, filter === id && st.filterTabActive]}
+              onPress={() => setFilter(id as any)}
+            >
+              <Text style={[st.filterTabText, filter === id && st.filterTabTextActive]}>{id.toUpperCase()}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      {/* Rejection Modal */}
-      <Modal visible={rejectionModalVisible} transparent animationType="fade">
-        <View style={st.modalOverlay}>
-          <View style={st.modalSheet}>
-            <Text style={st.modalReasonLabel}>Reason for declining:</Text>
-            <TextInput style={st.input} value={rejectionReason} onChangeText={setRejectionReason} multiline />
-            <View style={st.modalActions}>
-              <TouchableOpacity style={st.modalCancelBtn} onPress={() => setRejectionModalVisible(false)}>
-                <Text>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={st.modalSubmitBtn} onPress={confirmRejectRequest}>
-                <LinearGradient colors={[DANGER, '#C2410C']} style={st.modalSubmitGrad}>
-                  <Text style={st.modalSubmitText}>Decline</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+        {isLoading && requests.length === 0 ? (
+          <View style={st.loadingWrap}><ActivityIndicator size="large" color={TEAL} /></View>
+        ) : (
+          <FlatList
+            data={requests}
+            renderItem={renderRequestListItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={st.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[TEAL]} />}
+            ListEmptyComponent={<View style={st.emptyWrap}><Text>No requests found</Text></View>}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            onTouchStart={showTabBar}
+          />
+        )}
+
+        {/* Rejection Modal */}
+        <Modal visible={rejectionModalVisible} transparent animationType="fade">
+          <View style={st.modalOverlay}>
+            <View style={st.modalSheet}>
+              <Text style={st.modalReasonLabel}>Reason for declining:</Text>
+              <TextInput style={st.input} value={rejectionReason} onChangeText={setRejectionReason} multiline />
+              <View style={st.modalActions}>
+                <TouchableOpacity style={st.modalCancelBtn} onPress={() => setRejectionModalVisible(false)}>
+                  <Text>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={st.modalSubmitBtn} onPress={confirmRejectRequest}>
+                  <LinearGradient colors={[DANGER, '#C2410C']} style={st.modalSubmitGrad}>
+                    <Text style={st.modalSubmitText}>Decline</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* Detail Modal */}
-      <Modal visible={!!viewRequest} transparent animationType="slide">
-        <TouchableOpacity style={st.modalOverlay} activeOpacity={1} onPress={() => setViewRequest(null)}>
-          <View style={st.modalSheet}>
-            {viewRequest && renderRequestDetail({ item: viewRequest })}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        {/* Detail Modal */}
+        <Modal visible={!!viewRequest} transparent animationType="slide">
+          <TouchableOpacity style={st.modalOverlay} activeOpacity={1} onPress={() => setViewRequest(null)}>
+            <View style={st.modalSheet}>
+              {viewRequest && renderRequestDetail({ item: viewRequest })}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      </View>
     </SafeAreaView>
   );
 };
@@ -562,7 +592,9 @@ const RequestsScreen: React.FC = () => {
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   header: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24 },
-  headerTop: { alignItems: 'center' },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backBtn: { width: 40, height: 40, justifyContent: 'center' },
+  headerCenter: { alignItems: 'center', flex: 1 },
   headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
   headerSub: { fontSize: 11, color: '#FFF', opacity: 0.8 },
   filterBar: { flexDirection: 'row', backgroundColor: SURFACE, padding: 8, gap: 4 },

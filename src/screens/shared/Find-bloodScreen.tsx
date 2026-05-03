@@ -6,8 +6,8 @@ import { BloodBank, BloodType, Location } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ExpoLocation from 'expo-location';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -39,6 +39,7 @@ const BLOOD_TYPES: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O
 
 const FindBloodScreen: React.FC = () => {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { colors, isDark } = useAppTheme();
   const { user } = useUser();
   const { onScroll } = useTabBarAnimation();
@@ -80,6 +81,19 @@ const FindBloodScreen: React.FC = () => {
   );
 
   const loading = loadingAll || searching;
+
+  useEffect(() => {
+    // If a selectedBankId param exists and data loaded, attempt auto-open
+    if (!loadingAll && allBanksData && params?.selectedBankId) {
+      const bank = allBanksData.find(b => b.id === params.selectedBankId);
+      if (bank && !viewBloodBank) {
+        // Automatically open the detailed modal
+        setViewBloodBank(bank);
+        // Clear param so it doesn't get re-opened accidentally on list refresh
+        router.setParams({ selectedBankId: '' });
+      }
+    }
+  }, [loadingAll, allBanksData, params?.selectedBankId, router]);
 
   // Memoized filter for manual text search
   const filteredBloodBanks = useMemo(() => {
@@ -406,7 +420,7 @@ const FindBloodScreen: React.FC = () => {
     centeredModal: {
       width: '90%',
       maxWidth: 400,
-      maxHeight: '85%',
+      maxHeight: '90%',
       backgroundColor: colors.surface,
       borderRadius: 24,
       overflow: 'hidden',
@@ -442,7 +456,7 @@ const FindBloodScreen: React.FC = () => {
     modalDistanceChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)' },
     modalDistanceText: { fontSize: 11, fontWeight: '600', color: '#FFFFFF' },
     modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-    modalBody: { padding: 20 },
+    modalBody: { flex: 1, padding: 20 },
     modalSection: { marginBottom: 20 },
     modalSectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 12 },
     actionsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
@@ -596,7 +610,7 @@ const FindBloodScreen: React.FC = () => {
                   {/* Scrollable Body */}
                   <ScrollView
                     style={styles.modalBody}
-                    contentContainerStyle={{ paddingBottom: 24 }}
+                    contentContainerStyle={{ paddingBottom: 40 }}
                     showsVerticalScrollIndicator={false}
                   >
                     {/* Quick Actions */}

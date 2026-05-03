@@ -3,12 +3,12 @@ import { LogoutModal } from '@/src/components/LogoutModal';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
 import { useTabBarAnimation } from '@/src/hooks/useTabBarAnimation';
+import { getDonorEligibilityStatus } from '@/src/services/firebase/donationEligibilityService';
 import {
   getDonorAcceptedRequests,
   getDonorHistory,
   updateUser
-} from '@/src/services/firebase/database';
-import { getDonorEligibilityStatus } from '@/src/services/firebase/donationEligibilityService';
+} from '@/src/services/offline/offlineDatabase';
 import { DonationRecord, Donor } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -424,419 +424,421 @@ const DonorProfileScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.primary[600] }} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary[600]} />
+      <View style={styles.container}>
 
-      {/* Header with Gradient */}
-      <LinearGradient
-        colors={[COLORS.primary[600], COLORS.primary[700]]}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerBadge}>DONOR PROFILE</Text>
-            <Text style={styles.headerTitle}>My Health Dashboard</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            onPress={() => router.push('/(shared)/settings' as any)}
-          >
-            <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        onTouchStart={showTabBar}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[COLORS.primary[500]]}
-            tintColor={COLORS.primary[500]}
-          />
-        }
-      >
-        {/* Profile Card */}
-        <View style={styles.profileSection}>
-          <View style={styles.profileCard}>
-            <View style={styles.profileHeader}>
-              <TouchableOpacity
-                style={styles.avatarContainer}
-                onPress={handleUpdateProfilePicture}
-                disabled={imageUploading}
-                activeOpacity={0.8}
-              >
-                {user.profilePicture ? (
-                  <Image source={{ uri: user.profilePicture }} style={styles.avatar} />
-                ) : (
-                  <LinearGradient
-                    colors={[COLORS.primary[100], COLORS.primary[200]]}
-                    style={styles.avatarPlaceholder}
-                  >
-                    <Ionicons name="person" size={48} color={COLORS.primary[600]} />
-                  </LinearGradient>
-                )}
-                <View style={styles.cameraOverlay}>
-                  {imageUploading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Ionicons name="camera" size={18} color="#FFFFFF" />
-                  )}
-                </View>
-              </TouchableOpacity>
-
-              <View style={styles.profileInfo}>
-                <Text style={styles.userName}>
-                  {user.firstName} {user.lastName}
-                </Text>
-                <View style={styles.badgeContainer}>
-                  <View style={styles.bloodTypeBadge}>
-                    <Ionicons name="water" size={14} color="#FFFFFF" />
-                    <Text style={styles.bloodTypeText}>{user.bloodType}</Text>
-                  </View>
-                  {isDonor(user) && (
-                    <View style={styles.verifiedBadge}>
-                      <Ionicons name="shield-checkmark" size={12} color={COLORS.success[600]} />
-                      <Text style={styles.verifiedText}>Verified Donor</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
+        {/* Header with Gradient */}
+        <LinearGradient
+          colors={[COLORS.primary[600], COLORS.primary[700]]}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.headerBadge}>DONOR PROFILE</Text>
+              <Text style={styles.headerTitle}>My Health Dashboard</Text>
             </View>
-
-            <View style={styles.contactInfo}>
-              <View style={styles.contactRow}>
-                <View style={styles.contactIconWrapper}>
-                  <Ionicons name="mail-outline" size={16} color={COLORS.primary[600]} />
-                </View>
-                <Text style={styles.contactText} numberOfLines={1}>
-                  {user.email}
-                </Text>
-              </View>
-              <View style={styles.contactRow}>
-                <View style={styles.contactIconWrapper}>
-                  <Ionicons name="call-outline" size={16} color={COLORS.primary[600]} />
-                </View>
-                <Text style={styles.contactText}>{user.phoneNumber}</Text>
-              </View>
-            </View>
-
             <TouchableOpacity
-              style={styles.editProfileButton}
-              onPress={handleEditProfile}
-              activeOpacity={0.7}
+              style={styles.headerIconButton}
+              onPress={() => router.push('/(shared)/settings' as any)}
             >
-              <Ionicons name="create-outline" size={18} color={COLORS.primary[600]} />
-              <Text style={styles.editProfileText}>Edit Profile</Text>
+              <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        </View>
+        </LinearGradient>
 
-
-
-
-        {/* Statistics Grid - Matching HomeScreen Stats */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Impact Statistics</Text>
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="water"
-              value={totalDonations}
-              label="Total Donations"
-              color={COLORS.accent[600]}
-              bgColor={COLORS.accent[50]}
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          onTouchStart={showTabBar}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary[500]]}
+              tintColor={COLORS.primary[500]}
             />
-            <StatCard
-              icon="star"
-              value={totalPoints}
-              label="Impact Points"
-              color={COLORS.warning[600]}
-              bgColor={COLORS.warning[50]}
-            />
-            <StatCard
-              icon="time"
-              value={pendingRequestsCount}
-              label="Pending Requests"
-              color={COLORS.primary[600]}
-              bgColor={COLORS.primary[50]}
-            />
-          </View>
-        </View>
-
-        {/* Additional Stats - Lives Impacted */}
-        <View style={styles.section}>
-          <View style={styles.livesImpactedCard}>
-            <LinearGradient
-              colors={[COLORS.success[500], COLORS.success[600]]}
-              style={styles.livesImpactedGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <Ionicons name="heart" size={28} color="#FFFFFF" />
-              <View style={styles.livesImpactedInfo}>
-                <Text style={styles.livesImpactedLabel}>LIVES IMPACTED</Text>
-                <Text style={styles.livesImpactedValue}>{getTotalLivesImpacted()}</Text>
-              </View>
-            </LinearGradient>
-          </View>
-        </View>
-
-        {/* Last Donation Info */}
-        {user.lastDonationDate && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
-            <View style={styles.lastDonationCard}>
-              <View style={styles.lastDonationIcon}>
-                <Ionicons name="time-outline" size={28} color={COLORS.primary[600]} />
-              </View>
-              <View style={styles.lastDonationInfo}>
-                <Text style={styles.lastDonationLabel}>LAST DONATION</Text>
-                <Text style={styles.lastDonationDate}>
-                  {new Date(user.lastDonationDate).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Donation History Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Donation History</Text>
-            <View style={styles.historyCountBadge}>
-              <Text style={styles.historyCountText}>{totalDonations}</Text>
-            </View>
-          </View>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={COLORS.primary[500]} />
-              <Text style={styles.loadingText}>Loading history...</Text>
-            </View>
-          ) : donationHistory.length > 0 ? (
-            <View style={styles.historyList}>
-              {donationHistory.map((donation) => (
-                <DonationListItem
-                  key={donation.id}
-                  donation={donation}
-                  onPress={() => setSelectedDonation(donation)}
-                />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconWrapper}>
-                <LinearGradient
-                  colors={[COLORS.primary[50], COLORS.primary[100]]}
-                  style={styles.emptyIcon}
+          }
+        >
+          {/* Profile Card */}
+          <View style={styles.profileSection}>
+            <View style={styles.profileCard}>
+              <View style={styles.profileHeader}>
+                <TouchableOpacity
+                  style={styles.avatarContainer}
+                  onPress={handleUpdateProfilePicture}
+                  disabled={imageUploading}
+                  activeOpacity={0.8}
                 >
-                  <Ionicons
-                    name="document-text-outline"
-                    size={52}
-                    color={COLORS.primary[400]}
-                  />
-                </LinearGradient>
-              </View>
-              <Text style={styles.emptyTitle}>No Donations Yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Your donation records will appear here once you start contributing
-              </Text>
-            </View>
-          )}
-        </View>
+                  {user.profilePicture ? (
+                    <Image source={{ uri: user.profilePicture }} style={styles.avatar} />
+                  ) : (
+                    <LinearGradient
+                      colors={[COLORS.primary[100], COLORS.primary[200]]}
+                      style={styles.avatarPlaceholder}
+                    >
+                      <Ionicons name="person" size={48} color={COLORS.primary[600]} />
+                    </LinearGradient>
+                  )}
+                  <View style={styles.cameraOverlay}>
+                    {imageUploading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="camera" size={18} color="#FFFFFF" />
+                    )}
+                  </View>
+                </TouchableOpacity>
 
-        {/* Donation Status Card */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Donation Status</Text>
-          <TouchableOpacity
-            style={[styles.statusCard, { borderColor: eligibility.isEligible ? COLORS.success[200] : COLORS.warning[200] }]}
-            onPress={handleToggleAvailability}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.statusIcon, { backgroundColor: eligibility.isEligible ? COLORS.success[50] : COLORS.warning[50] }]}>
-              <Ionicons
-                name={eligibility.isEligible ? "checkmark-circle" : "time"}
-                size={24}
-                color={eligibility.isEligible ? COLORS.success[600] : COLORS.warning[600]}
+                <View style={styles.profileInfo}>
+                  <Text style={styles.userName}>
+                    {user.firstName} {user.lastName}
+                  </Text>
+                  <View style={styles.badgeContainer}>
+                    <View style={styles.bloodTypeBadge}>
+                      <Ionicons name="water" size={14} color="#FFFFFF" />
+                      <Text style={styles.bloodTypeText}>{user.bloodType}</Text>
+                    </View>
+                    {isDonor(user) && (
+                      <View style={styles.verifiedBadge}>
+                        <Ionicons name="shield-checkmark" size={12} color={COLORS.success[600]} />
+                        <Text style={styles.verifiedText}>Verified Donor</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.contactInfo}>
+                <View style={styles.contactRow}>
+                  <View style={styles.contactIconWrapper}>
+                    <Ionicons name="mail-outline" size={16} color={COLORS.primary[600]} />
+                  </View>
+                  <Text style={styles.contactText} numberOfLines={1}>
+                    {user.email}
+                  </Text>
+                </View>
+                <View style={styles.contactRow}>
+                  <View style={styles.contactIconWrapper}>
+                    <Ionicons name="call-outline" size={16} color={COLORS.primary[600]} />
+                  </View>
+                  <Text style={styles.contactText}>{user.phoneNumber}</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.editProfileButton}
+                onPress={handleEditProfile}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="create-outline" size={18} color={COLORS.primary[600]} />
+                <Text style={styles.editProfileText}>Edit Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+
+
+
+          {/* Statistics Grid - Matching HomeScreen Stats */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Impact Statistics</Text>
+            <View style={styles.statsGrid}>
+              <StatCard
+                icon="water"
+                value={totalDonations}
+                label="Total Donations"
+                color={COLORS.accent[600]}
+                bgColor={COLORS.accent[50]}
+              />
+              <StatCard
+                icon="star"
+                value={totalPoints}
+                label="Impact Points"
+                color={COLORS.warning[600]}
+                bgColor={COLORS.warning[50]}
+              />
+              <StatCard
+                icon="time"
+                value={pendingRequestsCount}
+                label="Pending Requests"
+                color={COLORS.primary[600]}
+                bgColor={COLORS.primary[50]}
               />
             </View>
-            <View style={styles.statusInfo}>
-              <Text style={styles.statusSubtitle}>Current Eligibility</Text>
-              <Text style={[styles.statusTitle, { color: eligibility.isEligible ? COLORS.success[700] : COLORS.warning[700] }]}>
-                {eligibility.message}
-              </Text>
+          </View>
+
+          {/* Additional Stats - Lives Impacted */}
+          <View style={styles.section}>
+            <View style={styles.livesImpactedCard}>
+              <LinearGradient
+                colors={[COLORS.success[500], COLORS.success[600]]}
+                style={styles.livesImpactedGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Ionicons name="heart" size={28} color="#FFFFFF" />
+                <View style={styles.livesImpactedInfo}>
+                  <Text style={styles.livesImpactedLabel}>LIVES IMPACTED</Text>
+                  <Text style={styles.livesImpactedValue}>{getTotalLivesImpacted()}</Text>
+                </View>
+              </LinearGradient>
             </View>
-            <View style={[styles.toggleSwitch, isAvailable && styles.toggleSwitchActive]}>
-              <View style={[styles.toggleKnob, isAvailable && styles.toggleKnobActive]} />
+          </View>
+
+          {/* Last Donation Info */}
+          {user.lastDonationDate && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recent Activity</Text>
+              <View style={styles.lastDonationCard}>
+                <View style={styles.lastDonationIcon}>
+                  <Ionicons name="time-outline" size={28} color={COLORS.primary[600]} />
+                </View>
+                <View style={styles.lastDonationInfo}>
+                  <Text style={styles.lastDonationLabel}>LAST DONATION</Text>
+                  <Text style={styles.lastDonationDate}>
+                    {new Date(user.lastDonationDate).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </Text>
+                </View>
+              </View>
             </View>
-          </TouchableOpacity>
-        </View>
+          )}
 
-        {/* Quick Actions Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/(donor)/requests' as any)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.primary[50] }]}>
-                <Ionicons name="notifications-outline" size={24} color={COLORS.primary[600]} />
+          {/* Donation History Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Donation History</Text>
+              <View style={styles.historyCountBadge}>
+                <Text style={styles.historyCountText}>{totalDonations}</Text>
               </View>
-              <Text style={styles.actionTitle}>Blood Requests</Text>
-              <Text style={styles.actionSubtitle}>View active needs</Text>
-            </TouchableOpacity>
+            </View>
 
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/(donor)/donation-history' as any)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.accent[50] }]}>
-                <Ionicons name="time-outline" size={24} color={COLORS.accent[600]} />
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={COLORS.primary[500]} />
+                <Text style={styles.loadingText}>Loading history...</Text>
               </View>
-              <Text style={styles.actionTitle}>My History</Text>
-              <Text style={styles.actionSubtitle}>View all donations</Text>
-            </TouchableOpacity>
+            ) : donationHistory.length > 0 ? (
+              <View style={styles.historyList}>
+                {donationHistory.map((donation) => (
+                  <DonationListItem
+                    key={donation.id}
+                    donation={donation}
+                    onPress={() => setSelectedDonation(donation)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconWrapper}>
+                  <LinearGradient
+                    colors={[COLORS.primary[50], COLORS.primary[100]]}
+                    style={styles.emptyIcon}
+                  >
+                    <Ionicons
+                      name="document-text-outline"
+                      size={52}
+                      color={COLORS.primary[400]}
+                    />
+                  </LinearGradient>
+                </View>
+                <Text style={styles.emptyTitle}>No Donations Yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Your donation records will appear here once you start contributing
+                </Text>
+              </View>
+            )}
+          </View>
 
+          {/* Donation Status Card */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Donation Status</Text>
             <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => Alert.alert('Coming Soon', 'Certificates will be available soon')}
-              activeOpacity={0.7}
+              style={[styles.statusCard, { borderColor: eligibility.isEligible ? COLORS.success[200] : COLORS.warning[200] }]}
+              onPress={handleToggleAvailability}
+              activeOpacity={0.8}
             >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.warning[50] }]}>
-                <Ionicons name="ribbon-outline" size={24} color={COLORS.warning[600]} />
+              <View style={[styles.statusIcon, { backgroundColor: eligibility.isEligible ? COLORS.success[50] : COLORS.warning[50] }]}>
+                <Ionicons
+                  name={eligibility.isEligible ? "checkmark-circle" : "time"}
+                  size={24}
+                  color={eligibility.isEligible ? COLORS.success[600] : COLORS.warning[600]}
+                />
               </View>
-              <Text style={styles.actionTitle}>Certificates</Text>
-              <Text style={styles.actionSubtitle}>View achievements</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => Linking.openURL('https://blood-link-webguide.vercel.app/')}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#F5F3FF' }]}>
-                <Ionicons name="book-outline" size={24} color="#8B5CF6" />
+              <View style={styles.statusInfo}>
+                <Text style={styles.statusSubtitle}>Current Eligibility</Text>
+                <Text style={[styles.statusTitle, { color: eligibility.isEligible ? COLORS.success[700] : COLORS.warning[700] }]}>
+                  {eligibility.message}
+                </Text>
               </View>
-              <Text style={styles.actionTitle}>User Guide</Text>
-              <Text style={styles.actionSubtitle}>Online manual</Text>
+              <View style={[styles.toggleSwitch, isAvailable && styles.toggleSwitchActive]}>
+                <View style={[styles.toggleKnob, isAvailable && styles.toggleKnobActive]} />
+              </View>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Logout Button */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="log-out-outline" size={20} color={COLORS.accent[600]} />
-            <Text style={styles.logoutText}>Logout from Account</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
-
-      {/* Donation Detail Modal */}
-      <Modal
-        visible={!!selectedDonation}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedDonation(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Donation Details</Text>
+          {/* Quick Actions Grid */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.actionsGrid}>
               <TouchableOpacity
-                onPress={() => setSelectedDonation(null)}
-                style={styles.modalCloseButton}
+                style={styles.actionCard}
+                onPress={() => router.push('/(donor)/requests' as any)}
+                activeOpacity={0.7}
               >
-                <Ionicons name="close" size={22} color={COLORS.neutral[500]} />
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.primary[50] }]}>
+                  <Ionicons name="notifications-outline" size={24} color={COLORS.primary[600]} />
+                </View>
+                <Text style={styles.actionTitle}>Blood Requests</Text>
+                <Text style={styles.actionSubtitle}>View active needs</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => router.push('/(donor)/donation-history' as any)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.accent[50] }]}>
+                  <Ionicons name="time-outline" size={24} color={COLORS.accent[600]} />
+                </View>
+                <Text style={styles.actionTitle}>My History</Text>
+                <Text style={styles.actionSubtitle}>View all donations</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => Alert.alert('Coming Soon', 'Certificates will be available soon')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.warning[50] }]}>
+                  <Ionicons name="ribbon-outline" size={24} color={COLORS.warning[600]} />
+                </View>
+                <Text style={styles.actionTitle}>Certificates</Text>
+                <Text style={styles.actionSubtitle}>View achievements</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => Linking.openURL('https://blood-link-webguide.vercel.app/')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIcon, { backgroundColor: '#F5F3FF' }]}>
+                  <Ionicons name="book-outline" size={24} color="#8B5CF6" />
+                </View>
+                <Text style={styles.actionTitle}>User Guide</Text>
+                <Text style={styles.actionSubtitle}>Online manual</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {selectedDonation && (
-                <View style={styles.modalBody}>
-                  <View style={styles.modalDonationIcon}>
-                    <LinearGradient
-                      colors={[COLORS.accent[500], COLORS.accent[600]]}
-                      style={styles.modalDonationGradient}
-                    >
-                      <Ionicons name="water" size={32} color="#FFFFFF" />
-                    </LinearGradient>
-                  </View>
-                  <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Location</Text>
-                    <Text style={styles.modalInfoValue}>
-                      {selectedDonation.bloodBankName || selectedDonation.location?.address || 'Medical Facility'}
-                    </Text>
-                  </View>
-                  <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Date & Time</Text>
-                    <Text style={styles.modalInfoValue}>
-                      {new Date(selectedDonation.donationDate).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                  </View>
-                  <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Blood Type</Text>
-                    <Text style={styles.modalInfoValue}>{selectedDonation.bloodType}</Text>
-                  </View>
-                  <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Component</Text>
-                    <Text style={styles.modalInfoValue}>{selectedDonation.bloodComponent || 'Whole Blood'}</Text>
-                  </View>
-                  <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Units Donated</Text>
-                    <Text style={styles.modalInfoValue}>{selectedDonation.unitsCollected || 1}</Text>
-                  </View>
-                  <View style={styles.modalInfoRow}>
-                    <Text style={styles.modalInfoLabel}>Points Earned</Text>
-                    <Text style={[styles.modalInfoValue, styles.pointsHighlight]}>
-                      +{selectedDonation.pointsEarned}
-                    </Text>
-                  </View>
-                  {selectedDonation.notes && (
-                    <View style={styles.modalNotes}>
-                      <Text style={styles.modalInfoLabel}>Notes</Text>
-                      <Text style={styles.modalNotesText}>{selectedDonation.notes}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </ScrollView>
           </View>
-        </View>
-      </Modal>
 
-      <LogoutModal
-        visible={showLogoutModal}
-        onCancel={() => setShowLogoutModal(false)}
-        onLogout={handleConfirmLogout}
-        isLoggingOut={isLoggingOut}
-      />
+          {/* Logout Button */}
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="log-out-outline" size={20} color={COLORS.accent[600]} />
+              <Text style={styles.logoutText}>Logout from Account</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+
+        {/* Donation Detail Modal */}
+        <Modal
+          visible={!!selectedDonation}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSelectedDonation(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Donation Details</Text>
+                <TouchableOpacity
+                  onPress={() => setSelectedDonation(null)}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={22} color={COLORS.neutral[500]} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {selectedDonation && (
+                  <View style={styles.modalBody}>
+                    <View style={styles.modalDonationIcon}>
+                      <LinearGradient
+                        colors={[COLORS.accent[500], COLORS.accent[600]]}
+                        style={styles.modalDonationGradient}
+                      >
+                        <Ionicons name="water" size={32} color="#FFFFFF" />
+                      </LinearGradient>
+                    </View>
+                    <View style={styles.modalInfoRow}>
+                      <Text style={styles.modalInfoLabel}>Location</Text>
+                      <Text style={styles.modalInfoValue}>
+                        {selectedDonation.bloodBankName || selectedDonation.location?.address || 'Medical Facility'}
+                      </Text>
+                    </View>
+                    <View style={styles.modalInfoRow}>
+                      <Text style={styles.modalInfoLabel}>Date & Time</Text>
+                      <Text style={styles.modalInfoValue}>
+                        {new Date(selectedDonation.donationDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </View>
+                    <View style={styles.modalInfoRow}>
+                      <Text style={styles.modalInfoLabel}>Blood Type</Text>
+                      <Text style={styles.modalInfoValue}>{selectedDonation.bloodType}</Text>
+                    </View>
+                    <View style={styles.modalInfoRow}>
+                      <Text style={styles.modalInfoLabel}>Component</Text>
+                      <Text style={styles.modalInfoValue}>{selectedDonation.bloodComponent || 'Whole Blood'}</Text>
+                    </View>
+                    <View style={styles.modalInfoRow}>
+                      <Text style={styles.modalInfoLabel}>Units Donated</Text>
+                      <Text style={styles.modalInfoValue}>{selectedDonation.unitsCollected || 1}</Text>
+                    </View>
+                    <View style={styles.modalInfoRow}>
+                      <Text style={styles.modalInfoLabel}>Points Earned</Text>
+                      <Text style={[styles.modalInfoValue, styles.pointsHighlight]}>
+                        +{selectedDonation.pointsEarned}
+                      </Text>
+                    </View>
+                    {selectedDonation.notes && (
+                      <View style={styles.modalNotes}>
+                        <Text style={styles.modalInfoLabel}>Notes</Text>
+                        <Text style={styles.modalNotesText}>{selectedDonation.notes}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <LogoutModal
+          visible={showLogoutModal}
+          onCancel={() => setShowLogoutModal(false)}
+          onLogout={handleConfirmLogout}
+          isLoggingOut={isLoggingOut}
+        />
+      </View>
     </SafeAreaView>
   );
 };
@@ -1151,13 +1153,14 @@ const styles = StyleSheet.create({
     ...createShadow(4),
   },
   livesImpactedGradient: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    padding: SPACING.lg,
-    gap: SPACING.lg,
+    justifyContent: 'center',
+    padding: SPACING.xl,
+    gap: SPACING.sm,
   },
   livesImpactedInfo: {
-    flex: 1,
+    alignItems: 'center',
   },
   livesImpactedLabel: {
     fontSize: TYPOGRAPHY.xs,
@@ -1165,11 +1168,13 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     letterSpacing: 1,
     marginBottom: SPACING.xs,
+    textAlign: 'center',
   },
   livesImpactedValue: {
     fontSize: TYPOGRAPHY.display,
     fontWeight: '900',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
 
   // Last Donation Card
@@ -1282,10 +1287,12 @@ const styles = StyleSheet.create({
   // Actions Grid
   actionsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: SPACING.md,
   },
   actionCard: {
-    flex: 1,
+    width: '47%',
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,

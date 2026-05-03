@@ -1,5 +1,7 @@
-import { deleteUserCollections } from '@/src/services/firebase/database';
+import { deleteUserCollections } from '@/src/services/offline/offlineDatabase';
 import { auth, db } from '@/src/services/firebase/firebase';
+import { isOnline, networkMonitor } from '@/src/services/offline/networkMonitor';
+import { updateOfflineCachedUser } from '@/src/services/offline/offlineAuth';
 import { User } from '@/src/types/types';
 import { isValidUser, transformFirebaseUser } from '@/src/types/userTransform';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -35,6 +37,7 @@ interface UserContextType {
   loading: boolean;
   isAuthenticated: boolean;
   isEmailVerified: boolean;
+  isOffline: boolean;
   checkEmailVerification: () => Promise<boolean>;
   login: (userData: User) => Promise<void>;
   logout: () => Promise<void>;
@@ -53,11 +56,22 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isOffline, setIsOffline] = useState(!isOnline());
   const [snapshotUnsubscribe, setSnapshotUnsubscribe] = useState<(() => void) | null>(null);
 
   // Load cached user data immediately on mount
   useEffect(() => {
+    // Initialize network monitor
+    networkMonitor.initialize();
+    const unsubNetwork = networkMonitor.subscribe((connected) => {
+      setIsOffline(!connected);
+    });
+
     loadCachedUser();
+
+    return () => {
+      unsubNetwork();
+    };
   }, []);
 
   const loadCachedUser = async () => {
@@ -276,9 +290,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (userData: User) => {
     setUser(userData);
     setIsAuthenticated(true);
-    // When manual login happens, we assume the auth listener will pick up the emailVerified status
-    // Or we should update it if we have the auth user. 
-    // Since login() is usually called AFTER auth is done, check auth.currentUser
     if (auth.currentUser) {
       setIsEmailVerified(auth.currentUser.emailVerified);
     }
@@ -288,6 +299,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       AsyncStorage.setItem(AUTH_STATE_KEY, 'true'),
       AsyncStorage.setItem(EMAIL_VERIFIED_KEY, String(auth.currentUser?.emailVerified ?? false)),
     ]).catch(err => console.error('Error caching login data:', err));
+
+    // Also update the offline auth cached user
+    if (userData.email) {
+      updateOfflineCachedUser(userData.email, userData).catch(err =>
+        console.warn('Error updating offline cached user:', err)
+      );
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -440,6 +458,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     isAuthenticated,
     isEmailVerified,
+    isOffline,
     checkEmailVerification,
     login,
     logout,

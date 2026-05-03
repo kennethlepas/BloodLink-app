@@ -50,19 +50,19 @@ export interface ThemeColors {
 }
 
 const lightColors: ThemeColors = {
-    bg: '#F2EFE9',          // ★ Warm cream background
+    bg: '#EFF6FF',
     surface: '#FFFFFF',
-    surfaceAlt: '#EDE9E3',   // ★ Slightly darker cream for headers/footers
-    surfaceBorder: '#E8E4DE', // ★ Warm cream border tone
+    surfaceAlt: '#F8FAFC',
+    surfaceBorder: '#E8EEFF',
 
     text: '#0C1A3A',
     textSecondary: '#64748B',
     textMuted: '#94A3B8',
 
-    divider: '#E8E4DE',      // ★ Matching warm border
+    divider: '#F1F5F9',
 
-    inputBg: '#FFFFFF',
-    inputBorder: '#E8E4DE',
+    inputBg: '#F8FAFC',
+    inputBorder: '#E8EEFF',
 
     dangerBorder: '#FECACA',
 
@@ -77,7 +77,7 @@ const lightColors: ThemeColors = {
     danger: '#EF4444', // Red 500
     warning: '#F59E0B', // Amber 500
 
-    surfaceTint: '#F5F2ED', // ★ Warm cream tint for detail cells
+    surfaceTint: '#F8FAFC',
 };
 
 const darkColors: ThemeColors = {

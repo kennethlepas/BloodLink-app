@@ -3,17 +3,18 @@ import { getSubCountiesByCounty, KENYA_COUNTIES } from '@/src/constants/kenyaLoc
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { useCachedData } from '@/src/hooks/useCachedData';
+import { getAddressFromCoords, getCurrentLocation } from '@/src/services/location/locationService';
 import {
   createBloodRequest,
   createNotification,
   getBloodBanks,
   getUsersByBloodType
-} from '@/src/services/firebase/database';
-import { getAddressFromCoords, getCurrentLocation } from '@/src/services/location/locationService';
+} from '@/src/services/offline/offlineDatabase';
 import { BloodBank, BloodType, Location, UrgencyLevel } from '@/src/types/types';
 import { mapErrorMessage } from '@/src/utils/errorMapper';
 import { showRatingPrompt } from '@/src/utils/ratingPromptHelper';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ExpoLocation from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -73,17 +74,15 @@ const shadow = (c = '#000', o = 0.08, r = 10, e = 3) =>
 const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    backgroundColor: colors.surface,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: colors.text },
-  headerSub: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
+  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
 
   scrollContent: { paddingBottom: 100 },
   formBody: { padding: 20 },
@@ -519,10 +518,10 @@ const NeedBloodScreen: React.FC = () => {
   return (
     <SafeAreaView style={nb.container} edges={['top']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.bg} />
-      <View style={nb.header}>
+      <LinearGradient colors={['#3B82F6', '#2563EB']} style={nb.header}>
         <View style={nb.headerRow}>
           <TouchableOpacity style={nb.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={nb.headerCenter}>
             <Text style={nb.headerTitle}>Request Blood</Text>
@@ -530,7 +529,7 @@ const NeedBloodScreen: React.FC = () => {
           </View>
           <View style={{ width: 40 }} />
         </View>
-      </View>
+      </LinearGradient>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={nb.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

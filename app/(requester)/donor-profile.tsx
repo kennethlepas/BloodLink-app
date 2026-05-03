@@ -1,5 +1,5 @@
 import { useUser } from '@/src/contexts/UserContext';
-import { getDonorHistory } from '@/src/services/firebase/database';
+import { getDonorHistory } from '@/src/services/offline/offlineDatabase';
 import { DonationRecord, Donor } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

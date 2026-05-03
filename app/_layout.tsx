@@ -8,11 +8,17 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { AwarenessModal } from '@/src/components/AwarenessModal';
+import OfflineIndicator from '@/src/components/shared/OfflineIndicator';
 import { AppThemeProvider, useAppTheme } from '@/src/contexts/ThemeContext';
 import { UserProvider, useUser } from '@/src/contexts/UserContext';
 import { initNotifications, registerForPushNotificationsAsync } from '@/src/services/notifications';
+import { syncEngine } from '@/src/services/offline/syncEngine';
+import { setupGlobalErrorHandlers } from '@/src/utils/errorHandler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoadingScreen from './(auth)/LoadingScreen';
+
+// Initialize global error handlers to catch unhandled promise rejections (e.g. offline typography loading)
+setupGlobalErrorHandlers();
 
 export const unstable_settings = {
   initialRouteName: 'index',
@@ -34,6 +40,8 @@ function RootLayoutNav() {
   // Hide native splash screen immediately since we use our own LoadingScreen
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => { });
+    // Initialize sync engine for offline mutation replay
+    syncEngine.initialize();
   }, []);
 
   // ── Guard: only allow one navigation at a time ─────────────────────────
@@ -111,7 +119,7 @@ function RootLayoutNav() {
   // ── App State: show awareness modal when foregrounded ─────────────────
   useEffect(() => {
     const segmentsArray = segments as string[];
-    const isHome = segmentsArray.length === 0 || (segmentsArray.length === 1 && (segmentsArray[0] === '(donor)' || segmentsArray[0] === '(requester)'));
+    const isHome = segmentsArray.length === 0 || segmentsArray[0] === 'index' || (segmentsArray.length === 1 && (segmentsArray[0] === '(donor)' || segmentsArray[0] === '(requester)'));
 
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (
@@ -125,17 +133,17 @@ function RootLayoutNav() {
       appState.current = nextAppState;
     });
 
+    let timer: ReturnType<typeof setTimeout>;
     // Show once on initial login, even if muted
     if (isSplashFinished && isHome && !hasShownOnLogin.current) {
       hasShownOnLogin.current = true;
-      const timer = setTimeout(() => setShowAwareness(true), 1000);
-      return () => {
-        subscription.remove();
-        clearTimeout(timer);
-      };
+      timer = setTimeout(() => setShowAwareness(true), 1000);
     }
 
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      if (timer) clearTimeout(timer);
+    };
   }, [isSplashFinished, segments, awarenessMuted]);
 
   // ── Push Notifications ──────────────────────────────────────────
@@ -198,12 +206,21 @@ function RootLayoutNav() {
   );
 }
 
+function RootLayoutWithOffline() {
+  return (
+    <>
+      <RootLayoutNav />
+      <OfflineIndicator />
+    </>
+  );
+}
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppThemeProvider>
         <UserProvider>
-          <RootLayoutNav />
+          <RootLayoutWithOffline />
         </UserProvider>
       </AppThemeProvider>
     </GestureHandlerRootView>

@@ -1,7 +1,7 @@
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { useUser } from '@/src/contexts/UserContext';
 import { uploadImageToCloudinary } from '@/src/services/cloudinary/upload.service';
-import { submitVerificationRequest } from '@/src/services/firebase/database';
+import { submitVerificationRequest } from '@/src/services/offline/offlineDatabase';
 import { DonorQuestionnaire } from '@/src/types/types';
 import { mapErrorMessage } from '@/src/utils/errorMapper';
 import { Ionicons } from '@expo/vector-icons';
