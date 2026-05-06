@@ -176,7 +176,7 @@ const calculateDonorImpact = async (donor: Donor): Promise<DonorImpact> => {
 /**
  * Calculate blood type demand near a location
  */
-const calculateBloodTypeDemand = async (location?: any): Promise<BloodTypeDemand[]> => {
+export const calculateBloodTypeDemand = async (location?: any): Promise<BloodTypeDemand[]> => {
     // This would typically query active requests near the location
     // Here we provide mock data with realistic distribution for the demonstration
     const bloodTypes: BloodType[] = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];

@@ -557,10 +557,12 @@ export default function BookRecipientScreen(): JSX.Element {
                             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                         </View>
                     </TouchableOpacity>
-                    <Text style={dynamicStyles.headerTitle}>Book Transfusion</Text>
-                    <Text style={dynamicStyles.headerSub}>Schedule your transfusion</Text>
+                    <View style={dynamicStyles.headerTitleContainer}>
+                        <Text style={dynamicStyles.headerTitle}>Book Transfusion</Text>
+                        <Text style={dynamicStyles.headerSubtitle}>Schedule your appointment</Text>
+                    </View>
                     <TouchableOpacity onPress={() => setHistoryModalVisible(true)} style={dynamicStyles.historyButton}>
-                        <Ionicons name="time" size={20} color="#FFFFFF" />
+                        <Ionicons name="time" size={18} color="#FFFFFF" />
                         <Text style={dynamicStyles.historyButtonText}>History</Text>
                     </TouchableOpacity>
                 </View>
@@ -577,44 +579,22 @@ export default function BookRecipientScreen(): JSX.Element {
                 </View>
 
                 {/* County and Sub-County Dropdowns */}
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                <View style={dynamicStyles.filterRow}>
                     <TouchableOpacity
-                        style={{
-                            flex: 1,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            backgroundColor: 'rgba(255,255,255,0.2)',
-                            borderRadius: 12,
-                            paddingHorizontal: 12,
-                            height: 44,
-                            borderWidth: isCountyExpanded ? 1 : 0,
-                            borderColor: '#FFF'
-                        }}
+                        style={dynamicStyles.filterButton}
                         onPress={() => {
                             setIsCountyExpanded(!isCountyExpanded);
                             setIsSubCountyExpanded(false);
                         }}
                     >
-                        <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+                        <Text style={dynamicStyles.filterButtonText} numberOfLines={1}>
                             {selectedCounty || 'All Counties'}
                         </Text>
                         <Ionicons name={isCountyExpanded ? "chevron-up" : "chevron-down"} size={16} color="#FFF" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={{
-                            flex: 1,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            backgroundColor: 'rgba(255,255,255,0.2)',
-                            borderRadius: 12,
-                            paddingHorizontal: 12,
-                            height: 44,
-                            borderWidth: isSubCountyExpanded ? 1 : 0,
-                            borderColor: '#FFF'
-                        }}
+                        style={dynamicStyles.filterButton}
                         onPress={() => {
                             if (!selectedCounty) {
                                 Alert.alert('Notice', 'Please select a county first');
@@ -624,7 +604,7 @@ export default function BookRecipientScreen(): JSX.Element {
                             setIsCountyExpanded(false);
                         }}
                     >
-                        <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+                        <Text style={dynamicStyles.filterButtonText} numberOfLines={1}>
                             {selectedSubCounty || 'All Sub-Counties'}
                         </Text>
                         <Ionicons name={isSubCountyExpanded ? "chevron-up" : "chevron-down"} size={16} color="#FFF" />
@@ -632,31 +612,31 @@ export default function BookRecipientScreen(): JSX.Element {
                 </View>
 
                 {isCountyExpanded && (
-                    <View style={{ backgroundColor: colors.surface, borderRadius: 12, marginTop: 10, maxHeight: 250, overflow: 'hidden', borderWidth: 1, borderColor: colors.primary }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surfaceAlt }}>
+                    <View style={[dynamicStyles.dropdownContainer, { backgroundColor: colors.surface }]}>
+                        <View style={dynamicStyles.dropdownSearchBar}>
                             <Ionicons name="search" size={16} color={colors.textSecondary} />
                             <TextInput
                                 placeholder="Search county..."
                                 placeholderTextColor={colors.textMuted}
-                                style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colors.text, paddingVertical: 8 }}
+                                style={dynamicStyles.dropdownSearchInput}
                                 value={countySearch}
                                 onChangeText={setCountySearch}
                             />
                         </View>
-                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 200 }}>
+                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={dynamicStyles.dropdownScroll}>
                             <TouchableOpacity
-                                style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }}
+                                style={dynamicStyles.dropdownItem}
                                 onPress={() => { setSelectedCounty(''); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
                             >
-                                <Text style={{ color: colors.text, fontWeight: '700' }}>All Counties</Text>
+                                <Text style={[dynamicStyles.dropdownItemText, { fontWeight: '700' }]}>All Counties</Text>
                             </TouchableOpacity>
                             {KENYA_COUNTIES.filter(c => c.toLowerCase().includes(countySearch.toLowerCase())).map(c => (
                                 <TouchableOpacity
                                     key={c}
-                                    style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: selectedCounty === c ? colors.surfaceAlt : colors.surface }}
+                                    style={[dynamicStyles.dropdownItem, selectedCounty === c && dynamicStyles.dropdownItemSelected]}
                                     onPress={() => { setSelectedCounty(c); setSelectedSubCounty(''); setIsCountyExpanded(false); setCountySearch(''); }}
                                 >
-                                    <Text style={{ color: selectedCounty === c ? colors.primary : colors.text }}>{c}</Text>
+                                    <Text style={[dynamicStyles.dropdownItemText, selectedCounty === c && { color: colors.primary }]}>{c}</Text>
                                 </TouchableOpacity>
                             ))}
                         </ScrollView>
@@ -664,31 +644,31 @@ export default function BookRecipientScreen(): JSX.Element {
                 )}
 
                 {isSubCountyExpanded && (
-                    <View style={{ backgroundColor: colors.surface, borderRadius: 12, marginTop: 10, maxHeight: 250, overflow: 'hidden', borderWidth: 1, borderColor: colors.primary }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surfaceAlt }}>
+                    <View style={[dynamicStyles.dropdownContainer, { backgroundColor: colors.surface }]}>
+                        <View style={dynamicStyles.dropdownSearchBar}>
                             <Ionicons name="search" size={16} color={colors.textSecondary} />
                             <TextInput
                                 placeholder="Search sub-county..."
                                 placeholderTextColor={colors.textMuted}
-                                style={{ flex: 1, marginLeft: 8, fontSize: 13, color: colors.text, paddingVertical: 8 }}
+                                style={dynamicStyles.dropdownSearchInput}
                                 value={subCountySearch}
                                 onChangeText={setSubCountySearch}
                             />
                         </View>
-                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 200 }}>
+                        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={dynamicStyles.dropdownScroll}>
                             <TouchableOpacity
-                                style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }}
+                                style={dynamicStyles.dropdownItem}
                                 onPress={() => { setSelectedSubCounty(''); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
                             >
-                                <Text style={{ color: colors.text, fontWeight: '700' }}>All Sub-Counties</Text>
+                                <Text style={[dynamicStyles.dropdownItemText, { fontWeight: '700' }]}>All Sub-Counties</Text>
                             </TouchableOpacity>
                             {getSubCountiesByCounty(selectedCounty).filter(sc => sc.toLowerCase().includes(subCountySearch.toLowerCase())).map(sc => (
                                 <TouchableOpacity
                                     key={sc}
-                                    style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: selectedSubCounty === sc ? colors.surfaceAlt : colors.surface }}
+                                    style={[dynamicStyles.dropdownItem, selectedSubCounty === sc && dynamicStyles.dropdownItemSelected]}
                                     onPress={() => { setSelectedSubCounty(sc); setIsSubCountyExpanded(false); setSubCountySearch(''); }}
                                 >
-                                    <Text style={{ color: selectedSubCounty === sc ? colors.primary : colors.text }}>{sc}</Text>
+                                    <Text style={[dynamicStyles.dropdownItemText, selectedSubCounty === sc && { color: colors.primary }]}>{sc}</Text>
                                 </TouchableOpacity>
                             ))}
                         </ScrollView>
@@ -859,19 +839,20 @@ export default function BookRecipientScreen(): JSX.Element {
                     </TouchableWithoutFeedback>
                 </KeyboardAvoidingView>
             </Modal>
+
             {/* History Modal */}
             <Modal visible={historyModalVisible} transparent animationType="slide">
-                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 30, borderTopRightRadius: 30, height: '80%', padding: 20 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                            <Text style={{ fontSize: 20, fontWeight: '900', color: colors.text }}>Booking History</Text>
-                            <TouchableOpacity onPress={() => setHistoryModalVisible(false)} style={{ padding: 5 }}>
+                <View style={dynamicStyles.historyModalOverlay}>
+                    <View style={[dynamicStyles.historyModalContent, { backgroundColor: colors.surface }]}>
+                        <View style={dynamicStyles.historyModalHeader}>
+                            <Text style={[dynamicStyles.historyModalTitle, { color: colors.text }]}>Booking History</Text>
+                            <TouchableOpacity onPress={() => setHistoryModalVisible(false)} style={dynamicStyles.historyModalClose}>
                                 <Ionicons name="close" size={24} color={colors.textSecondary} />
                             </TouchableOpacity>
                         </View>
 
                         {/* Time Filter Chips */}
-                        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                        <View style={dynamicStyles.filterChipsRow}>
                             {[
                                 { id: 'all', label: 'All' },
                                 { id: 'month', label: 'This Month' },
@@ -881,31 +862,29 @@ export default function BookRecipientScreen(): JSX.Element {
                                 <TouchableOpacity
                                     key={filter.id}
                                     onPress={() => setTimeFilter(filter.id as any)}
-                                    style={{
-                                        paddingHorizontal: 12,
-                                        paddingVertical: 6,
-                                        borderRadius: 20,
-                                        backgroundColor: timeFilter === filter.id ? colors.primary : colors.surfaceAlt,
-                                        borderWidth: 1,
-                                        borderColor: timeFilter === filter.id ? colors.primary : colors.surfaceBorder
-                                    }}
+                                    style={[
+                                        dynamicStyles.filterChip,
+                                        {
+                                            backgroundColor: timeFilter === filter.id ? colors.primary : colors.surfaceAlt,
+                                            borderColor: timeFilter === filter.id ? colors.primary : colors.surfaceBorder
+                                        }
+                                    ]}
                                 >
-                                    <Text style={{
-                                        fontSize: 12,
-                                        fontWeight: '700',
-                                        color: timeFilter === filter.id ? '#FFF' : colors.textSecondary
-                                    }}>{filter.label}</Text>
+                                    <Text style={[
+                                        dynamicStyles.filterChipText,
+                                        { color: timeFilter === filter.id ? '#FFF' : colors.textSecondary }
+                                    ]}>{filter.label}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
 
                         {refreshingHistory && !recipientBookings.length ? (
-                            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+                            <ActivityIndicator size="large" color={colors.primary} style={dynamicStyles.historyLoading} />
                         ) : recipientBookings.length === 0 ? (
-                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}>
+                            <View style={dynamicStyles.historyEmptyState}>
                                 <Ionicons name="calendar-outline" size={60} color={colors.surfaceTint} />
-                                <Text style={{ fontSize: 18, fontWeight: '800', color: colors.textSecondary, marginTop: 20 }}>No Bookings Yet</Text>
-                                <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center', marginTop: 10 }}>Your transfusion bookings will appear here.</Text>
+                                <Text style={[dynamicStyles.historyEmptyTitle, { color: colors.textSecondary }]}>No Bookings Yet</Text>
+                                <Text style={[dynamicStyles.historyEmptySubtext, { color: colors.textMuted }]}>Your transfusion bookings will appear here.</Text>
                             </View>
                         ) : (
                             <FlatList
@@ -940,45 +919,32 @@ export default function BookRecipientScreen(): JSX.Element {
                                     const statusColor = statusColors[item.status] || colors.textSecondary;
 
                                     return (
-                                        <View style={{
-                                            backgroundColor: colors.surfaceAlt,
-                                            borderRadius: 18,
-                                            padding: 16,
-                                            marginBottom: 16,
-                                            borderWidth: 1,
-                                            borderColor: colors.surfaceBorder
-                                        }}>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <View style={[dynamicStyles.historyCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.surfaceBorder }]}>
+                                            <View style={dynamicStyles.historyCardHeader}>
                                                 <View>
-                                                    <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>{item.hospitalName}</Text>
-                                                    <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>ID: {item.bookingId}</Text>
+                                                    <Text style={[dynamicStyles.historyCardHospital, { color: colors.text }]}>{item.hospitalName}</Text>
+                                                    <Text style={[dynamicStyles.historyCardId, { color: colors.textSecondary }]}>ID: {item.bookingId}</Text>
                                                 </View>
-                                                <View style={{
-                                                    backgroundColor: statusColor + (isDark ? '30' : '15'),
-                                                    paddingHorizontal: 10,
-                                                    paddingVertical: 4,
-                                                    borderRadius: 10,
-                                                    height: 24
-                                                }}>
-                                                    <Text style={{ fontSize: 10, fontWeight: '900', color: statusColor, textTransform: 'uppercase' }}>{item.status}</Text>
+                                                <View style={[dynamicStyles.historyCardStatus, { backgroundColor: statusColor + (isDark ? '30' : '15') }]}>
+                                                    <Text style={[dynamicStyles.historyCardStatusText, { color: statusColor }]}>{item.status}</Text>
                                                 </View>
                                             </View>
 
-                                            <View style={{ flexDirection: 'row', gap: 15, marginBottom: 12 }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                            <View style={dynamicStyles.historyCardDetails}>
+                                                <View style={dynamicStyles.historyCardDetailItem}>
                                                     <Ionicons name="calendar-outline" size={14} color={colors.primary} />
-                                                    <Text style={{ fontSize: 13, color: colors.text, fontWeight: '600' }}>{item.scheduledDate}</Text>
+                                                    <Text style={[dynamicStyles.historyCardDetailText, { color: colors.text, fontWeight: '600' }]}>{item.scheduledDate}</Text>
                                                 </View>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                <View style={dynamicStyles.historyCardDetailItem}>
                                                     <Ionicons name="time-outline" size={14} color={colors.primary} />
-                                                    <Text style={{ fontSize: 13, color: colors.text, fontWeight: '600' }}>{item.scheduledTime}</Text>
+                                                    <Text style={[dynamicStyles.historyCardDetailText, { color: colors.text, fontWeight: '600' }]}>{item.scheduledTime}</Text>
                                                 </View>
                                             </View>
 
-                                            <View style={{ height: 1, backgroundColor: colors.surfaceBorder, marginBottom: 12 }} />
+                                            <View style={[dynamicStyles.historyCardDivider, { backgroundColor: colors.surfaceBorder }]} />
 
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <Text style={{ fontSize: 13, color: colors.textSecondary }}>Patient: <Text style={{ color: colors.text, fontWeight: '700' }}>{item.patientName || 'Self'}</Text></Text>
+                                            <View style={dynamicStyles.historyCardFooter}>
+                                                <Text style={[dynamicStyles.historyCardPatient, { color: colors.textSecondary }]}>Patient: <Text style={[dynamicStyles.historyCardPatientName, { color: colors.text }]}>{item.patientName || 'Self'}</Text></Text>
                                                 {item.status === 'pending' && (
                                                     <TouchableOpacity
                                                         onPress={async () => {
@@ -999,14 +965,14 @@ export default function BookRecipientScreen(): JSX.Element {
                                                             ]);
                                                         }}
                                                     >
-                                                        <Text style={{ fontSize: 13, color: colors.danger, fontWeight: '700' }}>Cancel</Text>
+                                                        <Text style={[dynamicStyles.historyCardCancel, { color: colors.danger }]}>Cancel</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
                                         </View>
                                     );
                                 }}
-                                contentContainerStyle={{ paddingBottom: 40 }}
+                                contentContainerStyle={dynamicStyles.historyListContent}
                             />
                         )}
                     </View>
@@ -1031,10 +997,11 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 20,
     },
     backButton: {
-        marginRight: 16,
+        marginRight: 0,
     },
     iconCircle: {
         width: 44,
@@ -1044,13 +1011,24 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    headerTitleContainer: {
+        flex: 1,
+        alignItems: 'center',
+    },
     headerTitle: {
-        fontSize: 26,
+        fontSize: 22,
         fontWeight: '800',
         color: '#FFFFFF',
-        flex: 1,
+        textAlign: 'center',
+        letterSpacing: 0.5,
     },
-    headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
+    headerSubtitle: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.8)',
+        marginTop: 2,
+        textAlign: 'center',
+        fontWeight: '500',
+    },
     historyButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1072,12 +1050,75 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         borderRadius: 16,
         paddingHorizontal: 16,
         height: 50,
+        marginBottom: 12,
     },
     searchInput: {
         flex: 1,
         marginLeft: 12,
         color: '#FFFFFF',
-        fontSize: 16,
+        fontSize: 15,
+    },
+    filterRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 4,
+    },
+    filterButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 44,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    filterButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '600',
+        flex: 1,
+    },
+    dropdownContainer: {
+        borderRadius: 12,
+        marginTop: 10,
+        maxHeight: 250,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: colors.primary,
+    },
+    dropdownSearchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.divider,
+        backgroundColor: colors.surfaceAlt,
+    },
+    dropdownSearchInput: {
+        flex: 1,
+        marginLeft: 8,
+        fontSize: 13,
+        color: colors.text,
+        paddingVertical: 8,
+    },
+    dropdownScroll: {
+        maxHeight: 200,
+    },
+    dropdownItem: {
+        padding: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.divider,
+    },
+    dropdownItemSelected: {
+        backgroundColor: colors.surfaceAlt,
+    },
+    dropdownItemText: {
+        color: colors.text,
+        fontSize: 14,
     },
     center: {
         flex: 1,
@@ -1389,5 +1430,129 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontWeight: '800',
         color: '#FFFFFF',
         letterSpacing: 0.5,
+    },
+    // History Modal Styles
+    historyModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    historyModalContent: {
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        height: '80%',
+        padding: 20,
+    },
+    historyModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    historyModalTitle: {
+        fontSize: 20,
+        fontWeight: '900',
+    },
+    historyModalClose: {
+        padding: 5,
+    },
+    filterChipsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 20,
+    },
+    filterChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+    },
+    filterChipText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    historyLoading: {
+        marginTop: 40,
+    },
+    historyEmptyState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 40,
+    },
+    historyEmptyTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        marginTop: 20,
+    },
+    historyEmptySubtext: {
+        fontSize: 14,
+        textAlign: 'center',
+        marginTop: 10,
+    },
+    historyListContent: {
+        paddingBottom: 40,
+    },
+    historyCard: {
+        borderRadius: 18,
+        padding: 16,
+        marginBottom: 16,
+        borderWidth: 1,
+    },
+    historyCardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    historyCardHospital: {
+        fontSize: 16,
+        fontWeight: '800',
+    },
+    historyCardId: {
+        fontSize: 12,
+        marginTop: 2,
+    },
+    historyCardStatus: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 10,
+        height: 24,
+    },
+    historyCardStatusText: {
+        fontSize: 10,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+    },
+    historyCardDetails: {
+        flexDirection: 'row',
+        gap: 15,
+        marginBottom: 12,
+    },
+    historyCardDetailItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    historyCardDetailText: {
+        fontSize: 13,
+    },
+    historyCardDivider: {
+        height: 1,
+        marginBottom: 12,
+    },
+    historyCardFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    historyCardPatient: {
+        fontSize: 13,
+    },
+    historyCardPatientName: {
+        fontWeight: '700',
+    },
+    historyCardCancel: {
+        fontSize: 13,
+        fontWeight: '700',
     },
 });

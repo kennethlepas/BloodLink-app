@@ -2,18 +2,41 @@ import { getHangingTabStyle } from '@/src/constants/TabStyles';
 import { useAppTheme } from '@/src/contexts/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 
 export default function DonorLayout() {
   const { colors, isDark } = useAppTheme();
+
+  // Add loading state check - if colors is undefined, show loading
+  if (!colors) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+      </View>
+    );
+  }
+
+  // Ensure getHangingTabStyle returns a valid object
+  const tabBarStyle = getHangingTabStyle(colors, isDark);
+
+  // Validate tabBarStyle
+  if (!tabBarStyle || typeof tabBarStyle !== 'object') {
+    console.warn('Invalid tabBarStyle, using fallback');
+  }
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary, // Use theme primary blue
-        tabBarInactiveTintColor: '#475569', // Darker gray for better visibility
-        tabBarHideOnKeyboard: true, // Hide on keyboard
-        tabBarStyle: getHangingTabStyle(colors, isDark),
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: '#475569',
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: tabBarStyle || {
+          backgroundColor: colors.surface,
+          borderTopWidth: 1,
+          borderTopColor: colors.divider,
+          height: 65,
+        }, // Fallback style
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '700',
@@ -48,7 +71,7 @@ export default function DonorLayout() {
       <Tabs.Screen
         name="booking-status"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
         }}
       />
 

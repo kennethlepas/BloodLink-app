@@ -12,9 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -23,7 +21,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -46,7 +43,6 @@ const FindBloodScreen: React.FC = () => {
 
   const [selectedBloodType, setSelectedBloodType] = useState<BloodType | 'all'>('all');
   const [isBloodTypeExpanded, setIsBloodTypeExpanded] = useState(false);
-  const [viewBloodBank, setViewBloodBank] = useState<BloodBank | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bloodBanks, setBloodBanks] = useState<BloodBank[]>([]);
@@ -86,9 +82,12 @@ const FindBloodScreen: React.FC = () => {
     // If a selectedBankId param exists and data loaded, attempt auto-open
     if (!loadingAll && allBanksData && params?.selectedBankId) {
       const bank = allBanksData.find(b => b.id === params.selectedBankId);
-      if (bank && !viewBloodBank) {
-        // Automatically open the detailed modal
-        setViewBloodBank(bank);
+      if (bank) {
+        // Navigate to the detail screen with 'bankData' parameter
+        router.push({
+          pathname: '/(shared)/bloodbank-detail' as any,
+          params: { bankData: JSON.stringify(bank) }
+        });
         // Clear param so it doesn't get re-opened accidentally on list refresh
         router.setParams({ selectedBankId: '' });
       }
@@ -237,7 +236,6 @@ const FindBloodScreen: React.FC = () => {
       return;
     }
     try {
-      setViewBloodBank(null);
       router.push({
         pathname: '/(shared)/chat' as any,
         params: {
@@ -259,10 +257,6 @@ const FindBloodScreen: React.FC = () => {
     else await refreshAll();
     setRefreshing(false);
   }, [searched, refreshAll]);
-
-  const closeModal = () => {
-    setViewBloodBank(null);
-  };
 
   // ─── Styles ────────────────────────────────────────────────────────────────
   const styles = StyleSheet.create({
@@ -410,82 +404,6 @@ const FindBloodScreen: React.FC = () => {
     cardFooterBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
     cardFooterBadgeText: { fontSize: 11, fontWeight: '700' },
 
-    // ─── Centered Modal ─────────────────────────────────────────────────────────
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    centeredModal: {
-      width: '90%',
-      maxWidth: 400,
-      maxHeight: '90%',
-      backgroundColor: colors.surface,
-      borderRadius: 24,
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.25,
-      shadowRadius: 20,
-      elevation: 8,
-    },
-    modalGradientHeader: {
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      paddingBottom: 24,
-    },
-    modalHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 14,
-    },
-    modalIconCircle: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    modalTitleBlock: { flex: 1 },
-    modalTitle: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
-    modalBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-    modalStatusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-    modalStatusText: { fontSize: 11, fontWeight: '700' },
-    modalDistanceChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)' },
-    modalDistanceText: { fontSize: 11, fontWeight: '600', color: '#FFFFFF' },
-    modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-    modalBody: { flex: 1, padding: 20 },
-    modalSection: { marginBottom: 20 },
-    modalSectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 12 },
-    actionsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-    actionBtn: { flex: 1, borderRadius: 14, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, paddingVertical: 14 },
-    actionBtnText: { fontSize: 13, fontWeight: '700' },
-    infoCard: { backgroundColor: colors.bg, borderRadius: 16, padding: 16, marginBottom: 12 },
-    infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
-    infoIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
-    infoContent: { flex: 1 },
-    infoLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 2, textTransform: 'uppercase' },
-    infoValue: { fontSize: 14, color: colors.text, fontWeight: '500' },
-    inventoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    invItem: {
-      width: '22%',
-      borderRadius: 14,
-      alignItems: 'center',
-      gap: 4,
-      paddingVertical: 12,
-      paddingHorizontal: 4,
-      backgroundColor: colors.surfaceAlt,
-      borderWidth: 1,
-      borderColor: 'transparent'
-    },
-    invType: { fontSize: 14, fontWeight: '800', color: colors.text },
-    invUnits: { fontSize: 10, fontWeight: '700' },
-    legendRow: { flexDirection: 'row', gap: 16, marginTop: 16, flexWrap: 'wrap' },
-    legendDot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { fontSize: 11, color: colors.textMuted, marginLeft: 4 },
-
     // Empty state
     emptyWrap: { flex: 1, alignItems: 'center', paddingVertical: 80, paddingHorizontal: 40 },
     emptyIconWrap: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
@@ -494,12 +412,20 @@ const FindBloodScreen: React.FC = () => {
   });
 
   // ─── Render Functions ────────────────────────────────────────────────────────
+  const handleBankPress = (bank: BloodBank) => {
+    // Navigate to detail screen with 'bankData' parameter
+    router.push({
+      pathname: '/(shared)/bloodbank-detail' as any,
+      params: { bankData: JSON.stringify(bank) }
+    });
+  };
+
   const renderCard = ({ item }: { item: BloodBank }) => {
     const openStatus = isBloodBankOpen(item.operatingHours);
     const total = totalUnitsFor(item);
 
     return (
-      <TouchableOpacity style={styles.card} onPress={() => setViewBloodBank(item)} activeOpacity={0.88}>
+      <TouchableOpacity style={styles.card} onPress={() => handleBankPress(item)} activeOpacity={0.88}>
         <View style={styles.cardHeader}>
           <View style={[styles.cardIconCircle, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#DBEAFE' }]}>
             <Ionicons name="business" size={24} color={colors.primary} />
@@ -545,206 +471,6 @@ const FindBloodScreen: React.FC = () => {
           )}
         </View>
       </TouchableOpacity>
-    );
-  };
-
-  const renderModal = () => {
-    if (!viewBloodBank) return null;
-    const item = viewBloodBank;
-    const openStatus = isBloodBankOpen(item.operatingHours);
-
-    return (
-      <Modal
-        visible={!!viewBloodBank}
-        animationType="fade"
-        transparent
-        statusBarTranslucent
-        onRequestClose={closeModal}
-      >
-        <TouchableWithoutFeedback onPress={closeModal}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => { }}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <View style={styles.centeredModal}>
-                  {/* Gradient Header */}
-                  <LinearGradient
-                    colors={[colors.primary, '#60A5FA']}
-                    style={styles.modalGradientHeader}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    <View style={styles.modalHeaderRow}>
-                      <View style={styles.modalIconCircle}>
-                        <Ionicons name="business" size={28} color="#FFFFFF" />
-                      </View>
-                      <View style={styles.modalTitleBlock}>
-                        <Text style={styles.modalTitle} numberOfLines={2}>{item.name}</Text>
-                        <View style={styles.modalBadgeRow}>
-                          {openStatus === true && (
-                            <View style={[styles.modalStatusBadge, { backgroundColor: 'rgba(16,185,129,0.25)' }]}>
-                              <Text style={[styles.modalStatusText, { color: '#6EE7B7' }]}>● Open Now</Text>
-                            </View>
-                          )}
-                          {openStatus === false && (
-                            <View style={[styles.modalStatusBadge, { backgroundColor: 'rgba(239,68,68,0.25)' }]}>
-                              <Text style={[styles.modalStatusText, { color: '#FCA5A5' }]}>● Closed</Text>
-                            </View>
-                          )}
-                          {item.distance !== undefined && (
-                            <View style={styles.modalDistanceChip}>
-                              <Ionicons name="navigate" size={12} color="#FFFFFF" />
-                              <Text style={styles.modalDistanceText}>{item.distance.toFixed(1)} km away</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                      <TouchableOpacity style={styles.modalCloseBtn} onPress={closeModal}>
-                        <Ionicons name="close" size={22} color="#FFFFFF" />
-                      </TouchableOpacity>
-                    </View>
-                  </LinearGradient>
-
-                  {/* Scrollable Body */}
-                  <ScrollView
-                    style={styles.modalBody}
-                    contentContainerStyle={{ paddingBottom: 40 }}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {/* Quick Actions */}
-                    <View style={styles.actionsRow}>
-                      <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#D1FAE5' }]}
-                        onPress={() => handleCall(item.phoneNumber)}
-                      >
-                        <Ionicons name="call" size={20} color="#10B981" />
-                        <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Call</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#EDE9E3' }]}
-                        onPress={() => handleDirections(item)}
-                      >
-                        <Ionicons name="navigate" size={20} color="#2C2418" />
-                        <Text style={[styles.actionBtnText, { color: '#2C2418' }]}>Directions</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(139,92,246,0.15)' : '#EDE9FE' }]}
-                        onPress={() => handleChat(item)}
-                      >
-                        <Ionicons name="chatbubble-ellipses" size={20} color="#7C3AED" />
-                        <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Chat</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Contact & Location */}
-                    <View style={styles.modalSection}>
-                      <Text style={styles.modalSectionTitle}>📍 Contact & Location</Text>
-                      <View style={styles.infoCard}>
-                        <View style={styles.infoRow}>
-                          <View style={styles.infoIcon}>
-                            <Ionicons name="location" size={18} color={colors.primary} />
-                          </View>
-                          <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>Address</Text>
-                            <Text style={styles.infoValue}>{item.address || 'Not provided'}</Text>
-                          </View>
-                        </View>
-
-                        <View style={styles.infoRow}>
-                          <View style={styles.infoIcon}>
-                            <Ionicons name="call" size={18} color={colors.primary} />
-                          </View>
-                          <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>Phone</Text>
-                            <Text style={[styles.infoValue, { color: colors.primary }]}>
-                              {item.phoneNumber && item.phoneNumber !== 'Not provided'
-                                ? item.phoneNumber
-                                : 'Not available'}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {item.operatingHours && (
-                          <View style={styles.infoRow}>
-                            <View style={styles.infoIcon}>
-                              <Ionicons name="time" size={18} color={colors.primary} />
-                            </View>
-                            <View style={styles.infoContent}>
-                              <Text style={styles.infoLabel}>Hours</Text>
-                              <Text style={styles.infoValue}>
-                                {item.operatingHours.open} – {item.operatingHours.close}
-                              </Text>
-                            </View>
-                          </View>
-                        )}
-
-                        {item.location?.latitude && item.location?.longitude && (
-                          <View style={styles.infoRow}>
-                            <View style={styles.infoIcon}>
-                              <Ionicons name="compass" size={18} color={colors.primary} />
-                            </View>
-                            <View style={[styles.infoContent, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
-                              <View>
-                                <Text style={styles.infoLabel}>GPS Coordinates</Text>
-                                <Text style={[styles.infoValue, { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 12 }]}>
-                                  {item.location.latitude.toFixed(5)}, {item.location.longitude.toFixed(5)}
-                                </Text>
-                              </View>
-                              <TouchableOpacity
-                                onPress={() => handleDirections(item)}
-                                style={{ padding: 8, borderRadius: 10, backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#DBEAFE' }}
-                              >
-                                <Ionicons name="open-outline" size={16} color={colors.primary} />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Blood Inventory */}
-                    <View style={styles.modalSection}>
-                      <Text style={styles.modalSectionTitle}>🩸 Blood Stock</Text>
-                      <View style={styles.infoCard}>
-                        <View style={styles.inventoryGrid}>
-                          {BLOOD_TYPES.map(type => {
-                            const units = item.inventory?.[type]?.units ?? 0;
-                            const { color, bg } = getInventoryStatus(units);
-                            return (
-                              <View key={type} style={[styles.invItem, { backgroundColor: bg + '40', borderColor: color + '30' }]}>
-                                <Text style={styles.invType}>{type}</Text>
-                                <Text style={[styles.invUnits, { color }]}>{units} units</Text>
-                              </View>
-                            );
-                          })}
-                        </View>
-
-                        {/* Legend */}
-                        <View style={styles.legendRow}>
-                          {[
-                            { color: '#10B981', label: '≥5 units — Good' },
-                            { color: '#F59E0B', label: '1–4 units — Low' },
-                            { color: '#EF4444', label: '0 units — Empty' },
-                          ].map(l => (
-                            <View key={l.label} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <View style={[styles.legendDot, { backgroundColor: l.color }]} />
-                              <Text style={styles.legendText}>{l.label}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    </View>
-                  </ScrollView>
-                </View>
-              </KeyboardAvoidingView>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
     );
   };
 
@@ -1038,9 +764,6 @@ const FindBloodScreen: React.FC = () => {
           }
         />
       )}
-
-      {/* Blood Bank Detail Modal */}
-      {renderModal()}
     </SafeAreaView>
   );
 };

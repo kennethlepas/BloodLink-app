@@ -193,6 +193,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(shared)/donor-verification" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/requester-verification" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/verification-status" options={{ headerShown: false }} />
+        <Stack.Screen name="(shared)/blood-demand" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'auto'} />
       <AwarenessModal

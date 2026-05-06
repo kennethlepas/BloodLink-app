@@ -9,7 +9,7 @@ import { BloodBank, BloodType, DonorBooking } from '@/src/types/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -44,6 +44,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 
 export default function BookDonationScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams<{ hospitalName?: string }>();
     const { user } = useUser();
     const { colors } = useAppTheme();
 
@@ -99,6 +100,13 @@ export default function BookDonationScreen() {
         try {
             const data = await getBloodBanks();
             setHospitals(data);
+
+            // Pre-select hospital if navigated from blood bank detail
+            if (params.hospitalName) {
+                const preselected = data.find(h => h.name === params.hospitalName);
+                if (preselected) setSelectedHospital(preselected);
+            }
+
             setLoading(false);
         } catch (error) {
             console.error('Error fetching hospitals:', error);
